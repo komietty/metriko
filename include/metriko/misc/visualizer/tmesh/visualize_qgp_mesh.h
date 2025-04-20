@@ -13,10 +13,29 @@
 namespace metriko::visualizer {
 
     // Get RGB color from colormap at normalized position t ∈ [0,1]
-    glm::vec3 get_color_from_color_map(const std::string& colormapName, float t) {
+    inline glm::vec3 get_color_from_color_map(const std::string& colormapName, float t) {
         const polyscope::render::ValueColorMap& cmap =
             polyscope::render::engine->getColorMap(colormapName);
         return cmap.getValue(t);
+    }
+
+    inline glm::vec3 hsv2rgb(float h, float s, float v) {
+        float r, g, b;
+        int i = int(h * 6);
+        float f = h * 6 - i;
+        float p = v * (1 - s);
+        float q = v * (1 - f * s);
+        float t = v * (1 - (1 - f) * s);
+        switch(i % 6) {
+            case 0: r = v, g = t, b = p; break;
+            case 1: r = q, g = v, b = p; break;
+            case 2: r = p, g = v, b = t; break;
+            case 3: r = p, g = q, b = v; break;
+            case 4: r = t, g = p, b = v; break;
+            case 5: r = v, g = p, b = q; break;
+            default: r = 0, g = 0, b = 0; break;
+        }
+        return {r, g, b};
     }
 
     inline void visualize_split_mesh(
@@ -74,12 +93,13 @@ namespace metriko::visualizer {
 
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_real_distribution dist(0.1, 0.9);
+        std::uniform_real_distribution dist(0.1, 0.6);
         double randomValue = dist(gen);
 
         std::vector<glm::vec3> colors;
         for (int i = 0; i < F.rows(); ++i) {
-            colors.emplace_back(get_color_from_color_map("viridis", randomValue));
+            //colors.emplace_back(get_color_from_color_map("viridis", randomValue));
+            colors.emplace_back(hsv2rgb(randomValue, 0.8, 0.9));
         }
 
         auto surf = polyscope::registerSurfaceMesh("patch mesh-" + std::to_string(idx), V, F);
