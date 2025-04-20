@@ -1,60 +1,58 @@
-#include "hmesh.h"
-
-#include "igl/edge_topology.h"
+#pragma once
 
 namespace metriko {
-    Half Half::next() const { return {m->next[id], m}; }
-    Half Half::prev() const { return {m->prev[id], m}; }
-    Half Half::twin() const { return {m->twin[id], m}; }
-    Vert Half::tail() const { return {m->tail[id], m}; }
-    Vert Half::head() const { return {m->head[id], m}; }
-    Edge Half::edge() const { return {m->edge[id], m}; }
-    Face Half::face() const { return {m->face[id], m}; }
-    Crnr Half::crnr() const { return {m->crnr[id], m}; }
+    inline Half Half::next() const { return {m->next[id], m}; }
+    inline Half Half::prev() const { return {m->prev[id], m}; }
+    inline Half Half::twin() const { return {m->twin[id], m}; }
+    inline Vert Half::tail() const { return {m->tail[id], m}; }
+    inline Vert Half::head() const { return {m->head[id], m}; }
+    inline Edge Half::edge() const { return {m->edge[id], m}; }
+    inline Face Half::face() const { return {m->face[id], m}; }
+    inline Crnr Half::crnr() const { return {m->crnr[id], m}; }
 
-    Half Vert::half() const { return {m->vert2half[id], m}; }
-    Half Edge::half() const { return {m->edge2half[id], m}; }
-    Half Face::half() const { return {m->face2half[id], m}; }
-    Half Loop::half() const { return {m->loop2half[id], m}; }
+    inline Half Vert::half() const { return {m->vert2half[id], m}; }
+    inline Half Edge::half() const { return {m->edge2half[id], m}; }
+    inline Half Face::half() const { return {m->face2half[id], m}; }
+    inline Half Loop::half() const { return {m->loop2half[id], m}; }
 
-    Half Crnr::half() const { return Half{m->crnr2half[id], m}; }
-    Vert Crnr::vert() const { return Half{m->crnr2half[id], m}.prev().tail(); }
-    Face Crnr::face() const { return Half{m->crnr2half[id], m}.face(); }
+    inline Half Crnr::half() const { return Half{m->crnr2half[id], m}; }
+    inline Vert Crnr::vert() const { return Half{m->crnr2half[id], m}.prev().tail(); }
+    inline Face Crnr::face() const { return Half{m->crnr2half[id], m}.face(); }
 
-    Vert Edge::vert0() const { return {m->edge2vert(id, 0), m}; }
-    Vert Edge::vert1() const { return {m->edge2vert(id, 1), m}; }
-    Face Edge::face0() const { return {m->edge2face(id, 0), m}; }
-    Face Edge::face1() const { return {m->edge2face(id, 1), m}; }
+    inline Vert Edge::vert0() const { return {m->edge2vert(id, 0), m}; }
+    inline Vert Edge::vert1() const { return {m->edge2vert(id, 1), m}; }
+    inline Face Edge::face0() const { return {m->edge2face(id, 0), m}; }
+    inline Face Edge::face1() const { return {m->edge2face(id, 1), m}; }
 
-    bool Half::isCanonical() const { return edge().half().id == id; }
-    bool Half::isBoundary()  const { return face().id == -1; }
-    bool Vert::isBoundary()  const { return m->isBV[id]; }
-    bool Edge::isBoundary()  const { return half().isBoundary() || half().twin().isBoundary(); }
-    double Edge::len() const { return Half{m->edge2half[id], m}.len(); }
-    double Half::len() const { return vec().norm(); }
-    double Half::cot() const { return m->halfCotan[id]; }
-    double Edge::cot() const { return m->edgeCotan[id]; }
-    double Half::varg() const { return m->heArgOnVert[id]; }
-    double Half::farg() const { return m->heArgOnFace[id]; }
-    double Half::darg() const { return m->dihedralArg[id]; }
-    double Face::area() const { return m->faceArea[id]; }
-    double Vert::baryArea() const { return m->baryDualArea[id]; }
-    double Vert::circArea() const { return m->circDualArea[id]; }
-    Row3d Half::vec() const { return head().pos() - tail().pos(); }
-    Row3d Vert::pos() const { return m->pos.row(id); }
-    Row3d Vert::basisX() const { return m->vertBasisX.row(id); }
-    Row3d Vert::basisY() const { return m->vertBasisY.row(id); }
-    Row3d Vert::normal() const { return m->vertNormal.row(id); }
-    Row3d Face::basisX() const { return m->faceBasisX.row(id); }
-    Row3d Face::basisY() const { return m->faceBasisY.row(id); }
-    Row3d Face::normal() const { return m->faceNormal.row(id); }
-    Row3d Face::center() const { return m->baryCenter.row(id); }
+    inline bool Half::isCanonical() const { return edge().half().id == id; }
+    inline bool Half::isBoundary()  const { return face().id == -1; }
+    inline bool Vert::isBoundary()  const { return m->isBV[id]; }
+    inline bool Edge::isBoundary()  const { return half().isBoundary() || half().twin().isBoundary(); }
+    inline double Edge::len() const { return Half{m->edge2half[id], m}.len(); }
+    inline double Half::len() const { return vec().norm(); }
+    inline double Half::cot() const { return m->halfCotan[id]; }
+    inline double Edge::cot() const { return m->edgeCotan[id]; }
+    inline double Half::varg() const { return m->heArgOnVert[id]; }
+    inline double Half::farg() const { return m->heArgOnFace[id]; }
+    inline double Half::darg() const { return m->dihedralArg[id]; }
+    inline double Face::area() const { return m->faceArea[id]; }
+    inline double Vert::baryArea() const { return m->baryDualArea[id]; }
+    inline double Vert::circArea() const { return m->circDualArea[id]; }
+    inline Row3d Half::vec() const { return head().pos() - tail().pos(); }
+    inline Row3d Vert::pos() const { return m->pos.row(id); }
+    inline Row3d Vert::basisX() const { return m->vertBasisX.row(id); }
+    inline Row3d Vert::basisY() const { return m->vertBasisY.row(id); }
+    inline Row3d Vert::normal() const { return m->vertNormal.row(id); }
+    inline Row3d Face::basisX() const { return m->faceBasisX.row(id); }
+    inline Row3d Face::basisY() const { return m->faceBasisY.row(id); }
+    inline Row3d Face::normal() const { return m->faceNormal.row(id); }
+    inline Row3d Face::center() const { return m->baryCenter.row(id); }
 
-    AdjIter<AdjVH> Vert::adjHalfs(bool ccw) { return {m, m->vert2half[id], ccw}; }
-    AdjIter<AdjFH> Face::adjHalfs(bool ccw) { return {m, m->face2half[id], ccw}; }
-    AdjIter<AdjLH> Loop::adjHalfs(bool ccw) { return {m, m->loop2half[id], ccw}; }
-    AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) { assert(h.tail().id == id); return {m, h.id, ccw}; }
-    AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) { assert(h.face().id == id); return {m, h.id, ccw}; }
+    inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) { return {m, m->vert2half[id], ccw}; }
+    inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) { return {m, m->face2half[id], ccw}; }
+    inline AdjIter<AdjLH> Loop::adjHalfs(bool ccw) { return {m, m->loop2half[id], ccw}; }
+    inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) { assert(h.tail().id == id); return {m, h.id, ccw}; }
+    inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) { assert(h.face().id == id); return {m, h.id, ccw}; }
 
     /*
      Created a Double-Connected Edge-List (a.k.a. "halfedge structure") from the usual
@@ -77,7 +75,7 @@ namespace metriko {
      HF   #F by 1 - face containing halfedge
      nextH, prevH, twinH - #H by 1 DCEL traversing operations. twinH(i)=-1 for boundary edges.
     */
-    void dcel(
+    inline void dcel(
         const VecXi &D,
         const MatXi &F,
         const MatXi &EV,
@@ -161,7 +159,7 @@ namespace metriko {
         }
     }
 
-    Hmesh::Hmesh(
+    inline Hmesh::Hmesh(
         const MatXd &V,
         const MatXi &F
     ) {

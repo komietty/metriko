@@ -32,19 +32,19 @@ int main(int argc, char** argv) {
         cmbExtRosy.block(f.id, 9, 1, 3) = (c3.real() * f.basisX() + c3.imag() * f.basisY()).normalized();
     }
 
-    Data data(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N);
-    data.seamless = true;
-    data.localInjectivity = false;
+    RosyParameterization rp(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N);
+    rp.seamless = true;
+    rp.localInjectivity = false;
     //data.roundSeams = true;
-    data.verbose = false;
+    rp.verbose = false;
 
     MatXd uv(mesh->nF * 3, 2);
-    data.setup();
-    data.integ();
+    rp.setup();
+    rp.integ();
     for (const Face f: mesh->faces) {
-        uv.row(f.id * 3 + 0) << data.cfn(f.id, 0), data.cfn(f.id, 1);
-        uv.row(f.id * 3 + 1) << data.cfn(f.id, 4), data.cfn(f.id, 5);
-        uv.row(f.id * 3 + 2) << data.cfn(f.id, 8), data.cfn(f.id, 9);
+        uv.row(f.id * 3 + 0) << rp.cfn(f.id, 0), rp.cfn(f.id, 1);
+        uv.row(f.id * 3 + 1) << rp.cfn(f.id, 4), rp.cfn(f.id, 5);
+        uv.row(f.id * 3 + 2) << rp.cfn(f.id, 8), rp.cfn(f.id, 9);
     }
 
     /// ---- visualize mesh ---- ///

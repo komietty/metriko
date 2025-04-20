@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     mesh = std::make_unique<Hmesh>(V, F);
     rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
-    rawf->computeMatching(MatchingType::Curl);
+    rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
     cmbf = compute_combbed_field(*rawf, seam);
@@ -45,19 +45,19 @@ int main(int argc, char** argv) {
         cmbExtRosy.block(f.id, 9, 1, 3) = (c3.real() * f.basisX() + c3.imag() * f.basisY()).normalized();
     }
 
-    Data data(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N, 0.002);
-    data.seamless = false;
-    data.localInjectivity = true;
-    data.verbose = false;
-    data.setup();
-    data.integ();
+    RosyParameterization rp(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
+    rp.seamless = false;
+    rp.localInjectivity = true;
+    rp.verbose = false;
+    rp.setup();
+    rp.integ();
 
     uv1.resize(mesh->nF * 3, 2);
     uv2.resize(mesh->nF * 3);
     for (const Face f: mesh->faces) {
-        uv1.row(f.id * 3 + 0) << data.cfn(f.id, 0), data.cfn(f.id, 1);
-        uv1.row(f.id * 3 + 1) << data.cfn(f.id, 4), data.cfn(f.id, 5);
-        uv1.row(f.id * 3 + 2) << data.cfn(f.id, 8), data.cfn(f.id, 9);
+        uv1.row(f.id * 3 + 0) << rp.cfn(f.id, 0), rp.cfn(f.id, 1);
+        uv1.row(f.id * 3 + 1) << rp.cfn(f.id, 4), rp.cfn(f.id, 5);
+        uv1.row(f.id * 3 + 2) << rp.cfn(f.id, 8), rp.cfn(f.id, 9);
     }
     for (const Face f: mesh->faces) {
         uv2(f.id * 3 + 0) = complex{uv1(f.id * 3 + 0, 0), uv1(f.id * 3 + 0, 1)};
@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
         std::vector<std::vector<visualizer::SplitElem> > sv_quad;
         gen_split_table(tmesh, tq_draw, split_verts, sv_quad);
         visualizer::visualize_split_edge(tmesh, R, uv2, cmbf->matching, sv_quad, ii, arcs1, arcs2);
-        visualizer::visualize_split_mesh(arcs1, arcs2, tmesh, uv2, ii);
+        visualizer::visualize_split_mesh(arcs1, arcs2, tmesh, uv2, ii, tmesh.nTQ);
     }
 
     polyscope::show();

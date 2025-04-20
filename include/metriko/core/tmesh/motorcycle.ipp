@@ -1,11 +1,11 @@
-#include "motorcycle.h"
+#pragma once
 #include "../hmesh/utilities.h"
 
 namespace metriko {
-const Msgmt &Msgmt::next() const { return curv->sgmts[next_id]; }
-const Msgmt &Msgmt::prev() const { return curv->sgmts[prev_id]; }
+inline const Msgmt &Msgmt::next() const { return curv->sgmts[next_id]; }
+inline const Msgmt &Msgmt::prev() const { return curv->sgmts[prev_id]; }
 
-void Graph::gen_ports(
+inline void Graph::gen_ports(
     const Hmesh &mesh,
     const VecXc &cfn,
     const VecXi &singular
@@ -60,7 +60,7 @@ void Graph::gen_ports(
 }
 
 //Task: need to consider matching in with fist segments(?)
-void Mcurv::add_segment_init(
+inline void Mcurv::add_segment_init(
     const VecXc& cfn,
     const std::vector<Mcurv>& edges,
     const VecXi& matching
@@ -76,7 +76,7 @@ void Mcurv::add_segment_init(
 
 
 //Task: need to consider parallel intersection (e.g. bumpy cube case)
-void Mcurv::add_segment_next(
+inline void Mcurv::add_segment_next(
     const VecXc& cfn,
     const std::vector<Mcurv>& edges,
     const VecXi& matching
@@ -90,7 +90,7 @@ void Mcurv::add_segment_next(
     add_segment(cfn, edges, *this, dir, uv0, oh);
 }
 
-void Mcurv::add_segment(
+inline void Mcurv::add_segment(
     const VecXc& cfn,
     const std::vector<Mcurv> &edges,
     const Mcurv& exception,

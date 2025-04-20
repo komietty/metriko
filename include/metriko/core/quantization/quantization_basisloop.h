@@ -81,7 +81,7 @@ namespace metriko {
                     if (curr.id == tmp_idx) { visited_ = true; break; }
                     tmp_idx = m[tmp_idx];
                 }
-                if (!visited_ && std::ranges::none_of(visited, [&](int id) { return id == curr.id; })) {
+                if (!visited_ && rg::none_of(visited, [&](int id) { return id == curr.id; })) {
                     q.emplace(Comparator{len - 1, R[curr.edge().id], curr.id});
                     m.emplace(curr.id, prev.id);
                     visited.emplace_back(curr.id);

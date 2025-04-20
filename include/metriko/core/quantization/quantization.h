@@ -29,9 +29,6 @@ namespace metriko {
        const Tmesh& tmesh,
        const VecXd& R
    ) {
-       namespace  vw = std::views;
-       namespace  rg = std::ranges;
-
        VecXd X = VecXd::Zero(tmesh.tedges.size());
        MatXd C = compute_constraint(tmesh);
        VecXd I = VecXd::Ones(tmesh.tedges.size());

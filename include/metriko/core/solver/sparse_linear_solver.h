@@ -56,7 +56,6 @@ namespace metriko {
     inline VecXd solveSmallestEig(const SprsD& L, const SprsD& M, int nIter = 50) {
         Eigen::SimplicialLDLT<SprsD> solver;
         solver.compute(L);
-        //srand((unsigned int) 13);
         VecXd u = VecXd::Random(L.rows());
         VecXd x = u;
         for (size_t i = 0; i < nIter; i++) {

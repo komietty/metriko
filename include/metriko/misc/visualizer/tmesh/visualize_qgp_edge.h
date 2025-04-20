@@ -106,17 +106,17 @@ inline void visualize_split_edge(
         }
     }
 
-    auto c = polyscope::registerCurveNetwork("split edges-" + std::to_string(tqid), ns, es);
-    c->setEnabled(false);
-    c->resetTransform();
-    c->setRadius(0.0005);
-    c->setMaterial("flat");
+    //auto c = polyscope::registerCurveNetwork("split edges-" + std::to_string(tqid), ns, es);
+    //c->setEnabled(false);
+    //c->resetTransform();
+    //c->setRadius(0.0005);
+    //c->setMaterial("flat");
 
-    auto p = polyscope::registerPointCloud("tedge split edge fr to-" + std::to_string(tqid), ps);
-    p->setEnabled(false);
-    p->addScalarQuantity("bgn 0 end 1", be);
-    p->setPointRadius(0.001);
-    p->resetTransform();
+    //auto p = polyscope::registerPointCloud("tedge split edge fr to-" + std::to_string(tqid), ps);
+    //p->setEnabled(false);
+    //p->addScalarQuantity("bgn 0 end 1", be);
+    //p->setPointRadius(0.001);
+    //p->resetTransform();
 }
 
 inline void visualize_split_edge(

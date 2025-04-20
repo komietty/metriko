@@ -1,0 +1,4 @@
+[submodule "example/polyscope"]
+	path = example/polyscope
+  url = https://github.com/nmwsharp/polyscope.git
+	branch = master
