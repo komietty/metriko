@@ -24,6 +24,7 @@ MatXd V;
 MatXi F;
 
 int main(int argc, char** argv) {
+    std::cout << argv[1] << std::endl;
     igl::readOBJ(argv[1], V, F);
     mesh = std::make_unique<Hmesh>(V, F);
     rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
@@ -65,16 +66,19 @@ int main(int argc, char** argv) {
         uv2(f.id * 3 + 2) = complex{uv1(f.id * 3 + 2, 0), uv1(f.id * 3 + 2, 1)};
     }
 
-    /// ---- visualize mesh ---- ///
     polyscope::init();
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
-    //const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
-    //const auto prms = surf->addParameterizationQuantity("params", uv1);
-    //surf->addFaceVectorQuantity("cmb field", cmbExtZero);
-    //prms->setEnabled(false);
-    //prms->setStyle(polyscope::ParamVizStyle::GRID);
-    //prms->setCheckerSize(1);
+
+    /// ---- visualize mesh ---- ///
+    {
+        const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
+        const auto prms = surf->addParameterizationQuantity("params", uv1);
+        surf->addFaceVectorQuantity("cmb field", cmbExtZero);
+        prms->setEnabled(false);
+        prms->setStyle(polyscope::ParamVizStyle::GRID);
+        prms->setCheckerSize(1);
+    }
 
     ///--- gen mport, medge ---///
     auto graph = Graph(*mesh, uv2, cmbf->matching, cmbf->singular);
@@ -100,6 +104,10 @@ int main(int argc, char** argv) {
     for (int i = 0; i < tmesh.nTE; i++)
         split_verts[i] = visualizer::construct_verts_on_tedge(tmesh, X, R, i);
 
+    MatXd VQ;
+    MatXi FQ;
+    std::vector<glm::vec3> CQ;
+
     for (int ii = 0; ii < tmesh.tquads.size(); ii++) {
         std::vector<visualizer::SplitArc> arcs1(0);
         std::vector<visualizer::SplitArc> arcs2(0);
@@ -107,9 +115,15 @@ int main(int argc, char** argv) {
         std::vector<std::vector<visualizer::SplitElem> > sv_quad;
         gen_split_table(tmesh, tq_draw, split_verts, sv_quad);
         visualizer::visualize_split_edge(tmesh, R, uv2, cmbf->matching, sv_quad, ii, arcs1, arcs2);
-        visualizer::visualize_split_mesh(arcs1, arcs2, tmesh, uv2, ii, tmesh.nTQ);
+        visualizer::visualize_split_mesh(arcs1, arcs2, tmesh, uv2, ii, VQ, FQ, CQ);
     }
 
+    {
+        auto surf = polyscope::registerSurfaceMesh("quad mesh", VQ, FQ);
+        surf->addFaceColorQuantity("color", CQ)->setEnabled(true);
+        surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
+        surf->setEdgeWidth(1.);
+    }
     polyscope::show();
     return 0;
 }

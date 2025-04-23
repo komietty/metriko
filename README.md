@@ -1,5 +1,5 @@
 # metriko
-![fertility](docs/fertility.png)
+![fertility](docs/qgp_1.jpg)
 
 Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing over 10k vertices.
 
@@ -16,13 +16,13 @@ Metriko is currently in early development. Available features include:
 - Globally optimal rotational symmetry tangent fields
 - Basic integration of tangent fields
 - Integer Grid Mapping (IGM) using an iterative rounding algorithm
-- T-mesh implementation based on the motorcycle graph algorithm
+- T-mesh implementation based on the motorcycle graph
 - Quantization and mesh generation using T-mesh
 
 Known limitations and issues:
 - Quantization results can vary in quality for coarse quads
 - Meshes with boundaries are currently not supported (planned for future support)
-- While quantization is robust, the meshing technique is not yet optimized for coarse quad meshes
+- While quantization is robust, the meshing technique is not yet optimized for coarse quads
 
 ## Usage
 Metriko is a header-only library with a minimal dependency on libigl (only the core features are required). To run a demo, install Polyscope using the submodule system provided.

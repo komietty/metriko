@@ -12,13 +12,6 @@
 
 namespace metriko::visualizer {
 
-    // Get RGB color from colormap at normalized position t ∈ [0,1]
-    inline glm::vec3 get_color_from_color_map(const std::string& colormapName, float t) {
-        const polyscope::render::ValueColorMap& cmap =
-            polyscope::render::engine->getColorMap(colormapName);
-        return cmap.getValue(t);
-    }
-
     inline glm::vec3 hsv2rgb(float h, float s, float v) {
         float r, g, b;
         int i = int(h * 6);
@@ -44,30 +37,14 @@ namespace metriko::visualizer {
     const Tmesh& tmesh,
     const VecXc& cfn,
     const int idx,
-    const int num
+    MatXd& VQ,
+    MatXi& FQ,
+    std::vector<glm::vec3>& CQ
 ) {
-        auto intersections = gen_intersection_table(tmesh, tmesh.tquads[idx], arcs1, arcs2, cfn);
-
-        auto& table = intersections.table;
-        assert(intersections.pos.size() == table.rows() * table.cols());
-
-        std::vector<glm::vec3> P;
-        std::vector<double> I;
-        std::vector<double> J;
-        for (int i = 0; i < table.rows(); ++i) {
-            for (int j = 0; j < table.cols(); ++j) {
-                auto p = intersections.pos[table(i, j)];
-                P.emplace_back(p.x(), p.y(), p.z());
-                I.emplace_back(i);
-                J.emplace_back(j);
-            }}
-
-        //auto pc = polyscope::registerPointCloud("intersection point", P);
-        //pc->setEnabled(false);
-        //pc->addScalarQuantity("i", I);
-        //pc->addScalarQuantity("j", J);
-        //pc->resetTransform();
-        //pc->setPointRadius(0.001);
+        int nVQ = VQ.rows();
+        int nFQ = FQ.rows();
+        auto [pos, table] = gen_intersection_table(tmesh, tmesh.tquads[idx], arcs1, arcs2, cfn);
+        assert(pos.size() == table.rows() * table.cols());
 
         MatXd V(table.rows() * table.cols(), 3);
         MatXi F((table.rows() - 1) * (table.cols() - 1), 4);
@@ -75,43 +52,41 @@ namespace metriko::visualizer {
         for (int i = 0; i < table.rows(); ++i) {
         for (int j = 0; j < table.cols(); ++j) {
             auto i0 = table(i, j);
-            auto p0 = intersections.pos[i0];
+            auto p0 = pos[i0];
             V.row(i0) = p0;
         }}
 
         int k = 0;
         for (int i = 0; i < table.rows() - 1; ++i) {
         for (int j = 0; j < table.cols() - 1; ++j) {
-            auto i0 = table(i, j);
-            auto i1 = table(i + 1, j);
-            auto i2 = table(i, j + 1);
-            auto i3 = table(i + 1, j + 1);
-            F.row(k) << i0, i2, i3, i1;
+            int i0 = table(i, j);
+            int i1 = table(i + 1, j);
+            int i2 = table(i, j + 1);
+            int i3 = table(i + 1, j + 1);
+            F.row(k) << nVQ + i0, nVQ + i2, nVQ + i3, nVQ + i1;
             k++;
         }}
 
-
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_real_distribution dist(0.1, 0.6);
+        std::uniform_real_distribution dist(0.15, 0.55);
         double randomValue = dist(gen);
 
-        std::vector<glm::vec3> colors;
         for (int i = 0; i < F.rows(); ++i) {
-            //colors.emplace_back(get_color_from_color_map("viridis", randomValue));
-            colors.emplace_back(hsv2rgb(randomValue, 0.9, 0.9));
+            CQ.emplace_back(hsv2rgb(randomValue, 0.9, 1.0));
         }
 
-        auto surf = polyscope::registerSurfaceMesh("patch mesh-" + std::to_string(idx), V, F);
-        surf->addFaceColorQuantity("color", colors)->setEnabled(true);
-        surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
-        surf->setEdgeWidth(1.);
+        VQ.conservativeResize(nVQ + V.rows(), 3);
+        FQ.conservativeResize(nFQ + F.rows(), 4);
+        VQ.block(nVQ, 0, V.rows(), 3) << V;
+        FQ.block(nFQ, 0, F.rows(), 4) << F;
 
-        auto c = polyscope::registerCurveNetwork("boundary of qgp mesh" + std::to_string(idx), ns, es);
-        c->setEnabled(false);
-        c->resetTransform();
-        c->setRadius(0.0005);
-        c->setMaterial("flat");
+
+        //auto c = polyscope::registerCurveNetwork("boundary of qgp mesh" + std::to_string(idx), ns, es);
+        //c->setEnabled(false);
+        //c->resetTransform();
+        //c->setRadius(0.0005);
+        //c->setMaterial("flat");
     }
 }
 
