@@ -5,6 +5,7 @@
 #ifndef METRIKO_HMESH_H
 #define METRIKO_HMESH_H
 #include <uuid/uuid.h>
+#include "igl/edge_topology.h"
 #include "metriko/core/common/typedef.h"
 
 namespace metriko {
@@ -176,5 +177,7 @@ namespace metriko {
         N bgnNav, endNav;
     };
 }
+
+#include "hmesh.ipp"
 
 #endif

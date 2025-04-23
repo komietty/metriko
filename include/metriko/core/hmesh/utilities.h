@@ -61,9 +61,7 @@ namespace metriko {
             if (h.id == fr.id) continue;
             auto a = cfn(h.prev().crnr().id) - origin;
             auto b = cfn(h.next().crnr().id) - origin;
-            //if (abs(a) < 1e-3 || abs(b) < 1e-3) {
-            //    return h;
-            //}
+            //if (abs(a) < 1e-3 || abs(b) < 1e-3) { return h; }
             if (cross(a, dir) * cross(b, dir) < 0) return h;
         }
 

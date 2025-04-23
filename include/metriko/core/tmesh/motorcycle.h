@@ -153,7 +153,7 @@ namespace metriko {
 
             for (auto &e: medges) e.add_segment_init(cfn, medges, matching);
 
-            while (std::ranges::any_of(medges, [](auto& e){ return !e.cache.intersected; })) {
+            while (rg::any_of(medges, [](auto& e){ return !e.cache.intersected; })) {
                 for (auto &s: medges)  s.add_segment_next(cfn, medges, matching);
             }
 
@@ -167,4 +167,5 @@ namespace metriko {
 
 }
 
+#include "motorcycle.ipp"
 #endif

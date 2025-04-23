@@ -77,7 +77,7 @@ namespace metriko {
 
             // ----- sort thalfs as not to start from middle of side ----- //
             if (sides.front() == sides.back()) {
-                std::cout << "sort thalf inside tquad..." << std::endl;
+                std::cout << "need fix: sort thalf inside tquad" << std::endl;
                 const int i = sides.front();
                 while (sides.front() == i) { // todo bug??
                     int thid = thids.front();

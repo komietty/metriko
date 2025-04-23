@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 project(metriko)
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(UpdateCacheVariable)
@@ -71,19 +72,10 @@ endif()
 
 # ===  done finding Suitesparse === #
 
-
-
-add_library(${PROJECT_NAME} SHARED
-        include/metriko/core/hmesh/hmesh.cpp
-        include/metriko/core/vectorfield/face_rosy_field.cpp
-        include/metriko/core/igm/parameterization_setup.cpp
-        include/metriko/core/igm/parameterization_integ.cpp
-        include/metriko/core/tmesh/motorcycle.cpp
-        include/metriko/core/tmesh/tmesh.cpp
-)
-target_compile_definitions(${PROJECT_NAME} PUBLIC NOMINMAX _USE_MATH_DEFINES)
-target_link_libraries(${PROJECT_NAME} PUBLIC igl::core)
-target_include_directories(${PROJECT_NAME} PUBLIC include)
+add_library(${PROJECT_NAME} INTERFACE)
+target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX _USE_MATH_DEFINES)
+target_link_libraries(${PROJECT_NAME} INTERFACE igl::core)
+target_include_directories(${PROJECT_NAME} INTERFACE include)
 
 if(GC_HAVE_SUITESPARSE)
     target_compile_definitions(${PROJECT_NAME} INTERFACE GC_HAVE_SUITESPARSE)

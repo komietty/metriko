@@ -8,16 +8,16 @@
 #include "iterative_rounding/iter_rounding.h"
 
 namespace metriko {
-    class Data {
+    class RosyParameterization {
         const Hmesh &raw;
         const Hmesh &cut;
         const MatXd &ext;
         const VecXi &singlars;
         const VecXi &matching;
         const std::vector<bool> &seam;
-        double gridscale;      // Global scaling of grid
+        double gridscale;      // Global scaling of the grid
         int nT;                // Number of transitions
-        int nR;                // Number of vertices that are inside the raw mesh, plus nT
+        int nR;                // Number of vertices that are inside the raw mesh plus nT
         int nS;                // Number of vertices that are singular but not on  boundaries
     public:
         int N;                 // Uncompressed parametric functions
@@ -40,7 +40,7 @@ namespace metriko {
         bool roundSeams;       // Whether to round seams or round singularities
         bool localInjectivity; // Enforce local injectivity; might result in failure!
 
-        explicit Data(
+        explicit RosyParameterization(
             const Hmesh &raw,
             const Hmesh &cut,
             const MatXd &ext,
@@ -68,7 +68,7 @@ namespace metriko {
             compute_he2transidx();
             compute_he2matching();
             nR = raw.nV + nT;
-            nS = std::ranges::count_if(raw.verts, [&](auto &v) { return is_inside_singular(v); });
+            nS = rg::count_if(raw.verts, [&](auto &v) { return is_inside_singular(v); });
         }
 
         void setup();
@@ -168,4 +168,6 @@ namespace metriko {
     }
 }
 
+#include "parameterization_setup.ipp"
+#include "parameterization_integ.ipp"
 #endif

@@ -35,7 +35,7 @@ namespace metriko::visualizer {
         for (int i = 0; i < tm.nTE; i++) {
             const auto& te = tm.tedges[i];
             int random_value = distr(gen);
-            if (!selector.empty() && std::ranges::find(selector, i) == selector.end()) continue;
+            if (!selector.empty() && rg::find(selector, i) == selector.end()) continue;
             for (const Msgmt &seg: te.segments()) {
                 Row3d p1 = conversion_2d_3d(seg.face, uv, seg.fr.uv);
                 Row3d p2 = conversion_2d_3d(seg.face, uv, seg.to.uv);

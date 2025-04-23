@@ -1,7 +1,6 @@
-#include "parameterization.h"
-
+#pragma once
 namespace metriko {
-    void Data::compute_he2matching() {
+    inline void RosyParameterization::compute_he2matching() {
         he2matching.resize(raw.nH);
         for (Half h: raw.halfs) {
             int m = (h.isCanonical() ? -1 : 1) * matching(h.edge().id); // better not inversed
@@ -9,7 +8,7 @@ namespace metriko {
         }
     }
 
-    void Data::compute_he2transidx() {
+    inline void RosyParameterization::compute_he2transidx() {
         he2transidx.resize(raw.nH);
         he2transidx.setConstant(32767);
         std::vector valence(raw.nV, 0.);
@@ -50,10 +49,7 @@ namespace metriko {
         nT = tid - 1;
     }
 
-    void Data::setup() {
-        namespace rg = std::ranges;
-        namespace vw = std::views;
-
+    inline void RosyParameterization::setup() {
         // here we compute a permutation matrix
         std::vector<MatXi> constParmMats(N);
         MatXi unitPermMat = MatXi::Zero(N, N);

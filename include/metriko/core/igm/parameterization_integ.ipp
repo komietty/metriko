@@ -1,7 +1,6 @@
-#include "parameterization.h"
-
+#pragma once
 namespace metriko {
-    bool Data::integ() {
+    inline bool RosyParameterization::integ() {
         SprsD fullx2Nfunc = vtrans2cut * uncompress;
         SprsD Cfull = constraint * uncompress;
 
@@ -23,7 +22,7 @@ namespace metriko {
             Cfull.setFromTriplets(T.begin(), T.end());
         }
 
-        //---- generating G: the matrix for generating vector field from uv -----
+        //---- generating G: the matrix for generating a vector field from uv -----
         std::vector<TripD> eT;
         std::vector<TripD> iT;
         for (Face f: cut.faces) {
@@ -45,7 +44,6 @@ namespace metriko {
         G3.setFromTriplets(eT.begin(), eT.end());
         G2.setFromTriplets(iT.begin(), iT.end());
 
-        VecXd rawF3Vec;
         VecXd rawF2Vec;
         double norm = 0;
         {
@@ -58,7 +56,6 @@ namespace metriko {
                 rawF2.middleCols(2 * i, 2) <<
                         ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisX).rowwise().sum(),
                         ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisY).rowwise().sum();
-            rawF3Vec = rawF3.reshaped<Eigen::RowMajor>().transpose();
             rawF2Vec = rawF2.reshaped<Eigen::RowMajor>().transpose();
         }
 
@@ -117,7 +114,7 @@ namespace metriko {
             cfn.block(i, N * j, 1, N) = nfn.row(cut.idx(i, j)).array();
         }}
 
-        //----- check the derivative of the map is close to original tangent field ----//
+        //----- check the derivative of the map is close to the original tangent field ----//
         double evaluation = 0;
         VecXd G_NF = G3 * NF;
         MatXd vf(ext.rows(), ext.cols());

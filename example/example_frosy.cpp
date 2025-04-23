@@ -7,12 +7,12 @@
 
 using namespace metriko;
 
-int main(int argc, char *argv[]) {
+int main(int argc, char **argv) {
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
     MatXd V;
     MatXi F;
-    igl::readOBJ("/Users/saki/dev/models/spot.obj", V, F);
+    igl::readOBJ(argv[1], V, F);
     auto mesh = std::make_unique<Hmesh>(V, F);
 
     polyscope::init();

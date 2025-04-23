@@ -39,7 +39,7 @@ namespace metriko {
             cache.emplace_back((g.array() > 0).count(), g);
         }
 
-        std::ranges::sort(cache, [](auto &a, auto &b) { return a.first < b.first; });
+        rg::sort(cache, [](auto &a, auto &b) { return a.first < b.first; });
 
         int rank = 0;
         int cols = 0;
