@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     }
 
     RosyParameterization rp(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N);
-    rp.seamless = true;
+    rp.seamless = false;
     rp.localInjectivity = false;
     //data.roundSeams = true;
     rp.verbose = false;

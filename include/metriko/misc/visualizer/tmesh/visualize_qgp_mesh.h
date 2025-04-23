@@ -73,22 +73,22 @@ namespace metriko::visualizer {
         MatXi F((table.rows() - 1) * (table.cols() - 1), 4);
 
         for (int i = 0; i < table.rows(); ++i) {
-            for (int j = 0; j < table.cols(); ++j) {
-                auto i0 = table(i, j);
-                auto p0 = intersections.pos[i0];
-                V.row(i0) = p0;
-            }}
+        for (int j = 0; j < table.cols(); ++j) {
+            auto i0 = table(i, j);
+            auto p0 = intersections.pos[i0];
+            V.row(i0) = p0;
+        }}
 
         int k = 0;
         for (int i = 0; i < table.rows() - 1; ++i) {
-            for (int j = 0; j < table.cols() - 1; ++j) {
-                auto i0 = table(i, j);
-                auto i1 = table(i + 1, j);
-                auto i2 = table(i, j + 1);
-                auto i3 = table(i + 1, j + 1);
-                F.row(k / 2) << i0, i2, i3, i1;
-                k += 2;
-            }}
+        for (int j = 0; j < table.cols() - 1; ++j) {
+            auto i0 = table(i, j);
+            auto i1 = table(i + 1, j);
+            auto i2 = table(i, j + 1);
+            auto i3 = table(i + 1, j + 1);
+            F.row(k) << i0, i2, i3, i1;
+            k++;
+        }}
 
 
         std::random_device rd;
@@ -99,15 +99,20 @@ namespace metriko::visualizer {
         std::vector<glm::vec3> colors;
         for (int i = 0; i < F.rows(); ++i) {
             //colors.emplace_back(get_color_from_color_map("viridis", randomValue));
-            colors.emplace_back(hsv2rgb(randomValue, 0.8, 0.9));
+            colors.emplace_back(hsv2rgb(randomValue, 0.9, 0.9));
         }
 
         auto surf = polyscope::registerSurfaceMesh("patch mesh-" + std::to_string(idx), V, F);
         surf->addFaceColorQuantity("color", colors)->setEnabled(true);
-        surf->setShadeStyle(polyscope::MeshShadeStyle::Smooth);
+        surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
         surf->setEdgeWidth(1.);
-    }
 
+        auto c = polyscope::registerCurveNetwork("boundary of qgp mesh" + std::to_string(idx), ns, es);
+        c->setEnabled(false);
+        c->resetTransform();
+        c->setRadius(0.0005);
+        c->setMaterial("flat");
+    }
 }
 
 #endif
