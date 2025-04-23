@@ -1,5 +1,4 @@
 # metriko
-![fertility](docs/qgp_2.gif)
 
 Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing over 10k vertices.
 
@@ -10,6 +9,8 @@ Quad meshing is a technique used to convert triangular meshes into quadrilateral
 Many existing quad meshing algorithms rely heavily on Mixed Integer Programming (MIP) or Mixed Integer Non-Linear Programming (MINLP). These approaches typically require commercial solvers such as Gurobi, making them inaccessible to many users. While alternative algorithms exist, some of them are numerically unstable or consumes several hours of computation, and few have publicly available open-source implementations.
 
 Metriko implements the Quantized Global Parameterization (QGP) algorithm, providing fast and robust quadrilateral parameterization. The algorithm guarantees a valid result and scales linearly with the number of vertices.
+
+![fertility](docs/qgp_1.jpg)
 
 ## Current Features and Limitations
 Metriko is currently in early development. Available features include:
