@@ -34,7 +34,7 @@ cd example
 mkdir build && cd build
 cmake .. 
 make
-metriko_example /path/to/model.obj 0.002 (quad mesh size)
+./metriko_example ../models/icosphere.obj 0.03
 ```
 
 ## References
