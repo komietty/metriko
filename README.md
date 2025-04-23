@@ -1,5 +1,5 @@
 # metriko
-![fertility](docs/qgp_1.jpg)
+![fertility](docs/qgp_2.gif)
 
 Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing over 10k vertices.
 
@@ -28,7 +28,7 @@ Known limitations and issues:
 Metriko is a header-only library with a minimal dependency on libigl (only the core features are required). To run a demo, install Polyscope using the submodule system provided.
 
 ## References
-- Campen, M., Bommes, D., Kobbelt, L. 2015. Quantized global parametrization. ACM Trans. Graph. (TOG) , 34(6), 192:1–192:12. DOI: [10.1145/2816795.2818140](https://doi.org/10.1145/2816795.2818140)
+- Campen, M., Bommes, D., Kobbelt, L. 2015. Quantized global parametrization. ACM Trans. Graph 34(6), 192:1–192:12. DOI: [10.1145/2816795.2818140](https://doi.org/10.1145/2816795.2818140)
 
 -  BOMMES, D., ZIMMER, H., AND KOBBELT, L. 2009. Mixedinteger quadrangulation. In Proc. SIGGRAPH 2009, 1–10. DOI: [10.1007/978-3-642-11620-9_5](https://doi.org/10.1007/978-3-642-11620-9_5)
 
