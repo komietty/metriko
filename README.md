@@ -1,4 +1,5 @@
 # metriko
+![fertility](docs/gargoyle.jpg)
 
 Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing over 10k vertices.
 
