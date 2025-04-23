@@ -74,8 +74,8 @@ int main(int argc, char **argv) {
     {
         const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
         const auto prms = surf->addParameterizationQuantity("params", uv1);
+        surf->setEnabled(false);
         surf->addFaceVectorQuantity("cmb field", cmbExtZero);
-        prms->setEnabled(false);
         prms->setStyle(polyscope::ParamVizStyle::GRID);
         prms->setCheckerSize(1);
     }
@@ -96,6 +96,7 @@ int main(int argc, char **argv) {
             }
         }
         auto c = polyscope::registerCurveNetwork("seam", ns, es);
+        c->setEnabled(false);
         c->resetTransform();
         c->setRadius(0.003);
     }

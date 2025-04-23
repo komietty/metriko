@@ -27,7 +27,15 @@ Known limitations and issues:
 - While quantization is robust, the meshing technique is not yet optimized for coarse quads
 
 ## Usage
-Metriko is a header-only library with a minimal dependency on libigl (only the core features are required). To run a demo, install Polyscope using the submodule system provided.
+Metriko is a header-only library with a minimal dependency on libigl (only the core features are required). To run a demo, install viewer (polyscope) and execute commands as shown below.
+```
+git submodule update --init --recursive
+cd example
+mkdir build && cd build
+cmake .. 
+make
+metriko_example /path/to/model.obj 0.002 (quad mesh size)
+```
 
 ## References
 - Campen, M., Bommes, D., Kobbelt, L. 2015. Quantized global parametrization. ACM Trans. Graph 34(6), 192:1–192:12. DOI: [10.1145/2816795.2818140](https://doi.org/10.1145/2816795.2818140)
