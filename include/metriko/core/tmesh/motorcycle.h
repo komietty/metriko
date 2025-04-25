@@ -29,19 +29,20 @@ namespace metriko {
 
 
     enum CrashType { None, Left, Right, Crash };
+    enum MvertType { None_, Sing, HitL, HitR, HitB };
     class Mcurv;
-    class Graph;
+    class MotorcycleGraph;
 
     class Mvert {
     public:
-        const Graph* graph;
+        const MotorcycleGraph* graph;
         complex uv;
         Mcurv* crash = nullptr;
         CrashType side = None;
         std::optional<Half> half = std::nullopt;
 
         Mvert(
-            const Graph* graph,
+            const MotorcycleGraph* graph,
             const complex uv,
             Mcurv* crash,
             const CrashType side,
@@ -51,7 +52,7 @@ namespace metriko {
 
     class Msgmt {
     public:
-        const Graph* graph;
+        const MotorcycleGraph* graph;
         Mcurv* curv;
         Face face;
         Mvert fr;
@@ -61,7 +62,7 @@ namespace metriko {
         int next_id = -1;
 
         Msgmt(
-            const Graph* graph,
+            const MotorcycleGraph* graph,
             Mcurv *curv,
             const Face &face,
             const Mvert& fr,
@@ -91,12 +92,12 @@ namespace metriko {
 
     class Mcurv {
     public:
-        const Graph* graph;
+        const MotorcycleGraph* graph;
         const Mport& port;
         std::vector<Msgmt> sgmts;
         Cache cache;
 
-        explicit Mcurv(const Graph* graph, const Mport &port): graph(graph), port(port), cache() { }
+        explicit Mcurv(const MotorcycleGraph* graph, const Mport &port): graph(graph), port(port), cache() { }
 
         bool operator==(const Mcurv &rhs) const { return port.id == rhs.port.id; }
 
@@ -135,13 +136,13 @@ namespace metriko {
     ///
     /// The endpoint of the motorcycle graph system.
     ///
-    class Graph {
+    class MotorcycleGraph {
     public:
         const VecXc& cfn;
         std::vector<Mport> mports;
         std::vector<Mcurv> medges;
 
-        Graph(
+        MotorcycleGraph(
             const Hmesh& hmesh,
             const VecXc &cfn,
             const VecXi &matching,

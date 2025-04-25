@@ -24,10 +24,9 @@ MatXd V;
 MatXi F;
 
 int main(int argc, char **argv) {
-    std::cout << argv[1] << std::endl;
     igl::readOBJ(argv[1], V, F);
     mesh = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
+    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
@@ -102,7 +101,7 @@ int main(int argc, char **argv) {
     }
 
     ///--- gen mport, medge ---///
-    auto graph = Graph(*mesh, uv2, cmbf->matching, cmbf->singular);
+    auto graph = MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);
     auto tmesh = Tmesh(graph.medges);
     VecXd R = VecXd::Zero(tmesh.nTE);
     for (int i = 0; i < tmesh.nTE; i++) {
@@ -111,7 +110,8 @@ int main(int argc, char **argv) {
         for (const Msgmt &seg: te.seg_fr.curv->sgmts) {
             if (seg == te.seg_fr) bgn = true;
             if (bgn) {
-                R[i] += std::abs(seg.to.uv - seg.fr.uv);
+                //R[i] += std::abs(seg.to.uv - seg.fr.uv);
+                R[i] += std::abs(seg.diff());
                 if (seg == te.seg_to) break;
             }
         }

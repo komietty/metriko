@@ -6,14 +6,18 @@ namespace metriko {
     inline const Thalf &Thalf::prev() const { return tmesh->thalfs[tmesh->prev_thid(id)]; }
     //todo: it was previously twin_id. even changed to id, result does not chage. This might couse something wrong...
 
-    inline bool Thalf::is_stemming_fr_singular() const { return  cannonical && edge().seg_fr.id == 0; }
-    inline bool Thalf::is_reaching_to_singular() const { return !cannonical && edge().seg_fr.id == 0; }
+    //inline bool Thalf::is_stemming_fr_singular() const { return  cannonical && edge().seg_fr.id == 0; }
+    //inline bool Thalf::is_reaching_to_singular() const { return !cannonical && edge().seg_fr.id == 0; }
 
-    inline complex Thalf::uv_fr() const { return cannonical ? edge().seg_fr.fr.uv : edge().seg_to.to.uv; }
-    inline complex Thalf::uv_to() const { return cannonical ? edge().seg_to.to.uv : edge().seg_fr.fr.uv; }
+    //inline complex Thalf::uv_fr() const { return cannonical ? edge().seg_fr.fr.uv : edge().seg_to.to.uv; }
+    //inline complex Thalf::uv_to() const { return cannonical ? edge().seg_to.to.uv : edge().seg_fr.fr.uv; }
+    inline complex Thalf::uv_fr() const { return cannonical ? edge().uv_fr() : edge().uv_to(); }
+    inline complex Thalf::uv_to() const { return cannonical ? edge().uv_to() : edge().uv_fr(); }
 
     inline Msgmt Thalf::sg_fr() const { return cannonical ? edge().seg_fr : edge().seg_to; }
     inline Msgmt Thalf::sg_to() const { return cannonical ? edge().seg_to : edge().seg_fr; }
+    inline Tsgmt Thalf::sg_fr2() const { return cannonical ? edge().sgmts.front() : edge().sgmts.back(); }
+    inline Tsgmt Thalf::sg_to2() const { return cannonical ? edge().sgmts.back() : edge().sgmts.front(); }
 
     inline std::vector<Thalf> Thalf::adj_thalfs() const {
         std::vector<Thalf> res;

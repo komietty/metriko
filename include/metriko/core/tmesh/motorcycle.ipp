@@ -5,7 +5,7 @@ namespace metriko {
 inline const Msgmt &Msgmt::next() const { return curv->sgmts[next_id]; }
 inline const Msgmt &Msgmt::prev() const { return curv->sgmts[prev_id]; }
 
-inline void Graph::gen_ports(
+inline void MotorcycleGraph::gen_ports(
     const Hmesh &mesh,
     const VecXc &cfn,
     const VecXi &singular

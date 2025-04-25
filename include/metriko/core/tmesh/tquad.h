@@ -7,30 +7,30 @@
 #include "thalf.h"
 
 namespace metriko {
-
     inline std::pair<Thalf, bool> choose_next_thalf(
         const std::vector<Mcurv> &splines,
         const std::vector<Thalf> &thalfs,
         const Thalf &curr
     ) {
         auto find_th = [&thalfs](const Msgmt &seg, bool cannonical) -> Thalf {
-            for (const Thalf &th : thalfs) {
+            for (const Thalf &th: thalfs) {
                 auto &te = th.edge();
                 if (th.cannonical == cannonical && (te.seg_fr == seg || te.seg_to == seg)) return th;
             }
             throw std::runtime_error("thalf not found");
         };
 
-        const Tedge& te = curr.edge();
+        const Tedge &te = curr.edge();
 
         if (curr.cannonical) {
             if (te.seg_to.to.side == Crash) {
-                for (const Msgmt &seg: te.seg_to.to.crash->sgmts) { //Task: fix bad implementation.
+                for (const Msgmt &seg: te.seg_to.to.crash->sgmts) {
+                    //Task: fix bad implementation.
                     if (seg.face.id == te.seg_to.face.id) {
                         auto uv2 = te.seg_to.to.uv;
                         auto dif = te.seg_to.diff();
-                        if (equal(seg.fr.uv, uv2) && cross(dif,  seg.diff()) > 0) return { find_th(seg, true), true };
-                        if (equal(seg.to.uv, uv2) && cross(dif, -seg.diff()) > 0) return { find_th(seg, false), true };
+                        if (equal(seg.fr.uv, uv2) && cross(dif, seg.diff()) > 0) return {find_th(seg, true), true};
+                        if (equal(seg.to.uv, uv2) && cross(dif, -seg.diff()) > 0) return {find_th(seg, false), true};
                     }
                 }
                 throw std::runtime_error("thalf not found");
@@ -75,31 +75,26 @@ namespace metriko {
                 curr = thalf;
             } while (bgn != curr);
 
-            // ----- sort thalfs as not to start from middle of side ----- //
+            // sort thalfs as not to start from a middle of side
             if (sides.front() == sides.back()) {
-                std::cout << "need fix: sort thalf inside tquad" << std::endl;
-                const int i = sides.front();
-                while (sides.front() == i) { // todo bug??
-                    int thid = thids.front();
-                    int side = sides.front();
-                    thids.emplace_back(thid);
-                    sides.emplace_back(side);
-                    thids.erase(thids.begin());
-                    sides.erase(sides.begin());
-                }
+                int i = sides.front();
+                int n = rg::distance(sides | vw::take_while([=](int x) { return x == i; }));
+                rg::rotate(sides, sides.begin() + n);
+                rg::rotate(thids, thids.begin() + n);
             }
+            assert(sides.front() != sides.back());
         }
 
         int find_first_thid(int side_id) const {
             for (int i = 0; i < thids.size(); i++)
-                if(sides[i] == side_id) return thids[i];
+                if (sides[i] == side_id) return thids[i];
             return -1;
         }
 
         int find_last_thid(int side_id) const {
             for (int i = 0; i < thids.size(); i++) {
-                int j = (int)thids.size() - i - 1;
-                if(sides[j] == side_id) return thids[j];
+                int j = (int) thids.size() - i - 1;
+                if (sides[j] == side_id) return thids[j];
             }
             return -1;
         }
@@ -107,8 +102,8 @@ namespace metriko {
         std::vector<int> thids_by_side(int side_id, bool reverse = false) const {
             std::vector<int> result;
             for (int i = 0; i < thids.size(); i++) {
-                int j = reverse ? (int)thids.size() - i - 1 : i;
-                if(sides[j] == side_id) result.emplace_back(thids[j]);
+                int j = reverse ? (int) thids.size() - i - 1 : i;
+                if (sides[j] == side_id) result.emplace_back(thids[j]);
             }
             return result;
         }

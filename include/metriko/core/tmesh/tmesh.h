@@ -22,16 +22,16 @@ namespace metriko {
         size_t nTH;
 
         explicit Tmesh() = default;
-        explicit Tmesh(const std::vector<Mcurv>& splines) {
-            for (auto &me: splines) {
-                Msgmt start = me.sgmts.front();
-                for (auto it = me.sgmts.begin(); it != me.sgmts.end(); ++it) {
+        explicit Tmesh(const std::vector<Mcurv>& mcurvs) {
+            for (auto &mc: mcurvs) {
+                Msgmt start = mc.sgmts.front();
+                for (auto it = mc.sgmts.begin(); it != mc.sgmts.end(); ++it) {
                     if (it->to.side != None) {
                         int s = tedges.size();
                         tedges.emplace_back(this, s, start, *it);
                         thalfs.emplace_back(this, s, s * 2 + 0, s * 2 + 1, true);
                         thalfs.emplace_back(this, s, s * 2 + 1, s * 2 + 0, false);
-                        if (it->next_id != -1) start = me.sgmts[it->next_id];
+                        if (it->next_id != -1) start = mc.sgmts[it->next_id];
                     }
                 }
             }
@@ -41,7 +41,7 @@ namespace metriko {
             while (rg::any_of(visit, [](const bool f) { return !f; })) {
                 auto it = rg::find(visit, false);
                 auto id = std::distance(visit.begin(), it);
-                auto tq = Tquad(splines, thalfs, thalfs[id]);
+                auto tq = Tquad(mcurvs, thalfs, thalfs[id]);
                 tquads.emplace_back(tq);
                 for (int thid: tq.thids) visit[thid] = true;
             }
@@ -65,11 +65,11 @@ namespace metriko {
             }
 
             th2sing.setConstant(-1);
-            for (auto &me: splines) {
-                auto it = rg::find_if(thalfs, [&](auto &th) { return th.edge().seg_fr == me.sgmts.front(); });
+            for (auto &mc: mcurvs) {
+                auto it = rg::find_if(thalfs, [&](auto &th) { return th.edge().seg_fr == mc.sgmts.front(); });
                 assert(it != thalfs.end());
                 stemming_thalfs.emplace_back(it->id);
-                th2sing[it->id] = me.port.vert.id;
+                th2sing[it->id] = mc.port.vert.id;
             }
         }
 
