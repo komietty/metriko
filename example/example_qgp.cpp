@@ -26,7 +26,7 @@ MatXi F;
 int main(int argc, char **argv) {
     igl::readOBJ(argv[1], V, F);
     mesh = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::CurvatureAligned);
+    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);

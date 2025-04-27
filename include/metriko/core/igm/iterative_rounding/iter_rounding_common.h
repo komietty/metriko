@@ -5,7 +5,7 @@
 #ifndef METRIKO_ITER_ROUNDING_COMMON_H
 #define METRIKO_ITER_ROUNDING_COMMON_H
 #include "metriko/core/common/typedef.h"
-#include "metriko/core/solver/common.h"
+#include "metriko/core/solver/matrix_ops.h"
 #include "injective_barrier.h"
 
 namespace metriko {

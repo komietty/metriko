@@ -9,6 +9,25 @@
 
 namespace metriko {
 
+    inline void reduce_to_linearly_independent(SprsD& mat) {
+        if (mat.rows() != 0) {
+            Eigen::SparseQR<SprsD, Eigen::COLAMDOrdering<int>> qr;
+            qr.compute(mat.transpose());
+            int rank = qr.rank();
+            VecXi idcs = qr.colsPermutation().indices(); //creating a sliced perm matrix
+
+            std::vector<TripD> T;
+            for (int k = 0; k < mat.outerSize(); ++k) {
+            for (SprsD::InnerIterator it(mat, k); it; ++it) {
+            for (int j = 0; j < rank; j++) {
+                if (it.row() == idcs(j)) T.emplace_back(j, it.col(), it.value());
+            }}}
+
+            mat.resize(rank, mat.cols());
+            mat.setFromTriplets(T.begin(), T.end());
+        }
+    }
+
     template<typename Scalar>
     void sparse_block (
             const Eigen::MatrixXi &blockIndices,

@@ -33,9 +33,9 @@ int main(int argc, char** argv) {
     }
 
     RosyParameterization rp(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N);
-    rp.seamless = false;
+    rp.seamless = true;
     rp.localInjectivity = false;
-    //data.roundSeams = true;
+    //rp.roundSeams = true;
     rp.verbose = false;
 
     MatXd uv(mesh->nF * 3, 2);

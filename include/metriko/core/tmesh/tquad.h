@@ -85,17 +85,11 @@ namespace metriko {
             assert(sides.front() != sides.back());
         }
 
-        int find_first_thid(int side_id) const {
+        int find_first_thid(int side) const {
+            //auto it = rg::find(sides, side);
+            //return it != sides.end() ? thids[rg::distance(sides.begin(), it)] : -1;
             for (int i = 0; i < thids.size(); i++)
-                if (sides[i] == side_id) return thids[i];
-            return -1;
-        }
-
-        int find_last_thid(int side_id) const {
-            for (int i = 0; i < thids.size(); i++) {
-                int j = (int) thids.size() - i - 1;
-                if (sides[j] == side_id) return thids[j];
-            }
+                if (sides[i] == side) return thids[i];
             return -1;
         }
 

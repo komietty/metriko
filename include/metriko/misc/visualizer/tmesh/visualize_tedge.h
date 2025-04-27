@@ -62,7 +62,7 @@ namespace metriko::visualizer {
         c->addEdgeScalarQuantity("random", randoms);
         c->setEnabled(true);
         c->resetTransform();
-        c->setRadius(0.001);
+        c->setRadius(0.0005);
         c->setMaterial("flat");
     }
 
