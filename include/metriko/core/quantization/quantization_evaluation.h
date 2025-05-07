@@ -8,6 +8,8 @@
 
 namespace metriko {
 
+    /*
+    // need to evaluate which is better dense or sparse
     inline VecXd construct_generating_vector(
         const std::vector<Tedge>& tedges,
         const std::vector<Thalf>& thalfs,
@@ -56,6 +58,35 @@ namespace metriko {
         std::cout << "The rank of the matrix is: " << rank << std::endl;
 
         return G;
+    }
+    */
+
+    template <typename Func>
+    MatXd construct_generating_vectors(
+        const Tmesh& tmesh,
+        const VecXd& R,
+        Func compare
+    ) {
+        std::vector<TripD> T;
+        int irow = 0;
+
+        for (const Thalf &th: tmesh.thalfs) {
+            if (!th.cannonical) continue;
+            auto loop = gen_basis_loop(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side, R, th, compare);
+            for (int thid: loop) {
+                int teid = tmesh.thalfs[thid].teid;
+                T.emplace_back(irow, teid, 1);
+            }
+            irow++;
+        }
+        assert(rg::all_of(T, [](auto &t) { return t.value() <= 2; }));
+
+        SprsD G(tmesh.tedges.size(), tmesh.tedges.size());
+        G.setFromTriplets(T.begin(), T.end());
+        reduce_to_linearly_independent(G);
+
+        std::cout << "The rank of the matrix is: " << G.rows() << std::endl;
+        return G.transpose();
     }
 }
 

@@ -6,7 +6,7 @@
 #ifndef METRIKO_LEVENBERG_MARQUARDT_H
 #define METRIKO_LEVENBERG_MARQUARDT_H
 #include <iostream>
-#include "common.h"
+#include "matrix_ops.h"
 
 namespace metriko {
 

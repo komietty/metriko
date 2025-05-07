@@ -119,6 +119,7 @@ inline void visualize_split_edge(
     //p->resetTransform();
 }
 
+/*
 inline void visualize_split_edge(
     const Tmesh& tmesh,
     const VecXd& X,
@@ -183,6 +184,7 @@ inline void visualize_split_edge(
         visualize_split_edge(tmesh, R, cfn, matching, sv_quad0, ii, arcs1, arcs2);
     }
 }
+*/
 }
 
 #endif

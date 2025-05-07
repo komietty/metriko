@@ -3,24 +3,7 @@ namespace metriko {
     inline bool RosyParameterization::integ() {
         SprsD fullx2Nfunc = vtrans2cut * uncompress;
         SprsD Cfull = constraint * uncompress;
-
-        if (Cfull.rows() != 0) {
-            // reducing the size of the constraint matrix
-            Eigen::SparseQR<SprsD, Eigen::COLAMDOrdering<int> > qr;
-            qr.compute(Cfull.transpose());
-            int rank = qr.rank();
-            VecXi idcs = qr.colsPermutation().indices(); //creating sliced permutation matrix
-
-            std::vector<TripD> T;
-            for (int k = 0; k < Cfull.outerSize(); ++k) {
-            for (SprsD::InnerIterator it(Cfull, k); it; ++it) {
-            for (int j = 0; j < rank; j++)
-                if (it.row() == idcs(j)) T.emplace_back(j, it.col(), it.value());
-            }}
-
-            Cfull.resize(rank, Cfull.cols());
-            Cfull.setFromTriplets(T.begin(), T.end());
-        }
+        reduce_to_linearly_independent(Cfull);
 
         //---- generating G: the matrix for generating a vector field from uv -----
         std::vector<TripD> eT;

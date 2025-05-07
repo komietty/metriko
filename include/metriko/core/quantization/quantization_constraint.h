@@ -15,11 +15,13 @@ namespace metriko {
                 const auto &th = tmesh.thalfs[tq.thids[ih]];
                 const int side = tq.sides[ih];
                 const int teid = th.edge().id;
-                if (side == 0) M(iq * 2 + 0, teid) = 1;
-                else if (side == 2) M(iq * 2 + 0, teid) = -1;
-                else if (side == 1) M(iq * 2 + 1, teid) = 1;
-                else if (side == 3) M(iq * 2 + 1, teid) = -1;
-                else throw std::invalid_argument("eval has to be 0 ~ 3");
+                switch (side) {
+                    case 0: { M(iq * 2 + 0, teid) =  1; break; }
+                    case 2: { M(iq * 2 + 0, teid) = -1; break; }
+                    case 1: { M(iq * 2 + 1, teid) =  1; break; }
+                    case 3: { M(iq * 2 + 1, teid) = -1; break; }
+                    default: throw std::invalid_argument("side has to be 0 ~ 3");
+                }
             }
         }
         return M;

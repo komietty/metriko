@@ -268,7 +268,7 @@ namespace metriko {
             if (cuts(i, j)) vertices_in_cut.insert(F(i, j));
         }}
 
-        //then, add all singularities one by one by using Dijkstra's algorithm
+        //then, add all singularities one by using Dijkstra's algorithm
         for (int i = 0; i < singularities.rows(); ++i) {
             std::vector<int> path;
             VecXd min_distance;

@@ -36,15 +36,15 @@ namespace metriko::visualizer {
             const auto& te = tm.tedges[i];
             int random_value = distr(gen);
             if (!selector.empty() && rg::find(selector, i) == selector.end()) continue;
-            for (const Msgmt &seg: te.segments()) {
-                Row3d p1 = conversion_2d_3d(seg.face, uv, seg.fr.uv);
-                Row3d p2 = conversion_2d_3d(seg.face, uv, seg.to.uv);
+            for (const Msgmt &ts: te.segments()) {
+                Row3d p1 = conversion_2d_3d(ts.face, uv, ts.fr.uv);
+                Row3d p2 = conversion_2d_3d(ts.face, uv, ts.to.uv);
                 ns.emplace_back(p1.x(), p1.y(), p1.z());
                 ns.emplace_back(p2.x(), p2.y(), p2.z());
                 es.emplace_back(std::array{counter, counter + 1});
                 teids.emplace_back(i);
-                difx.emplace_back(seg.to.uv.real() - seg.fr.uv.real());
-                dify.emplace_back(seg.to.uv.imag() - seg.fr.uv.imag());
+                difx.emplace_back(ts.to.uv.real() - ts.fr.uv.real());
+                dify.emplace_back(ts.to.uv.imag() - ts.fr.uv.imag());
                 if (R != nullptr) vecR.emplace_back((*R)[i]);
                 if (X != nullptr) vecX.emplace_back((*X)[i]);
                 randoms.emplace_back(random_value);
@@ -60,12 +60,13 @@ namespace metriko::visualizer {
         c->addEdgeScalarQuantity("difx", difx);
         c->addEdgeScalarQuantity("dify", dify);
         c->addEdgeScalarQuantity("random", randoms);
-        c->setEnabled(true);
+        c->setEnabled(false);
         c->resetTransform();
-        c->setRadius(0.001);
+        c->setRadius(0.0005);
         c->setMaterial("flat");
     }
 
+    /*
     inline void visualize_next_thalfs_on_joint(
         const Tmesh& tm,
         const VecXc &cfn,
@@ -112,6 +113,7 @@ namespace metriko::visualizer {
         c->setRadius(0.001);
         c->setMaterial("flat");
     }
+    */
 }
 
 #endif
