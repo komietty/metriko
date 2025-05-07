@@ -10,51 +10,50 @@
 namespace metriko {
 
     inline void reduce_to_linearly_independent(SprsD& mat) {
-        if (mat.rows() != 0) {
-            Eigen::SparseQR<SprsD, Eigen::COLAMDOrdering<int>> qr;
-            qr.compute(mat.transpose());
-            int rank = qr.rank();
-            VecXi idcs = qr.colsPermutation().indices(); //creating a sliced perm matrix
+        if (mat.rows() == 0) return;
+        Eigen::SparseQR<SprsD, Eigen::COLAMDOrdering<int>> qr;
+        qr.compute(mat.transpose());
+        int rank = qr.rank();
+        const VecXi &idcs = qr.colsPermutation().indices();
 
-            std::vector<TripD> T;
-            for (int k = 0; k < mat.outerSize(); ++k) {
-            for (SprsD::InnerIterator it(mat, k); it; ++it) {
-            for (int j = 0; j < rank; j++) {
-                if (it.row() == idcs(j)) T.emplace_back(j, it.col(), it.value());
-            }}}
+        std::vector<TripD> T;
+        for (int k = 0; k < mat.outerSize(); ++k) {
+        for (SprsD::InnerIterator it(mat, k); it; ++it) {
+        for (int j = 0; j < rank; j++) {
+            if (it.row() == idcs(j)) T.emplace_back(j, it.col(), it.value());
+        }}}
 
-            mat.resize(rank, mat.cols());
-            mat.setFromTriplets(T.begin(), T.end());
-        }
+        mat.resize(rank, mat.cols());
+        mat.setFromTriplets(T.begin(), T.end());
     }
 
     template<typename Scalar>
-    void sparse_block (
-            const Eigen::MatrixXi &blockIndices,
-            const std::vector<Eigen::SparseMatrix<Scalar>*> &blockMats,
-            Eigen::SparseMatrix<Scalar> &result
+    void sparse_block(
+        const MatXi &idcs,
+        const std::vector<Eigen::SparseMatrix<Scalar> *> &mats,
+        Eigen::SparseMatrix<Scalar> &result
     ) {
         //assessing dimensions
-        VecXi blockRowOffsets = VecXi::Zero(blockIndices.rows());
-        VecXi blockColOffsets = VecXi::Zero(blockIndices.cols());
-        for (int i = 1; i < blockIndices.rows(); i++)
-            blockRowOffsets(i) = blockRowOffsets(i - 1) + blockMats[blockIndices(i - 1, 0)]->rows();
+        int row_oft = idcs.rows();
+        int col_oft = idcs.cols();
+        VecXi row_offsets = VecXi::Zero(row_oft);
+        VecXi col_offsets = VecXi::Zero(col_oft);
+        for (int i = 1; i < row_oft; i++) row_offsets(i) = row_offsets(i - 1) + mats[idcs(i - 1, 0)]->rows();
+        for (int i = 1; i < col_oft; i++) col_offsets(i) = col_offsets(i - 1) + mats[idcs(0, i - 1)]->cols();
 
-        for (int i = 1; i < blockIndices.cols(); i++)
-            blockColOffsets(i) = blockColOffsets(i - 1) + blockMats[blockIndices(0, i - 1)]->cols();
+        result.conservativeResize(
+            row_offsets(row_oft - 1) + mats[idcs(row_oft - 1, 0)]->rows(),
+            col_offsets(col_oft - 1) + mats[idcs(0, col_oft - 1)]->cols()
+        );
 
-        int rowSize = blockRowOffsets(blockIndices.rows() - 1) + blockMats[blockIndices(blockIndices.rows() - 1, 0)]->rows();
-        int colSize = blockColOffsets(blockIndices.cols() - 1) + blockMats[blockIndices(0, blockIndices.cols() - 1)]->cols();
+        std::vector<Eigen::Triplet<Scalar>> T;
+        for (int i = 0; i < row_offsets.size(); i++)
+        for (int j = 0; j < col_offsets.size(); j++)
+        for (int k = 0; k < mats[i]->outerSize(); ++k)
+        for (typename Eigen::SparseMatrix<Scalar>::InnerIterator it(*(mats[i]), k); it; ++it)
+            T.push_back(Eigen::Triplet<Scalar>(row_offsets(i) + it.row(), col_offsets(j) + it.col(), it.value()));
 
-        result.conservativeResize(rowSize, colSize);
-        std::vector<Eigen::Triplet<Scalar>> resultTriplets;
-        for (int i = 0; i < blockRowOffsets.size(); i++)
-        for (int j = 0; j < blockColOffsets.size(); j++)
-        for (int k = 0; k < blockMats[i]->outerSize(); ++k)
-        for (typename Eigen::SparseMatrix<Scalar>::InnerIterator it(*(blockMats[i]), k); it; ++it)
-            resultTriplets.push_back(Eigen::Triplet<Scalar>(blockRowOffsets(i) + it.row(), blockColOffsets(j) + it.col(), it.value()));
-
-        result.setFromTriplets(resultTriplets.begin(), resultTriplets.end());
+        result.setFromTriplets(T.begin(), T.end());
     }
 
 }

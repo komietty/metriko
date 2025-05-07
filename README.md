@@ -24,10 +24,10 @@ Metriko is currently in early development. Available features include:
 Known limitations and issues:
 - Quantization results can vary in quality for coarse quads
 - Meshes with boundaries are currently not supported (planned for future support)
-- While quantization is robust, the meshing technique is not yet optimized for coarse quads
+- While the quantization is robust, the meshing technique is not yet optimized for coarse quads. The reparameterization scheme described in Lyon et al. (2021) is currently under implementation.
 
 ## Usage
-Metriko is a header-only library with a minimal dependency on libigl (only the core features are required). To run a demo, install viewer (polyscope) and execute commands as shown below.
+Metriko is a header-only library with a minimal dependency on libigl (only the core features are required). To run a demo, install viewer (polyscope), and execute the following commands:
 ```
 git submodule update --init --recursive
 cd example
@@ -36,14 +36,21 @@ cmake ..
 make
 ./metriko_example ../models/icosphere.obj 0.03
 ```
+If SuiteSparse is installed on your machine, it will be automatically integrated via CMake, providing significantly faster matrix computations compared to Eigen.
 
 ## References
-- Campen, M., Bommes, D., Kobbelt, L. 2015. Quantized global parametrization. ACM Trans. Graph 34(6), 192:1–192:12. DOI: [10.1145/2816795.2818140](https://doi.org/10.1145/2816795.2818140)
-
 -  BOMMES, D., ZIMMER, H., AND KOBBELT, L. 2009. Mixedinteger quadrangulation. In Proc. SIGGRAPH 2009, 1–10. DOI: [10.1007/978-3-642-11620-9_5](https://doi.org/10.1007/978-3-642-11620-9_5)
 
 - BOMMES, D., CAMPEN, M., EBKE, H.-C., ALLIEZ, P., AND KOBBELT, L. 2013. Integer-grid maps for reliable quad meshing. In Proc. SIGGRAPH 2013, 98:1–98:12. DOI: [10.1145/2461912.2462005](https://doi.org/10.1145/2461912.2462005)
 
-- Knöppel, F., Crane, K., Pinkall, U. & Schröder, P. 2013 Globally optimal direction fields. ACM Trans. Graph. 32, 1–10. DOI: [10.1145/2461912.2462005](https://doi.org/10.1145/2461912.2462005)
+- Campen, M., Bommes, D., Kobbelt, L. 2015. Quantized global parametrization. ACM Trans. Graph 34(6), 192:1–192:12. DOI: [10.1145/2816795.2818140](https://doi.org/10.1145/2816795.2818140)
 
 - EPPSTEIN, D., GOODRICH, M. T., KIM, E., AND TAMSTORF, R. 2008. Motorcycle Graphs: Canonical Quad Mesh Partitioning. Computer Graphics Forum 27, 5, 1477–1486. DOI: [10.1111/j.1467-8659.2008.01288.x](https://doi.org/10.1111/j.1467-8659.2008.01288.x)
+
+- Knöppel, F., Crane, K., Pinkall, U. & Schröder, P. 2013 Globally optimal direction fields. ACM Trans. Graph. 32, 1–10. DOI: [10.1145/2461912.2462005](https://doi.org/10.1145/2461912.2462005)
+
+
+- Lyon, M., Campen, M., Bommes, D., Kobbelt, L. 2019. Parametrization quantization with free boundaries for trimmed quad meshing. ACM Trans. Graph. 38(4), 51:1–51:14. DOI: [10.1145/3306346.3323010](https://doi.org/10.1145/3306346.3323019)
+
+- Lyon, M., Campen, M., Kobbelt, L. 2021. Quad layouts via constrained T-mesh quantization. Comput. Graph. Forum 40(2), 263–275. DOI: [10.1111/cgf.14263]( https://doi.org/10.1111/cgf.142634)
+

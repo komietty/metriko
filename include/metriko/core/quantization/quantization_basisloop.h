@@ -31,9 +31,6 @@ namespace metriko {
         const Thalf& bgn,
         Func compare
     ) {
-        //auto compare = [](const Comparator& c1, const Comparator& c2) {
-        //    return c1.length / c1.weight < c2.length / c2.weight;
-        //};
         std::priority_queue<Comparator, std::vector<Comparator>, decltype(compare)> q(compare);
         std::unordered_map<int, int> m;
         std::vector<int> visited;

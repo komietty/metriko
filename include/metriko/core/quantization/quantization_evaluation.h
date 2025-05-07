@@ -9,7 +9,7 @@
 namespace metriko {
 
     /*
-    // it need to evaluate which is better dense or sparse
+    // need to evaluate which is better dense or sparse
     inline VecXd construct_generating_vector(
         const std::vector<Tedge>& tedges,
         const std::vector<Thalf>& thalfs,
@@ -61,7 +61,6 @@ namespace metriko {
     }
     */
 
-    /* */
     template <typename Func>
     MatXd construct_generating_vectors(
         const Tmesh& tmesh,
@@ -86,7 +85,7 @@ namespace metriko {
         G.setFromTriplets(T.begin(), T.end());
         reduce_to_linearly_independent(G);
 
-        std::cout << "The rank of the matrix is: " << G.transpose().cols() << std::endl;
+        std::cout << "The rank of the matrix is: " << G.rows() << std::endl;
         return G.transpose();
     }
 }

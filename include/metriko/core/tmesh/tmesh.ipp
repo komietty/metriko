@@ -16,21 +16,19 @@ namespace metriko {
 
     inline Msgmt Thalf::sg_fr() const { return cannonical ? edge().seg_fr : edge().seg_to; }
     inline Msgmt Thalf::sg_to() const { return cannonical ? edge().seg_to : edge().seg_fr; }
-    inline Tsgmt Thalf::sg_fr2() const { return cannonical ? edge().sgmts.front() : edge().sgmts.back(); }
-    inline Tsgmt Thalf::sg_to2() const { return cannonical ? edge().sgmts.back() : edge().sgmts.front(); }
 
     inline std::vector<Thalf> Thalf::adj_thalfs() const {
         std::vector<Thalf> res;
-        auto side = cannonical ? sg_to().to.side : sg_to().fr.side;
+        auto side = cannonical ? sg_to().to.type : sg_to().fr.type;
         auto &next = this->next();
         auto &twin = this->twin();
         switch (side) {
-            case Right:
+            case HitR:
                 res.emplace_back(next);
                 res.emplace_back(next.twin().next());
                 break;
-            case Crash:
-            case Left:
+            case HitB:
+            case HitL:
                 res.emplace_back(next);
                 res.emplace_back(twin.prev().twin());
                 break;

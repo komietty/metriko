@@ -12,7 +12,6 @@ namespace metriko {
         std::vector<Tquad> tquads;
         std::vector<Thalf> thalfs;
         std::vector<Tedge> tedges;
-        std::vector<int> stemming_thalfs; // todo: remove...
         VecXi th2sing; // -1 if thalf is not from singular, otherwise vertex id
         VecXi th2quad;
         VecXi th2side;
@@ -26,7 +25,7 @@ namespace metriko {
             for (auto &mc: mcurvs) {
                 Msgmt start = mc.sgmts.front();
                 for (auto it = mc.sgmts.begin(); it != mc.sgmts.end(); ++it) {
-                    if (it->to.side != None) {
+                    if (it->to.type != None) {
                         int s = tedges.size();
                         tedges.emplace_back(this, s, start, *it);
                         thalfs.emplace_back(this, s, s * 2 + 0, s * 2 + 1, true);
@@ -41,7 +40,7 @@ namespace metriko {
             while (rg::any_of(visit, [](const bool f) { return !f; })) {
                 auto it = rg::find(visit, false);
                 auto id = std::distance(visit.begin(), it);
-                auto tq = Tquad(mcurvs, thalfs, thalfs[id]);
+                auto tq = Tquad(tquads.size(), mcurvs, thalfs, thalfs[id]);
                 tquads.emplace_back(tq);
                 for (int thid: tq.thids) visit[thid] = true;
             }
@@ -68,12 +67,10 @@ namespace metriko {
             for (auto &mc: mcurvs) {
                 auto it = rg::find_if(thalfs, [&](auto &th) { return th.edge().seg_fr == mc.sgmts.front(); });
                 assert(it != thalfs.end());
-                stemming_thalfs.emplace_back(it->id);
                 th2sing[it->id] = mc.port.vert.id;
             }
         }
 
-        // should be in tquad?
         int next_thid(const int curr) const {
             int iQ = th2quad[curr];
             int iT = th2iter[curr];
@@ -81,7 +78,6 @@ namespace metriko {
             return tq.thids[(iT + 1) % tq.thids.size()];
         }
 
-        // should be in tquad?
         int prev_thid(const int curr) const {
             int iQ = th2quad[curr];
             int iT = th2iter[curr];

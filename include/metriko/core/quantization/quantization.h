@@ -35,18 +35,10 @@ namespace metriko {
        MatXd G = construct_generating_vectors(
            tmesh,
            R,
-           //[](const Comparator &c1, const Comparator &c2) {
-           //    return c1.length < c2.length;
-           //}
            [](const Comparator &c1, const Comparator &c2) {
                return c1.length / std::max(c1.weight, 1e-9)
                     < c2.length / std::max(c2.weight, 1e-9);
            }
-           //[](const Comparator &c1, const Comparator &c2) {
-           //    const double w1 = c1.weight < 1. ? 1e-9 : 1.;
-           //    const double w2 = c2.weight < 1. ? 1e-9 : 1.;
-           //    return c1.length / w1 < c2.length / w2;
-           //}
            );
 
        // ----- construct first step vector ----- //
@@ -103,20 +95,13 @@ namespace metriko {
            counter = prev_e == e ? counter + 1 : 0;
        }
 
-       std::cout << "evaluation: " << e << std::endl;
-       std::cout << "norm of diff: " << (X - R).norm() << std::endl;
+       std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
 
        // ----- construct second step vector (trying another basis) ----- //
        MatXd G2 = construct_generating_vectors(
            tmesh,
            R,
-           [](const Comparator &c1, const Comparator &c2) {
-               return c1.length < c2.length;
-           }
-           //[](const Comparator &c1, const Comparator &c2) {
-           //    return c1.length / std::max(c1.weight, 1e-9)
-           //         < c2.length / std::max(c2.weight, 1e-9);
-           //}
+           [](const Comparator &c1, const Comparator &c2) { return c1.length < c2.length; }
        );
 
        for (auto &th: tmesh.thalfs) {
@@ -129,21 +114,18 @@ namespace metriko {
                double n2 = (x2.cwiseQuotient(R) - I).norm();
 
                if (n1 <= e && (x1.array() >= 0.).all() && compute_validation(tmesh, x1)) {
-                   std::cout << "improvement happens" << std::endl;
                    X = x1;
                    e = n1;
                }
 
                if (n2 <= e && (x2.array() >= 0.).all() && compute_validation(tmesh, x2)) {
-                   std::cout << "improvement happens" << std::endl;
                    X = x2;
                    e = n2;
                }
            }
        }
 
-       std::cout << "evaluation: " << e << std::endl;
-       std::cout << "norm of diff: " << (X - R).norm() << std::endl;
+       std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
 
        assert((C * X).norm() == 0);
        return X;

@@ -36,8 +36,6 @@ namespace metriko {
         const Thalf& next() const;
         const Thalf& prev() const;
         const Tedge& edge() const;
-        //bool is_stemming_fr_singular() const;
-        //bool is_reaching_to_singular() const;
 
         complex uv_fr() const;
         complex uv_to() const;
@@ -45,8 +43,6 @@ namespace metriko {
         complex dif_to() const { return sg_to().diff() * (cannonical ? 1. : -1.); }
         Msgmt sg_fr() const;
         Msgmt sg_to() const;
-        Tsgmt sg_fr2() const;
-        Tsgmt sg_to2() const;
 
         std::vector<Thalf> adj_thalfs() const;
     };
