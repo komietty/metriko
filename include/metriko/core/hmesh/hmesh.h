@@ -34,8 +34,8 @@ namespace metriko {
         Row3d normal() const;
         Row3d center() const;
         double area() const;
-        AdjIter<AdjFH> adjHalfs(bool ccw = true);
-        AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true);
+        AdjIter<AdjFH> adjHalfs(bool ccw = true) const;
+        AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true) const;
     };
 
     struct Edge : Elem {
@@ -58,8 +58,8 @@ namespace metriko {
         bool isBoundary() const;
         double baryArea() const;
         double circArea() const;
-        AdjIter<AdjVH> adjHalfs(bool ccw = true);
-        AdjIter<AdjVH> adjHalfs(Half h, bool ccw = true);
+        AdjIter<AdjVH> adjHalfs(bool ccw = true) const;
+        AdjIter<AdjVH> adjHalfs(Half h, bool ccw = true) const;
     };
 
     struct Crnr : Elem {
@@ -70,7 +70,7 @@ namespace metriko {
 
     struct Loop : Elem {
         Half half() const;
-        AdjIter<AdjLH> adjHalfs(bool ccw = true);
+        AdjIter<AdjLH> adjHalfs(bool ccw = true) const;
     };
 
     struct Half : Elem {
@@ -227,11 +227,11 @@ namespace metriko {
     inline Row3d Face::normal() const { return m->faceNormal.row(id); }
     inline Row3d Face::center() const { return m->baryCenter.row(id); }
 
-    inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) { return {m, m->vert2half[id], ccw}; }
-    inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) { return {m, m->face2half[id], ccw}; }
-    inline AdjIter<AdjLH> Loop::adjHalfs(bool ccw) { return {m, m->loop2half[id], ccw}; }
-    inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) { assert(h.tail().id == id); return {m, h.id, ccw}; }
-    inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) { assert(h.face().id == id); return {m, h.id, ccw}; }
+    inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) const { return {m, m->vert2half[id], ccw}; }
+    inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) const { return {m, m->face2half[id], ccw}; }
+    inline AdjIter<AdjLH> Loop::adjHalfs(bool ccw) const { return {m, m->loop2half[id], ccw}; }
+    inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) const { assert(h.tail().id == id); return {m, h.id, ccw}; }
+    inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) const { assert(h.face().id == id); return {m, h.id, ccw}; }
 
     inline void dcel(
         const VecXi &D,

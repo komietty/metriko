@@ -224,10 +224,9 @@ namespace metriko {
         const std::vector<Mcurv> &curvs,
         const VecXi &matching
     ) {
-        Face f = port.face;
         Half h;
-        for (const Half _h: f.adjHalfs())
-            if (_h.head().id != port.vert.id && _h.tail().id != port.vert.id) h = _h;
+        for (Half h_: port.face.adjHalfs())
+            if (h_.head().id != port.vert.id && h_.tail().id != port.vert.id) h = h_;
         complex uv0 = port.uv;
         complex dir = port.dir;
         add_segment(cfn, curvs, *this, dir, uv0, h);
