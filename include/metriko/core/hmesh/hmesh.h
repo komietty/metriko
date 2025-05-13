@@ -56,6 +56,7 @@ namespace metriko {
         Row3d basisY() const;
         Row3d normal() const;
         bool isBoundary() const;
+        bool isInterior() const;
         double baryArea() const;
         double circArea() const;
         AdjIter<AdjVH> adjHalfs(bool ccw = true) const;
@@ -204,9 +205,12 @@ namespace metriko {
     inline Face Edge::face1() const { return {m->edge2face(id, 1), m}; }
 
     inline bool Half::isCanonical() const { return edge().half().id == id; }
+
     inline bool Half::isBoundary()  const { return face().id == -1; }
-    inline bool Vert::isBoundary()  const { return m->isBV[id]; }
+    inline bool Vert::isBoundary()  const { return  m->isBV[id]; }
+    inline bool Vert::isInterior()  const { return !m->isBV[id]; }
     inline bool Edge::isBoundary()  const { return half().isBoundary() || half().twin().isBoundary(); }
+
     inline double Edge::len() const { return Half{m->edge2half[id], m}.len(); }
     inline double Half::len() const { return vec().norm(); }
     inline double Half::cot() const { return m->halfCotan[id]; }
@@ -261,10 +265,8 @@ namespace metriko {
 
         HE.conservativeResize(numH);
         for (int i = 0; i < EH.rows(); i++) {
-            if (EH(i, 0) != -1)
-                HE(EH(i, 0)) = i;
-            if (EH(i, 1) != -1)
-                HE(EH(i, 1)) = i;
+            if (EH(i, 0) != -1) HE(EH(i, 0)) = i;
+            if (EH(i, 1) != -1) HE(EH(i, 1)) = i;
         }
 
         HV.conservativeResize(numH);
@@ -342,7 +344,26 @@ namespace metriko {
             twin[b] = a;
         };
 
-        // setup topology
+        // option 1
+        //for (int iF = 0; iF < nF; ++iF) {
+        //    for (int iP = 0, iHbgn = iF * nP; iP < nP; ++iP) {
+        //        int iV = idx(iF, iP);
+        //        int iE = face2edge(iF, iP);
+        //        int iH = iHbgn + iP;
+        //        next[iH] = iHbgn + (iP + 1) % nP;
+        //        prev[iH] = iHbgn + (iP - 1 + nP) % nP;
+        //        head[iH] = idx(iF, (iP + 1) % nP);
+        //        tail[iH] = iV;
+        //        edge[iH] = iE;
+        //        face[iH] = iF;
+        //        if (face2half[iF] == -1) face2half[iF] = iH;
+        //        if (vert2half[iV] == -1) vert2half[iV] = iH;
+        //        if (edge2half[iE] == -1) edge2half[iE] = iH;
+        //        else pair(iH, edge2half[iE]);
+        //    }
+        //}
+
+        // set up topology
         MatXi EFi, EH, FH;
         VecXi VH, HV, HE, HF, nextH, prevH, twinH;
         VecXi D = VecXi::Constant(idx.rows(), 3);
