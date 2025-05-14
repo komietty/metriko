@@ -34,6 +34,14 @@ namespace metriko {
         return a * (1. - t) + b * t;
     }
 
+    inline complex normalize(
+        const complex a
+    ) {
+        double l = abs(a);
+        assert(l > 0);
+        return a / l;
+    }
+
     inline double dot(
         const complex a,
         const complex b
@@ -105,12 +113,12 @@ namespace metriko {
     // Find the intersection of a line passing through a and b and another line passing through c and d.
     // Return true if segments are not parallel. Check 0 <= ratio <= 1 if you want a segment-segment intersection.
     inline bool find_extended_intersection(
-        const complex& a,
-        const complex& b,
-        const complex& c,
-        const complex& d,
-        double& ratio_a2b,
-        double& ratio_c2d
+        const complex &a,
+        const complex &b,
+        const complex &c,
+        const complex &d,
+        double &ratio_a2b,
+        double &ratio_c2d
     ) {
         Mat2d m;
         m << d.real() - c.real(), -(b - a).real(), d.imag() - c.imag(), -(b - a).imag();
@@ -122,12 +130,12 @@ namespace metriko {
     }
 
     inline bool find_strict_intersection(
-        const complex& a,
-        const complex& b,
-        const complex& c,
-        const complex& d,
-        double& ratio_a2b,
-        double& ratio_c2d
+        const complex &a,
+        const complex &b,
+        const complex &c,
+        const complex &d,
+        double &ratio_a2b,
+        double &ratio_c2d
     ) {
         return find_extended_intersection(a, b, c, d, ratio_a2b, ratio_c2d) &&
                ratio_a2b > 0 &&
@@ -135,7 +143,6 @@ namespace metriko {
                ratio_c2d > 0 &&
                ratio_c2d < 1;
     }
-
 }
 
 #endif

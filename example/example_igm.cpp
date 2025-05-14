@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
 
     RosyParameterization rp(*mesh, *cutm, extf, cmbf->singular, cmbf->matching, seam, N);
     rp.seamless = true;
-    rp.localInjectivity = true;
+    rp.localInjectivity = false;
     rp.roundSeams = false;
     rp.verbose = false;
 
