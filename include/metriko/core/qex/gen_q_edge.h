@@ -30,10 +30,6 @@ namespace metriko::qex {
     ) {
         for (Half h: f.adjHalfs()) {
             if (h.edge().id == eFrId) continue;
-            // why below??
-            //if (vFrId != -1 &&
-            //    h.edge().half().tail().id != vFrId &&
-            //    h.edge().half().head().id != vFrId ) continue;
             Row2d uv1 = cfn.row(h.next().crnr().id);
             Row2d uv2 = cfn.row(h.prev().crnr().id);
             Row2d d = uv2 - uv1;

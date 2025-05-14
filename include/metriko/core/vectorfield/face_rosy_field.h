@@ -248,6 +248,22 @@ namespace metriko {
         return F;
     }
 
+    inline MatXd compute_extrinsic_field(const Hmesh& mesh, const FaceRosyField& field, int rosyN) {
+        MatXd ext(mesh.nF, 3 * rosyN);
+        for (Face f: mesh.faces) {
+            complex c0 = field.field(f.id, 0);
+            complex c1 = field.field(f.id, 1);
+            complex c2 = field.field(f.id, 2);
+            complex c3 = field.field(f.id, 3);
+            ext.block(f.id, 0, 1, 3) = (c0.real() * f.basisX() + c0.imag() * f.basisY()).normalized();
+            ext.block(f.id, 3, 1, 3) = (c1.real() * f.basisX() + c1.imag() * f.basisY()).normalized();
+            ext.block(f.id, 6, 1, 3) = (c2.real() * f.basisX() + c2.imag() * f.basisY()).normalized();
+            ext.block(f.id, 9, 1, 3) = (c3.real() * f.basisX() + c3.imag() * f.basisY()).normalized();
+        }
+        return ext;
+    }
+
+
 
     inline void cut_mesh_with_singularities(
         const MatXd &V,
