@@ -46,34 +46,40 @@ int main(int argc, char** argv) {
         uv2(f.id * 3 + 2) = complex{uv1(f.id * 3 + 2, 0), uv1(f.id * 3 + 2, 1)};
     }
 
-    /// ---- visualize mesh ---- ///
     polyscope::init();
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
-    const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
-    const auto prms = surf->addParameterizationQuantity("params", uv1);
-    surf->addFaceVectorQuantity("cmb field", extf);
-    prms->setEnabled(true);
-    prms->setStyle(polyscope::ParamVizStyle::GRID);
-    prms->setCheckerSize(1);
+
+    /// ---- visualize mesh ---- ///
+    {
+        const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
+        const auto prms = surf->addParameterizationQuantity("params", uv1);
+        surf->addFaceVectorQuantity("cmb field", extf);
+        surf->setEnabled(false);
+        prms->setEnabled(true);
+        prms->setStyle(polyscope::ParamVizStyle::GRID);
+        prms->setCheckerSize(1);
+    }
 
     ///--- visuailize seam ---///
-    std::vector<glm::vec3> nodesS;
-    std::vector<std::array<size_t, 2>> edgesS;
-    size_t counterS = 0;
-    for (auto e: mesh->edges) {
-        if (seam[e.id]) {
+    {
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        size_t i = 0;
+        for (auto e: mesh->edges) {
+            if (!seam[e.id]) continue;
             Row3d p1 = e.half().tail().pos();
             Row3d p2 = e.half().head().pos();
-            nodesS.emplace_back(p1.x(), p1.y(), p1.z());
-            nodesS.emplace_back(p2.x(), p2.y(), p2.z());
-            edgesS.emplace_back(std::array{counterS, counterS + 1});
-            counterS += 2;
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            es.emplace_back(std::array{i, i + 1});
+            i += 2;
         }
+        auto c = polyscope::registerCurveNetwork("seam", ns, es);
+        c->setEnabled(false);
+        c->resetTransform();
+        c->setRadius(0.003);
     }
-    auto curvS = polyscope::registerCurveNetwork("seam", nodesS, edgesS);
-    curvS->resetTransform();
-    curvS->setRadius(0.003);
 
     // qex
     qex::sanitization(*mesh, cmbf->matching, cmbf->singular, 4, uv1);
@@ -98,9 +104,9 @@ int main(int argc, char** argv) {
     auto vq = polyscope::registerPointCloud("VQV", VQV);
     auto eq = polyscope::registerPointCloud("EQV", EQV);
     auto fq = polyscope::registerPointCloud("FQV", FQV);
-    vq->setEnabled(true);
-    eq->setEnabled(true);
-    fq->setEnabled(true);
+    vq->setEnabled(false);
+    eq->setEnabled(false);
+    fq->setEnabled(false);
     vq->setPointRadius(0.003);
     eq->setPointRadius(0.003);
     fq->setPointRadius(0.003);
@@ -137,10 +143,10 @@ int main(int argc, char** argv) {
     auto qp1 = polyscope::registerPointCloud("QP1", QP1);
     auto qp2 = polyscope::registerPointCloud("QP2", QP2);
     auto qp3 = polyscope::registerPointCloud("QP3", QP3);
-    qp0->resetTransform(); qp0->setPointRadius(0.003);
-    qp1->resetTransform(); qp1->setPointRadius(0.003);
-    qp2->resetTransform(); qp2->setPointRadius(0.003);
-    qp3->resetTransform(); qp3->setPointRadius(0.003);
+    qp0->setEnabled(true); qp0->resetTransform(); qp0->setPointRadius(0.002);
+    qp1->setEnabled(true); qp1->resetTransform(); qp1->setPointRadius(0.002);
+    qp2->setEnabled(true); qp2->resetTransform(); qp2->setPointRadius(0.002);
+    qp3->setEnabled(true); qp3->resetTransform(); qp3->setPointRadius(0.002);
     qp0->addScalarQuantity("QP0_idx", QP0_idx); qp0->addScalarQuantity("QP0_fid", QP0_fid); qp0->addScalarQuantity("QP0_u", QP0_u); qp0->addScalarQuantity("QP0_v", QP0_v);
     qp1->addScalarQuantity("QP1_idx", QP1_idx); qp1->addScalarQuantity("QP1_fid", QP1_fid); qp1->addScalarQuantity("QP1_u", QP1_u); qp1->addScalarQuantity("QP1_v", QP1_v);
     qp2->addScalarQuantity("QP2_idx", QP2_idx); qp2->addScalarQuantity("QP2_fid", QP2_fid); qp2->addScalarQuantity("QP2_u", QP2_u); qp2->addScalarQuantity("QP2_v", QP2_v);
@@ -151,9 +157,8 @@ int main(int argc, char** argv) {
     qp2->addScalarQuantity("QP2_next", QP2_next); qp2->addScalarQuantity("QP2_prev", QP2_prev);
     qp3->addScalarQuantity("QP3_next", QP3_next); qp3->addScalarQuantity("QP3_prev", QP3_prev);
 
-    //*
     qex::generate_q_edge(*mesh, uv1, cmbf->matching, q_ports, q_edges);
-    qex::generate_q_faces(*mesh, q_ports, q_edges);
+    auto qfaces = qex::generate_q_faces(q_ports, q_edges);
 
     std::vector<std::array<size_t, 2>> QE;
     std::vector<glm::vec3> QN;
@@ -170,11 +175,24 @@ int main(int argc, char** argv) {
     }
     auto q_edge_curv = polyscope::registerCurveNetwork("q edge", QN, QE);
     q_edge_curv->resetTransform();
-    q_edge_curv->setRadius(0.002);
-    q_edge_curv->setEnabled(true);
+    q_edge_curv->setRadius(0.001);
+    q_edge_curv->setEnabled(false);
     q_edge_curv->addEdgeScalarQuantity("p1 idx", p1);
     q_edge_curv->addEdgeScalarQuantity("p2 idx", p2);
-    //*/
+
+    {
+        int l = qfaces.size();
+        MatXd pos(l * 4, 3);
+        MatXi idx(l, 4);
+        for (int i = 0; i < l; i++) {
+        for (int j = 0; j < 4; j++) {
+            pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
+            idx(i, j) = i * 4 + j;
+        }}
+        auto surf = polyscope::registerSurfaceMesh("quad mesh!", pos, idx);
+        surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
+        surf->setEdgeWidth(1.);
+    }
 
     polyscope::show();
     return 0;

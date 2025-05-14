@@ -4,12 +4,12 @@
 
 namespace metriko::qex {
     inline void generate_q_vert(
-        const Hmesh& mesh,
-        const MatXd& cfn,
-        std::vector<Qvert>& vert_q_verts,
-        std::vector<Qvert>& edge_q_verts,
-        std::vector<Qvert>& face_q_verts
-        ) {
+        const Hmesh &mesh,
+        const MatXd &cfn,
+        std::vector<Qvert> &vert_q_verts,
+        std::vector<Qvert> &edge_q_verts,
+        std::vector<Qvert> &face_q_verts
+    ) {
         constexpr double prc = 1e-9;
         constexpr double prc2 = 1e-5;
 
@@ -40,36 +40,37 @@ namespace metriko::qex {
             Row2d uv1 = cfn.row(e.half().next().crnr().id); // sanitization required
             Row2d uv2 = cfn.row(e.half().prev().crnr().id); // sanitization required
             int minX = std::floor(std::min(uv1.x(), uv2.x()));
-            int maxX = std::ceil( std::max(uv1.x(), uv2.x()));
+            int maxX = std::ceil(std::max(uv1.x(), uv2.x()));
             int minY = std::floor(std::min(uv1.y(), uv2.y()));
-            int maxY = std::ceil( std::max(uv1.y(), uv2.y()));
+            int maxY = std::ceil(std::max(uv1.y(), uv2.y()));
             for (int x = minX + 1; x < maxX; x++) {
-            for (int y = minY + 1; y < maxY; y++) {
-                Row2d vec1 = uv2 - uv1;
-                Row2d vec2 = Row2d{x, y} - uv1;
-                Row2d vec3 = Row2d{x, y} - uv2;
-                double a = vec2.norm() / vec1.norm();
-                if (vec2.norm() < prc) continue;
-                if (vec3.norm() < prc) continue;
-                Row2d uvw = uv1 + (uv2 - uv1) * a;
-                Row3d pos = v1.pos() + (v2.pos() - v1.pos()) * a;
-                if (abs(1. - vec1.normalized().dot(vec2.normalized())) < prc2) {
+                for (int y = minY + 1; y < maxY; y++) {
+                    Row2d vec1 = uv2 - uv1;
+                    Row2d vec2 = Row2d{x, y} - uv1;
+                    Row2d vec3 = Row2d{x, y} - uv2;
+                    double a = vec2.norm() / vec1.norm();
+                    if (vec2.norm() < prc) continue;
+                    if (vec3.norm() < prc) continue;
+                    Row2d uvw = uv1 + (uv2 - uv1) * a;
+                    Row3d pos = v1.pos() + (v2.pos() - v1.pos()) * a;
+                    if (abs(1. - vec1.normalized().dot(vec2.normalized())) < prc2) {
+                        if (rg::any_of(vert_q_verts.begin(), vert_q_verts.end(), [&](const Qvert &qv) {
+                            return (pos - qv.pos).norm() < prc2;
+                        }))
+                            continue;
 
-                    if (std::ranges::any_of(vert_q_verts.begin(), vert_q_verts.end(), [&](const Qvert& qv) {
-                        return (pos - qv.pos).norm() < prc2;
-                    })) continue;
-
-                    edge_q_verts.emplace_back(
-                        Qvert{
-                            uvw,
-                            pos,
-                            eqv_counter,
-                            e.id
-                        }
+                        edge_q_verts.emplace_back(
+                            Qvert{
+                                uvw,
+                                pos,
+                                eqv_counter,
+                                e.id
+                            }
                         );
-                    eqv_counter++;
+                        eqv_counter++;
+                    }
                 }
-            }}
+            }
         }
 
         //--- face_q_vert ----//
@@ -86,30 +87,24 @@ namespace metriko::qex {
             int maxX = std::ceil(std::max({uv1.x(), uv2.x(), uv3.x()}));
             int maxY = std::ceil(std::max({uv1.y(), uv2.y(), uv3.y()}));
             for (int x = minX; x < maxX; x++) {
-            for (int y = minY; y < maxY; y++) {
-                Row2d xy(x, y);
-                double s1 = cross(uv2 - uv1, xy - uv1);
-                double s2 = cross(uv3 - uv2, xy - uv2);
-                double s3 = cross(uv1 - uv3, xy - uv3);
-                Row3d pos = uv2pos(uv1, uv2, uv3, v1.pos(), v2.pos(), v3.pos(), xy);
-                if ((s1 > prc2 && s2 > prc2 && s3 > prc2) || (s1 < prc2 &&  s2 < prc2 && s3 < prc2)) {
+                for (int y = minY; y < maxY; y++) {
+                    Row2d xy(x, y);
+                    double s1 = cross(uv2 - uv1, xy - uv1);
+                    double s2 = cross(uv3 - uv2, xy - uv2);
+                    double s3 = cross(uv1 - uv3, xy - uv3);
+                    Row3d pos = uv2pos(uv1, uv2, uv3, v1.pos(), v2.pos(), v3.pos(), xy);
+                    if ((s1 > prc2 && s2 > prc2 && s3 > prc2) || (s1 < prc2 && s2 < prc2 && s3 < prc2)) {
+                        if (
+                            rg::any_of(vert_q_verts, [&](const Qvert &qv) { return (pos - qv.pos).squaredNorm() < prc2; }) ||
+                            rg::any_of(edge_q_verts, [&](const Qvert &qv) { return (pos - qv.pos).squaredNorm() < prc2; })
+                        )
+                            continue;
 
-                    if (
-                        std::ranges::any_of(vert_q_verts.begin(), vert_q_verts.end(), [&](const Qvert& qv) { return (pos - qv.pos).squaredNorm() < prc2; }) ||
-                        std::ranges::any_of(edge_q_verts.begin(), edge_q_verts.end(), [&](const Qvert& qv) { return (pos - qv.pos).squaredNorm() < prc2; })
-                    )
-                        continue;
-
-                    face_q_verts.emplace_back(
-                        Qvert{
-                            Row2d(x, y),
-                            pos,
-                            fqv_counter,
-                            f.id
-                        });
-                    fqv_counter++;
+                        face_q_verts.emplace_back(Qvert{Row2d(x, y), pos, fqv_counter, f.id});
+                        fqv_counter++;
+                    }
                 }
-            }}
+            }
         }
     }
 }

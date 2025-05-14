@@ -61,7 +61,7 @@ namespace metriko::qex {
                 }
 
                 // sort ports inside a face
-                std::ranges::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
+                rg::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
                     const Row2d dir = uv2 - uv1;
                     return dot(pa.dir, dir) > dot(pb.dir, dir);
                 });
@@ -135,7 +135,7 @@ namespace metriko::qex {
                 }
 
                 // sort ports inside a face
-                std::ranges::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
+                rg::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
                     const Row2d dir = v - u;
                     return dot(pa.dir, dir) > dot(pb.dir, dir);
                 });
