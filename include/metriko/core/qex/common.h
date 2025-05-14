@@ -32,8 +32,8 @@ namespace metriko::qex {
         int vid;
         int eid;
         int fid;
-        Row2d uvw;
-        Row2d dir;
+        complex uv;
+        complex dir;
         Row3d pos;
         bool isConnected = false;
         int next_id = -1;
@@ -44,10 +44,10 @@ namespace metriko::qex {
             const int vid,
             const int eid,
             const int fid,
-            const Row2d &uvw,
-            const Row2d &dir,
+            const complex uv,
+            const complex dir,
             const Row3d &pos
-        ) : idx(idx), vid(vid), eid(eid), fid(fid), uvw(uvw), dir(dir), pos(pos) {
+        ) : idx(idx), vid(vid), eid(eid), fid(fid), uv(uv), dir(dir), pos(pos) {
         }
     };
 

@@ -257,10 +257,8 @@ namespace metriko {
         int numH = 0;
 
         for (int i = 0; i < EF.rows(); i++) {
-            if (EF(i, 0) != -1)
-                EH(i, 0) = numH++;
-            if (EF(i, 1) != -1)
-                EH(i, 1) = numH++;
+            if (EF(i, 0) != -1) EH(i, 0) = numH++;
+            if (EF(i, 1) != -1) EH(i, 1) = numH++;
         }
 
         HE.conservativeResize(numH);

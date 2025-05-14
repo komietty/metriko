@@ -7,10 +7,10 @@ namespace metriko::qex {
     inline bool is_inside(
         const Face f,
         const VecXc &cfn,
-        const Row2d &target
+        const complex uv
     ) {
         auto p = 1e-3;
-        auto c = calc_coefficient(f, cfn, convert(target));
+        auto c = calc_coefficient(f, cfn, uv);
         return c.real() > -p && c.imag() > -p && c.real() + c.imag() < 1 + p;
     }
 
@@ -47,16 +47,16 @@ namespace metriko::qex {
 
         for (Qport& port: qps) {
             if (port.isConnected) continue;
-            Row2d uv1 = port.uvw;
-            Row2d uv2 = port.uvw + port.dir;
+            complex uv1 = port.uv;
+            complex uv2 = port.uv + port.dir;
             Face f = mesh.faces[port.fid];
             int eFrId = port.eid;
             int hFrId = -1;
 
             int counter = 0;
-            Vec2d dir = port.dir;
+            Vec2d dir = convert(port.dir).transpose();
             do {
-                hFrId = pickNextHe(f, eFrId, cfn, convert(uv1), convert(uv2));
+                hFrId = pickNextHe(f, eFrId, cfn, uv1, uv2);
                 if (hFrId == -1) break;
                 Half h = mesh.halfs[hFrId];
                 if (h.twin().isBoundary()) break;
@@ -64,8 +64,8 @@ namespace metriko::qex {
                 f = h.twin().face();
                 Vec2d d = heTranslation.row(h.id).transpose();
                 Mat2d r = matching2rot(heMatching[h.id]);
-                uv2 = r * uv2.transpose() + d;
-                uv1 = r * uv1.transpose() + d;
+                uv2 = convert(r * convert(uv2).transpose() + d);
+                uv1 = convert(r * convert(uv1).transpose() + d);
                 dir = r * dir;
                 counter++;
             } while (!is_inside(f, cfn, uv2) && counter < 10);
@@ -74,7 +74,7 @@ namespace metriko::qex {
                 if (other.idx == port.idx) return false;
                 if (other.isConnected) return false;
                 // todo without this there is a bug, which means this depends the order of ports
-                return other.dir == -dir.transpose() && (other.uvw - uv2).norm() < 1e-5 && other.fid == f.id;
+                return convert(other.dir) == -dir.transpose() && abs(other.uv - uv2) < 1e-5 && other.fid == f.id;
             });
 
             //assert(pair != qps.end());

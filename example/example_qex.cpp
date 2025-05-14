@@ -122,20 +122,20 @@ int main(int argc, char** argv) {
     std::vector<double> QP_flag;
     for (const auto& q: q_ports) {
         Face f = mesh->faces[q.fid];
-        Row3d p = conversion_2d_3d(f, uv2, qex::convert(q.uvw + q.dir * 0.1));
+        Row3d p = conversion_2d_3d(f, uv2, q.uv + q.dir * 0.1);
         QP.emplace_back(p.x(), p.y(), p.z());
         QP_idx.emplace_back(q.idx);
         QP_fid.emplace_back(f.id);
-        QP_u.emplace_back(q.uvw.x());
-        QP_v.emplace_back(q.uvw.y());
+        QP_u.emplace_back(q.uv.real());
+        QP_v.emplace_back(q.uv.imag());
         QP_n.emplace_back(q.next_id);
         QP_p.emplace_back(q.prev_id);
-        if      (q.dir == Row2d(1, 0))  QP_dir.emplace_back(0);
-        else if (q.dir == Row2d(0, 1))  QP_dir.emplace_back(1);
-        else if (q.dir == Row2d(-1, 0)) QP_dir.emplace_back(2);
-        else if (q.dir == Row2d(0, -1)) QP_dir.emplace_back(3);
-        if (q.idx == 6188) { QP_flag.emplace_back(1); }
-        else QP_flag.emplace_back(0);
+        if      (equal(q.dir, complex(1, 0)))  QP_dir.emplace_back(0);
+        else if (equal(q.dir, complex(0, 1)))  QP_dir.emplace_back(1);
+        else if (equal(q.dir, complex(-1, 0))) QP_dir.emplace_back(2);
+        else if (equal(q.dir, complex(0, -1))) QP_dir.emplace_back(3);
+        //if (q.idx == 6188) { QP_flag.emplace_back(1); }
+        //else QP_flag.emplace_back(0);
     }
 
     auto qp = polyscope::registerPointCloud("QP", QP);
@@ -145,11 +145,11 @@ int main(int argc, char** argv) {
     qp->addScalarQuantity("QP_idx", QP_idx);
     qp->addScalarQuantity("QP_fid", QP_fid);
     qp->addScalarQuantity("QP_dir", QP_dir)->setEnabled(true);
-    qp->addScalarQuantity("QP_flag", QP_flag)->setEnabled(true);
     qp->addScalarQuantity("QP_u", QP_u);
     qp->addScalarQuantity("QP_v", QP_v);
     qp->addScalarQuantity("QP0_next", QP_n);
     qp->addScalarQuantity("QP0_prev", QP_p);
+    //qp->addScalarQuantity("QP_flag", QP_flag)->setEnabled(true);
 
     auto qedges = qex::generate_q_edge(*mesh, uv2, cmbf->matching, q_ports);
     auto qfaces = qex::generate_q_faces(q_ports, qedges);

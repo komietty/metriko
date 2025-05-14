@@ -17,7 +17,7 @@ namespace metriko::qex {
         // vert_q_vert
         int vqv_counter = 0;
         for (Vert v: mesh.verts) {
-            Half h = v.half(); // sanitization required
+            Half h = v.half();
             Crnr c = h.next().crnr();
             complex uv = cfn(c.id);
             double x = std::fmod(std::abs(uv.real()), 1.);
@@ -40,35 +40,33 @@ namespace metriko::qex {
             int maxX = std::ceil(std::max(uv1.real(), uv2.real()));
             int maxY = std::ceil(std::max(uv1.imag(), uv2.imag()));
             for (int x = minX + 1; x < maxX; x++) {
-                for (int y = minY + 1; y < maxY; y++) {
-                    complex vec1 = uv2 - uv1;
-                    complex vec2 = complex(x, y) - uv1;
-                    complex vec3 = complex(x, y) - uv2;
-                    double a = abs(vec2) / abs(vec1);
-                    if (abs(vec2) < prc) continue;
-                    if (abs(vec3) < prc) continue;
-                    complex uv = uv1 + (uv2 - uv1) * a;
-                    Row3d pos = v1.pos() + (v2.pos() - v1.pos()) * a;
-                    complex n1 = normalize(vec1);
-                    complex n2 = normalize(vec2);
-                    if (abs(1. - dot(n1, n2)) < prc2) {
-                        if (rg::any_of(vqvs, [&](const Qvert &qv) { return (pos - qv.pos).norm() < prc2; })) continue;
-                        eqvs.emplace_back(uv, pos, eqv_counter, e.id);
-                        eqv_counter++;
-                    }
+            for (int y = minY + 1; y < maxY; y++) {
+                auto vec1 = uv2 - uv1;
+                auto vec2 = complex(x, y) - uv1;
+                auto vec3 = complex(x, y) - uv2;
+                if (abs(vec2) < prc || abs(vec3) < prc) continue;
+                auto a = abs(vec2) / abs(vec1);
+                auto uv = uv1 + (uv2 - uv1) * a;
+                Row3d p = v1.pos() + (v2.pos() - v1.pos()) * a;
+                if (abs(1. - dot(normalize(vec1), normalize(vec2))) < prc2) {
+                    if (rg::any_of(vqvs, [&](const Qvert &qv) { return (p - qv.pos).norm() < prc2; })) continue;
+                    eqvs.emplace_back(uv, p, eqv_counter, e.id);
+                    eqv_counter++;
                 }
-            }
+            }}
         }
 
         // face_q_vert
         int fqv_counter = 0;
+        auto nested = std::array{vqvs, eqvs} | vw::join;
+
         for (Face f: mesh.faces) {
             Vert v1 = mesh.verts[mesh.idx(f.id, 0)];
             Vert v2 = mesh.verts[mesh.idx(f.id, 1)];
             Vert v3 = mesh.verts[mesh.idx(f.id, 2)];
-            complex uv1 = cfn(f.id * 3 + 0);
-            complex uv2 = cfn(f.id * 3 + 1);
-            complex uv3 = cfn(f.id * 3 + 2);
+            auto uv1 = cfn(f.id * 3 + 0);
+            auto uv2 = cfn(f.id * 3 + 1);
+            auto uv3 = cfn(f.id * 3 + 2);
             int minX = std::floor(std::min({uv1.real(), uv2.real(), uv3.real()}));
             int minY = std::floor(std::min({uv1.imag(), uv2.imag(), uv3.imag()}));
             int maxX = std::ceil(std::max({uv1.real(), uv2.real(), uv3.real()}));
@@ -76,21 +74,16 @@ namespace metriko::qex {
             for (int x = minX; x < maxX; x++) {
             for (int y = minY; y < maxY; y++) {
                 auto xy = complex(x, y);
-                double s1 = cross(uv2 - uv1, xy - uv1);
-                double s2 = cross(uv3 - uv2, xy - uv2);
-                double s3 = cross(uv1 - uv3, xy - uv3);
-                Row3d pos = conversion_2d_3d(uv1, uv2, uv3, v1.pos(), v2.pos(), v3.pos(), xy);
-                if ((s1 > prc2 && s2 > prc2 && s3 > prc2) || (s1 < prc2 && s2 < prc2 && s3 < prc2)) {
-                    if (
-                        rg::any_of(vqvs, [&](const Qvert &qv) { return (pos - qv.pos).squaredNorm() < prc2; }) ||
-                        rg::any_of(eqvs, [&](const Qvert &qv) { return (pos - qv.pos).squaredNorm() < prc2; }))
-                        continue;
-
-                    fqvs.emplace_back(x, y, pos, fqv_counter, f.id);
+                auto s1 = cross(uv2 - uv1, xy - uv1);
+                auto s2 = cross(uv3 - uv2, xy - uv2);
+                auto s3 = cross(uv1 - uv3, xy - uv3);
+                Row3d p = conversion_2d_3d(uv1, uv2, uv3, v1.pos(), v2.pos(), v3.pos(), xy);
+                if (( s1 > prc2 && s2 > prc2 && s3 > prc2) || (s1 < prc2 && s2 < prc2 && s3 < prc2)) {
+                    if (rg::any_of(nested, [&](const Qvert &q) { return (p - q.pos).squaredNorm() < prc2; })) continue;
+                    fqvs.emplace_back(x, y, p, fqv_counter, f.id);
                     fqv_counter++;
                 }
-            }
-            }
+            }}
         }
     }
 }

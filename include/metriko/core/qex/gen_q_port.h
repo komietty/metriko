@@ -14,8 +14,8 @@ namespace metriko::qex {
 
         for (const Qvert &qv: edge_qverts) {
             ports_per_qv.clear();
-            Edge edge = mesh.edges[qv.sid];
-            auto hs = std::vector{edge.half(), edge.half().twin()};
+            Edge e = mesh.edges[qv.sid];
+            auto hs = std::vector{e.half(), e.half().twin()};
             for (Half h: hs) {
                 std::vector<Qport> ports_per_he;
                 ports_per_he.clear();
@@ -30,16 +30,16 @@ namespace metriko::qex {
                 for (int i = 0; i < 4; i++) {
                     complex dir = get_quater_rot(i);
                     if (cross(dir, uv2 - uv1) * cross(uv3 - uv1, uv2 - uv1) > 0) {
-                        complex xy = uv1 + (uv2 - uv1) * alpha;
-                        complex xy_ = complex(std::round(xy.real()), std::round(xy.imag()));
-                        ports_per_he.emplace_back(-1, -1, edge.id, h.face().id, convert(xy_), convert(dir), qv.pos);
+                        auto l  = lerp(uv1, uv2, alpha);
+                        auto xy = complex(std::round(l.real()), std::round(l.imag()));
+                        ports_per_he.emplace_back(-1, -1, e.id, h.face().id, xy, dir, qv.pos);
                     }
                 }
 
                 // sort ports inside a face
                 rg::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
                     const complex dir = uv2 - uv1;
-                    return dot(convert(pa.dir), dir) > dot(convert(pb.dir), dir);
+                    return dot(pa.dir, dir) > dot(pb.dir, dir);
                 });
 
                 for (auto &p: ports_per_he) { ports_per_qv.emplace_back(p); }
@@ -65,7 +65,7 @@ namespace metriko::qex {
         for (const Qvert &qv: face_qverts) {
             const int fid = mesh.faces[qv.sid].id;
             for (int i = 0; i < 4; i++) {
-                q_ports.emplace_back(q_ports.size(), -1, -1, fid, convert(qv.uv), convert(get_quater_rot(i)), qv.pos);
+                q_ports.emplace_back(q_ports.size(), -1, -1, fid, qv.uv, get_quater_rot(i), qv.pos);
             }
             for (int i = 0; i < 4; i++) {
                 const int l = q_ports.size();
@@ -100,16 +100,16 @@ namespace metriko::qex {
                     if (points_into(get_quater_rot(r), u, v, w)) break;
                 }
                 for (int i = 0; i < 4; i++) {
-                    complex dir = get_quater_rot((r - i + 4) % 4);
-                    if (points_into(dir, u, v, w) || dot(dir, normalize(v - u)) == 1.) {
-                        ports_per_he.emplace_back(-1, vert.id, -1, h.face().id, convert(u), convert(dir), qv.pos);
+                    complex d = get_quater_rot((r - i + 4) % 4);
+                    if (points_into(d, u, v, w) || dot(d, normalize(v - u)) == 1.) {
+                        ports_per_he.emplace_back(-1, vert.id, -1, h.face().id, u, d, qv.pos);
                     }
                 }
 
                 // sort ports inside a face
                 rg::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
                     const complex dir = v - u;
-                    return dot(convert(pa.dir), dir) > dot(convert(pb.dir), dir);
+                    return dot(pa.dir, dir) > dot(pb.dir, dir);
                 });
 
                 for (auto & p : ports_per_he) { ports_per_qv.emplace_back(p); }

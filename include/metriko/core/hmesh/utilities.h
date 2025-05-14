@@ -9,15 +9,15 @@
 
 namespace metriko {
     inline complex calc_coefficient(
-        const Face f,
+        const Face face,
         const VecXc& cfn,
-        const complex target
+        const complex uv
     ) {
         return calc_coefficient(
-            cfn(f.half().crnr().id),
-            cfn(f.half().next().crnr().id),
-            cfn(f.half().prev().crnr().id),
-            target);
+            cfn(face.half().crnr().id),
+            cfn(face.half().next().crnr().id),
+            cfn(face.half().prev().crnr().id),
+            uv);
     }
 
     inline Row3d conversion_2d_3d(
@@ -27,20 +27,20 @@ namespace metriko {
         const Row3d& origin3d,
         const Row3d& p1_3d,
         const Row3d& p2_3d,
-        const complex target
+        const complex uv
     ) {
-        const complex c = calc_coefficient(origin2d, p1_2d, p2_2d, target);
+        const complex c = calc_coefficient(origin2d, p1_2d, p2_2d, uv);
         return origin3d + (p1_3d - origin3d) * c.real() + (p2_3d - origin3d) * c.imag();
     }
 
     inline Row3d conversion_2d_3d(
-        const Face& f,
+        const Face& face,
         const VecXc& cfn,
-        const complex target
+        const complex uv
     ) {
-        const Crnr c1 = f.half().crnr();
-        const Crnr c2 = f.half().next().crnr();
-        const Crnr c3 = f.half().prev().crnr();
+        const Crnr c1 = face.half().crnr();
+        const Crnr c2 = face.half().next().crnr();
+        const Crnr c3 = face.half().prev().crnr();
         return conversion_2d_3d(
             cfn(c1.id),
             cfn(c2.id),
@@ -48,7 +48,7 @@ namespace metriko {
             c1.vert().pos(),
             c2.vert().pos(),
             c3.vert().pos(),
-            target);
+            uv);
     }
 
     inline Half get_oppsite_half(

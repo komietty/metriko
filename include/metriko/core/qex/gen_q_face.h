@@ -13,10 +13,7 @@ namespace metriko::qex {
         Qport curr = qh.port2();
 
         for (int i = 0; i < 3; i++) {
-            auto it = rg::find_if(qhs, [&](const Qhalf &qh_) {
-                return qh_.port1().idx == qps[curr.prev_id].idx;
-            });
-            if (it == qhs.end()) continue;
+            auto it = rg::find_if(qhs, [&](const Qhalf &qh_) { return qh_.port1().idx == qps[curr.prev_id].idx; });
             assert(it != qhs.end());
             qf.qhalfs.emplace_back(*it);
             curr = it->port2();
