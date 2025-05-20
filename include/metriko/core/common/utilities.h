@@ -62,7 +62,9 @@ namespace metriko {
         const complex c
     ) {
         const double v = cross(b - a, c - a);
-        if (v == 0) std::cout << "Edge case!: cross == 0" << std::endl;
+        if (v == 0) {
+            std::cout << "edge case: cross == 0" << std::endl;
+        }
         return v > 0;
     }
 
@@ -93,6 +95,23 @@ namespace metriko {
         if (abs(tgt - a) < precision || abs(tgt - b) < precision || abs(tgt - c) < precision) return 2;
         return 0;
     }
+
+    struct minmax_int {
+        int min_x;
+        int min_y;
+        int max_x;
+        int max_y;
+    };
+    inline minmax_int get_minmax_int (std::vector<complex> uvs) {
+        auto xs = vw::transform(uvs, [](complex uv) { return uv.real(); });
+        auto ys = vw::transform(uvs, [](complex uv) { return uv.imag(); });
+        return minmax_int{
+            static_cast<int>(std::floor(rg::min(xs))),
+            static_cast<int>(std::floor(rg::min(ys))),
+            static_cast<int>(std::ceil(rg::max(xs))),
+            static_cast<int>(std::ceil(rg::max(ys)))
+        };
+    };
 
     inline complex calc_coefficient(
         const complex origin,

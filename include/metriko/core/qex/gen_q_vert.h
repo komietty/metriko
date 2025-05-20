@@ -1,6 +1,7 @@
 #ifndef GEN_Q_VERT_H
 #define GEN_Q_VERT_H
 #include "common.h"
+#include "gen_q_edge.h"
 #include "metriko/core/hmesh/utilities.h"
 
 namespace metriko::qex {
@@ -11,78 +12,49 @@ namespace metriko::qex {
         std::vector<Qvert> &eqvs,
         std::vector<Qvert> &fqvs
     ) {
-        constexpr double prc = 1e-9;
-        constexpr double prc2 = 1e-5;
 
         // vert_q_vert
-        int vqv_counter = 0;
         for (Vert v: mesh.verts) {
-            Half h = v.half();
-            Crnr c = h.next().crnr();
-            complex uv = cfn(c.id);
-            double x = std::fmod(std::abs(uv.real()), 1.);
-            double y = std::fmod(std::abs(uv.imag()), 1.);
-            if ((x < prc || 1 - x < prc) && (y < prc || 1 - y < prc)) {
-                vqvs.emplace_back(x, y, v.pos(), vqv_counter, v.id);
-                vqv_counter++;
-            }
+            auto c = v.half().next().crnr(); // checks only one corner
+            auto uv = cfn(c.id);
+            auto x = std::fmod(std::abs(uv.real()), 1.);
+            auto y = std::fmod(std::abs(uv.imag()), 1.);
+            if ((x < ACCURACY || 1 - x < ACCURACY) && (y < ACCURACY || 1 - y < ACCURACY))
+                vqvs.emplace_back(complex(x, y), v.pos(), v.id);
         }
 
         // edge_q_vert
-        int eqv_counter = 0;
         for (Edge e: mesh.edges) {
-            Vert v1 = e.half().tail();
-            Vert v2 = e.half().head();
-            complex uv1 = cfn(e.half().next().crnr().id);
-            complex uv2 = cfn(e.half().prev().crnr().id);
-            int minX = std::floor(std::min(uv1.real(), uv2.real()));
-            int minY = std::floor(std::min(uv1.imag(), uv2.imag()));
-            int maxX = std::ceil(std::max(uv1.real(), uv2.real()));
-            int maxY = std::ceil(std::max(uv1.imag(), uv2.imag()));
-            for (int x = minX + 1; x < maxX; x++) {
-            for (int y = minY + 1; y < maxY; y++) {
-                auto vec1 = uv2 - uv1;
-                auto vec2 = complex(x, y) - uv1;
-                auto vec3 = complex(x, y) - uv2;
-                if (abs(vec2) < prc || abs(vec3) < prc) continue;
-                auto a = abs(vec2) / abs(vec1);
-                auto uv = uv1 + (uv2 - uv1) * a;
-                Row3d p = v1.pos() + (v2.pos() - v1.pos()) * a;
-                if (abs(1. - dot(normalize(vec1), normalize(vec2))) < prc2) {
-                    if (rg::any_of(vqvs, [&](const Qvert &qv) { return (p - qv.pos).norm() < prc2; })) continue;
-                    eqvs.emplace_back(uv, p, eqv_counter, e.id);
-                    eqv_counter++;
+            Row3d p1 = e.half().tail().pos();
+            Row3d p2 = e.half().head().pos();
+            auto uv1 = cfn(e.half().next().crnr().id);
+            auto uv2 = cfn(e.half().prev().crnr().id);
+            auto [minX, minY, maxX, maxY] = get_minmax_int({uv1, uv2});
+            for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                auto xy = complex(x, y);
+                auto a = abs(xy - uv1) / abs(uv2 - uv1);
+                if (is_collinear(uv1, uv2, xy) && a > 0 && a < 1) {
+                    eqvs.emplace_back(xy, p1 + (p2 - p1) * a, e.id);
                 }
             }}
         }
 
         // face_q_vert
-        int fqv_counter = 0;
         auto nested = std::array{vqvs, eqvs} | vw::join;
-
         for (Face f: mesh.faces) {
-            Vert v1 = mesh.verts[mesh.idx(f.id, 0)];
-            Vert v2 = mesh.verts[mesh.idx(f.id, 1)];
-            Vert v3 = mesh.verts[mesh.idx(f.id, 2)];
+            Row3d p1 = mesh.verts[mesh.idx(f.id, 0)].pos();
+            Row3d p2 = mesh.verts[mesh.idx(f.id, 1)].pos();
+            Row3d p3 = mesh.verts[mesh.idx(f.id, 2)].pos();
             auto uv1 = cfn(f.id * 3 + 0);
             auto uv2 = cfn(f.id * 3 + 1);
             auto uv3 = cfn(f.id * 3 + 2);
-            int minX = std::floor(std::min({uv1.real(), uv2.real(), uv3.real()}));
-            int minY = std::floor(std::min({uv1.imag(), uv2.imag(), uv3.imag()}));
-            int maxX = std::ceil(std::max({uv1.real(), uv2.real(), uv3.real()}));
-            int maxY = std::ceil(std::max({uv1.imag(), uv2.imag(), uv3.imag()}));
-            for (int x = minX; x < maxX; x++) {
-            for (int y = minY; y < maxY; y++) {
+            auto [minX, minY, maxX, maxY] = get_minmax_int({uv1, uv2, uv3});
+            for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
                 auto xy = complex(x, y);
-                auto s1 = cross(uv2 - uv1, xy - uv1);
-                auto s2 = cross(uv3 - uv2, xy - uv2);
-                auto s3 = cross(uv1 - uv3, xy - uv3);
-                Row3d p = conversion_2d_3d(uv1, uv2, uv3, v1.pos(), v2.pos(), v3.pos(), xy);
-                if (( s1 > prc2 && s2 > prc2 && s3 > prc2) || (s1 < prc2 && s2 < prc2 && s3 < prc2)) {
-                    if (rg::any_of(nested, [&](const Qvert &q) { return (p - q.pos).squaredNorm() < prc2; })) continue;
-                    fqvs.emplace_back(x, y, p, fqv_counter, f.id);
-                    fqv_counter++;
-                }
+                auto p = conversion_2d_3d(uv1, uv2, uv3, p1, p2, p3, xy);
+                if (is_inside_triangle(uv1, uv2, uv3, xy)) fqvs.emplace_back(xy, p, f.id);
             }}
         }
     }

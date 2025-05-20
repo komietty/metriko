@@ -2,28 +2,21 @@
 #define UTIL_H
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/common/utilities.h"
+#include "metriko/core/common/predicates.h"
 
 namespace metriko::qex {
-    struct Qvert {
-        complex uv;
-        Row3d pos;
-        int idx;
-        int sid; // simplex id
-
-        Qvert(
-            const double u,
-            const double v,
-            const Row3d &pos,
-            const int idx,
-            const int sid
-        ) : uv(complex(u, v)), pos(pos), idx(idx), sid(sid) { }
+    class Qvert {
+    public:
+        const complex uv;
+        const Row3d pos;
+        const int sid;
 
         Qvert(
             const complex &uv,
             const Row3d &pos,
-            const int idx,
             const int sid
-        ) : uv(uv), pos(pos), idx(idx), sid(sid) { }
+        ) : uv(uv), pos(pos), sid(sid) {
+        }
     };
 
     class Qport {
@@ -51,18 +44,12 @@ namespace metriko::qex {
         }
     };
 
-    struct Qedge {
+    class Qedge {
+    public:
         const Qport &port1;
         const Qport &port2;
-        const Mat2d rot;
-        const Row2d trs;
 
-        Qedge(
-            const Qport &port1,
-            const Qport &port2,
-            const Mat2d &rot,
-            const Row2d &trs
-        ) : port1(port1), port2(port2), rot(rot), trs(trs) {
+        Qedge(const Qport &port1, const Qport &port2) : port1(port1), port2(port2) {
         }
     };
 
@@ -83,8 +70,7 @@ namespace metriko::qex {
         std::vector<Qhalf> qhalfs;
     };
 
-    inline Row2d convert(complex a) { return Row2d(a.real(), a.imag()); }
-    inline complex convert(Row2d a) { return complex(a.x(), a.y()); }
+    inline complex convert(Row2d a) { return {a.x(), a.y()}; }
 
     inline Eigen::Matrix2d matching2rot(int matching) {
         Eigen::Matrix2d mat;
@@ -139,6 +125,40 @@ namespace metriko::qex {
             heMatching(h.id) = m;
             heTranslation.row(h.id) = Row2d{std::round(t.x()), std::round(t.y())};
         }
+    }
+
+    inline double orientation(complex pa, complex pb, complex pc) {
+        auto pa_ = std::array{pa.real(), pa.imag()};
+        auto pb_ = std::array{pb.real(), pb.imag()};
+        auto pc_ = std::array{pc.real(), pc.imag()};
+        return orient2dfast(pa_.data(), pb_.data(), pc_.data());
+    }
+
+    inline bool is_collinear(complex pa, complex pb, complex pc) {
+        double o = orientation(pa, pb, pc);
+        return abs(o) < ACCURACY;
+    }
+
+    inline bool is_inside_triangle(
+        complex pa,
+        complex pb,
+        complex pc,
+        complex uv
+    ) {
+        return orientation(pa, pb, uv) > 0 &&
+               orientation(pb, pc, uv) > 0 &&
+               orientation(pc, pa, uv) > 0;
+    }
+
+    inline bool is_inside_triangle(
+        const Face f,
+        const VecXc &cfn,
+        const complex uv
+    ) {
+        auto uv1 = cfn(f.id * 3 + 0);
+        auto uv2 = cfn(f.id * 3 + 1);
+        auto uv3 = cfn(f.id * 3 + 2);
+        return is_inside_triangle(uv1, uv2, uv3, uv);
     }
 }
 

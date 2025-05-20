@@ -12,16 +12,19 @@ namespace metriko::qex {
         const int rosyN,
         MatXd& cfn
     ) {
+        MatXd cfn_ = cfn;
+
         VecXi heMatching;
         MatXd heTranslation;
         compute_trs_matrix(mesh, cfn, matching, rosyN, heMatching, heTranslation);
         for (Vert v: mesh.verts) {
-            //double max = 0;
-            //for (Half h: v.adjHalfs()) {
-            //    Crnr c = h.next().crnr();
-            //    Row2d uv = cfn.row(c.id);
-            //    max = std::max(max, uv.norm()); //todo: check whether standardn norm is fine
-            //}
+            double max = 0;
+            for (Half h: v.adjHalfs()) {
+                Crnr c = h.next().crnr();
+                Row2d uv = cfn.row(c.id);
+                max = std::max(max, abs(uv.x()));
+                max = std::max(max, abs(uv.y()));
+            }
 
             int counter = 0;
             for (Half h: v.adjHalfs()) {
@@ -32,11 +35,11 @@ namespace metriko::qex {
                         Row2d uv = cfn.row(cCurr.id);
                         cfn.row(cCurr.id) = Row2d(std::round(uv.x()), std::round(uv.y()));
                     } else {
-                        //Crnr cCurr = h.next().crnr();
-                        //Row2d uv = cfn.row(cCurr.id);
-                        //double delta = std::pow(2, log2(max));
-                        //Vec2d sign(uv.x() > 0 ? 1 : -1, uv.y() > 0 ? 1 : -1);
-                        //cfn.row(cCurr.id) = cfn.row(cCurr.id) + (delta * sign).transpose() - (delta * sign).transpose(); //todo: does not make sense. better checking code
+                        Crnr cCurr = h.next().crnr();
+                        Row2d uv = cfn.row(cCurr.id);
+                        double delta = std::pow(2, log2(max));
+                        Row2d sign((0 < uv.x()) - (uv.x() < 0), (0 < uv.y()) - (uv.y() < 0));
+                        cfn.row(cCurr.id) = (cfn.row(cCurr.id) + delta * sign) - delta * sign;
                     }
                 } else {
                     Crnr cPrev = h.twin().prev().crnr();
@@ -45,10 +48,10 @@ namespace metriko::qex {
                     Row2d t = heTranslation.row(h.twin().id);
                     cfn.row(cCurr.id) = matching2rot(m) * cfn.row(cPrev.id).transpose() + t.transpose();
                 }
-
                 counter++;
             }
         }
+        std::cout << "sanitization diff: " << (cfn - cfn_).norm() << std::endl;
     }
 }
 
