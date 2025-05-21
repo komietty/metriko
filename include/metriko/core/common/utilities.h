@@ -56,6 +56,7 @@ namespace metriko {
         return a.real() * b.imag() - a.imag() * b.real();
     }
 
+    [[deprecated]]
     inline bool isccw(
         const complex a,
         const complex b,
@@ -68,6 +69,7 @@ namespace metriko {
         return v > 0;
     }
 
+    [[deprecated]]
     inline double orientation(
         const complex a,
         const complex b,
@@ -76,6 +78,7 @@ namespace metriko {
         return cross(b - a, c - a);
     }
 
+    [[deprecated]]
     inline bool points_into(
         const complex dir,
         const complex a,
@@ -85,6 +88,7 @@ namespace metriko {
         return isccw(a, b, a + dir) && isccw(a, a + dir, c);
     }
 
+    [[deprecated]]
     inline int inside(
         const complex a,
         const complex b,

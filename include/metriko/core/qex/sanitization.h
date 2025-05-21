@@ -10,47 +10,51 @@ namespace metriko::qex {
         const VecXi& matching,
         const VecXi& singular,
         const int rosyN,
-        MatXd& cfn
+        VecXc& cfn
     ) {
-        MatXd cfn_ = cfn;
+        VecXc cfn_ = cfn;
 
-        VecXi heMatching;
-        MatXd heTranslation;
-        compute_trs_matrix(mesh, cfn, matching, rosyN, heMatching, heTranslation);
+        //*
+        VecXc heR;
+        VecXc heT;
+        compute_trs_matrix(mesh, cfn, matching, rosyN, heR, heT);
         for (Vert v: mesh.verts) {
             double max = 0;
             for (Half h: v.adjHalfs()) {
                 Crnr c = h.next().crnr();
-                Row2d uv = cfn.row(c.id);
-                max = std::max(max, abs(uv.x()));
-                max = std::max(max, abs(uv.y()));
+                complex uv = cfn(c.id);
+                max = std::max(max, abs(uv.real()));
+                max = std::max(max, abs(uv.imag()));
             }
 
-            int counter = 0;
+            bool init = false;
             for (Half h: v.adjHalfs()) {
-                if(counter == 0) {
+                if(!init) {
                     if (singular[v.id]) {
                         fix_singular_point();
                         Crnr cCurr = h.next().crnr();
-                        Row2d uv = cfn.row(cCurr.id);
-                        cfn.row(cCurr.id) = Row2d(std::round(uv.x()), std::round(uv.y()));
+                        auto uv = cfn(cCurr.id);
+                        cfn(cCurr.id) = complex(std::round(uv.real()), std::round(uv.imag()));
                     } else {
                         Crnr cCurr = h.next().crnr();
-                        Row2d uv = cfn.row(cCurr.id);
+                        auto uv = cfn(cCurr.id);
                         double delta = std::pow(2, log2(max));
-                        Row2d sign((0 < uv.x()) - (uv.x() < 0), (0 < uv.y()) - (uv.y() < 0));
-                        cfn.row(cCurr.id) = (cfn.row(cCurr.id) + delta * sign) - delta * sign;
+                        complex sign((0 < uv.real()) - (uv.real() < 0), (0 < uv.imag()) - (uv.imag() < 0));
+                        cfn(cCurr.id) = (cfn(cCurr.id) + delta * sign) - delta * sign;
                     }
                 } else {
                     Crnr cPrev = h.twin().prev().crnr();
                     Crnr cCurr = h.next().crnr();
-                    int m = heMatching[h.twin().id];
-                    Row2d t = heTranslation.row(h.twin().id);
-                    cfn.row(cCurr.id) = matching2rot(m) * cfn.row(cPrev.id).transpose() + t.transpose();
+                    complex r = heR(h.twin().id);
+                    complex t = heT(h.twin().id);
+                    cfn(cCurr.id) = r * cfn(cPrev.id) + t;
                 }
-                counter++;
+                init = true;
             }
         }
+        //*/
+        std::cout << "diff before: " << cfn_.norm() << std::endl;
+        std::cout << "diff after: " << cfn.norm() << std::endl;
         std::cout << "sanitization diff: " << (cfn - cfn_).norm() << std::endl;
     }
 }

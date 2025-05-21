@@ -3,18 +3,6 @@
 #include "common.h"
 
 namespace metriko::qex {
-    inline bool is_points_into(complex p1, complex p2, complex p3, complex uv) {
-        return orientation(p1, p2, uv) > 0 && orientation(p1, p3, uv) < 0;
-    }
-
-    inline int dir_to_int(complex dir) {
-        if (equal(dir, complex(1, 0))) return 0;
-        if (equal(dir, complex(0, 1))) return 1;
-        if (equal(dir, complex(-1, 0))) return 2;
-        if (equal(dir, complex(0, -1))) return 3;
-        return -1;
-    }
-
     inline void generate_eqvert_qport(
         const Hmesh &mesh,
         const VecXc &cfn,
@@ -27,13 +15,9 @@ namespace metriko::qex {
         for (const Qvert &qv: eqvs) {
             ports_per_qv.clear();
             Edge e = mesh.edges[qv.sid];
-            std::vector<Half> hs;
-            hs.emplace_back(e.half());
-            hs.emplace_back(e.half().twin());
+            std::vector hs{e.half(), e.half().twin()};
 
-            std::cout << "qv.sid: " << qv.sid << std::endl;
             for (const Half h: hs) {
-                std::cout << "fid: " << h.face().id << std::endl;
                 std::vector<Qport> ports_per_he;
                 ports_per_he.clear();
                 Crnr c1 = h.next().crnr();
@@ -45,7 +29,6 @@ namespace metriko::qex {
                 Row3d p2 = c2.vert().pos();
                 double alpha = (qv.pos - p1).norm() / (p2 - p1).norm();
                 auto uv = lerp(uv1, uv2, alpha);
-                std::cout << "ori: " << orientation(uv1, uv2, uv) << std::endl;
                 for (int i = 0; i < 4; i++) {
                     complex dir = get_quater_rot(i);
                     // extrinsic... better solution??
@@ -64,7 +47,7 @@ namespace metriko::qex {
 
                 // sort ports inside a face
                 rg::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
-                    const complex dir = uv2 - uv1;
+                    auto dir = uv2 - uv1;
                     return dot(pa.dir, dir) > dot(pb.dir, dir);
                 });
 

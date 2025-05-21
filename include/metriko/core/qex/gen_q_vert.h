@@ -12,7 +12,6 @@ namespace metriko::qex {
         std::vector<Qvert> &eqvs,
         std::vector<Qvert> &fqvs
     ) {
-
         // vert_q_vert
         for (Vert v: mesh.verts) {
             auto c = v.half().next().crnr(); // checks only one corner
@@ -34,14 +33,12 @@ namespace metriko::qex {
             for (int y = minY; y <= maxY; y++) {
                 auto xy = complex(x, y);
                 auto a = abs(xy - uv1) / abs(uv2 - uv1);
-                if (is_collinear(uv1, uv2, xy) && a > 0 && a < 1) {
+                if (is_collinear(uv1, uv2, xy) && a > ACCURACY && a < 1 - ACCURACY)
                     eqvs.emplace_back(xy, p1 + (p2 - p1) * a, e.id);
-                }
             }}
         }
 
         // face_q_vert
-        auto nested = std::array{vqvs, eqvs} | vw::join;
         for (Face f: mesh.faces) {
             Row3d p1 = mesh.verts[mesh.idx(f.id, 0)].pos();
             Row3d p2 = mesh.verts[mesh.idx(f.id, 1)].pos();
@@ -54,7 +51,8 @@ namespace metriko::qex {
             for (int y = minY; y <= maxY; y++) {
                 auto xy = complex(x, y);
                 auto p = conversion_2d_3d(uv1, uv2, uv3, p1, p2, p3, xy);
-                if (is_inside_triangle(uv1, uv2, uv3, xy)) fqvs.emplace_back(xy, p, f.id);
+                if (is_inside_triangle(uv1, uv2, uv3, xy))
+                    fqvs.emplace_back(xy, p, f.id);
             }}
         }
     }

@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
         uv1.row(f.id * 3 + 2) << rp.cfn(f.id, 8), rp.cfn(f.id, 9);
     }
 
-    qex::sanitization(*mesh, cmbf->matching, cmbf->singular, 4, uv1);
+    qex::sanitization(*mesh, cmbf->matching, cmbf->singular, 4, uv2);
 
     for (const Face f: mesh->faces) {
         uv2(f.id * 3 + 0) = complex{uv1(f.id * 3 + 0, 0), uv1(f.id * 3 + 0, 1)};
@@ -160,16 +160,18 @@ int main(int argc, char** argv) {
     //--- display vert_q_port ---//
     std::vector<glm::vec3> QP;
     std::vector<int> QP_idx, QP_fid, QP_dir, QP_n, QP_p;
-    std::vector<int> QP_sid_vert;
+    std::vector<int> QP_sid_vert, QP_sid_edge, QP_sid_face;
     std::vector<double> QP_u, QP_v;
     std::vector<double> QP_flag(q_ports.size(), 0);
     for (const auto& q: q_ports) {
         Face f = mesh->faces[q.fid];
-        Row3d p = conversion_2d_3d(f, uv2, q.uv + q.dir * 0.15);
+        Row3d p = conversion_2d_3d(f, uv2, q.uv + q.dir * 0.25);
         QP.emplace_back(p.x(), p.y(), p.z());
         QP_idx.emplace_back(q.idx);
         QP_fid.emplace_back(f.id);
         QP_sid_vert.emplace_back(q.vid);
+        QP_sid_edge.emplace_back(q.eid);
+        QP_sid_face.emplace_back(q.fid);
         QP_u.emplace_back(q.uv.real());
         QP_v.emplace_back(q.uv.imag());
         QP_n.emplace_back(q.next_id);
@@ -178,26 +180,23 @@ int main(int argc, char** argv) {
         else if (equal(q.dir, complex(0, 1)))  QP_dir.emplace_back(1);
         else if (equal(q.dir, complex(-1, 0))) QP_dir.emplace_back(2);
         else if (equal(q.dir, complex(0, -1))) QP_dir.emplace_back(3);
-        if (q.idx == 184 ||
-            q.idx == 186 ||
-            q.idx == 187 ||
-            q.idx == 189
-            ) { QP_flag[q.idx] = 1; }
     }
 
     auto qp = polyscope::registerPointCloud("QP", QP);
     qp->setEnabled(true);
     qp->resetTransform();
-    qp->setPointRadius(0.0003);
+    qp->setPointRadius(0.003);
     qp->addScalarQuantity("QP_idx", QP_idx);
     qp->addScalarQuantity("QP_fid", QP_fid);
-    qp->addScalarQuantity("QP_dir", QP_dir)->setEnabled(true);
-    qp->addScalarQuantity("QP_sid_vert", QP_sid_vert)->setEnabled(true);
+    qp->addScalarQuantity("QP_dir", QP_dir);
+    qp->addScalarQuantity("QP_sid_vert", QP_sid_vert);
+    qp->addScalarQuantity("QP_sid_edge", QP_sid_edge);
+    qp->addScalarQuantity("QP_sid_face", QP_sid_face);
     qp->addScalarQuantity("QP_u", QP_u);
     qp->addScalarQuantity("QP_v", QP_v);
     qp->addScalarQuantity("QP0_next", QP_n);
     qp->addScalarQuantity("QP0_prev", QP_p);
-    qp->addScalarQuantity("QP_flag", QP_flag)->setEnabled(true);
+    qp->addScalarQuantity("QP_flag", QP_flag);
 
     //*
     auto qedges = qex::generate_q_edge(*mesh, uv2, cmbf->matching, q_ports);
@@ -224,18 +223,31 @@ int main(int argc, char** argv) {
     q_edge_curv->addEdgeScalarQuantity("p2 idx", p2);
     //*/
 
-    ///*
+    //*
     {
+        std::vector<std::array<size_t, 4>> QF;
         int l = qfaces.size();
         MatXd pos(l * 4, 3);
         MatXi idx(l, 4);
+        //std::array<size_t, 4> QF_idcs;
         for (int i = 0; i < l; i++) {
         for (int j = 0; j < 4; j++) {
             pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
             idx(i, j) = i * 4 + j;
-        }}
+            //if (i == 9550) {
+            //idx(i, j) = i * 4 + j;
+            //}else {
+            //idx(i, j) = 0;
+            //}
+            //QF_idcs[j] = qfaces[i].qhalfs[j].port1().idx;
+        }
+            //if (i == 9550) {
+            //    QF.emplace_back(QF_idcs);
+            //}
+        }
         auto surf = polyscope::registerSurfaceMesh("quad mesh!", pos, idx);
         surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
+        //surf->addFaceVectorQuantity("qedge ids", QF);
         surf->setEdgeWidth(1.);
     }
     //*/

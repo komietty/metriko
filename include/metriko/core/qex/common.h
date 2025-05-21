@@ -1,8 +1,7 @@
-#ifndef UTIL_H
-#define UTIL_H
+#ifndef metriko_QEX_COMMON_H
+#define metriko_QEX_COMMON_H
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/common/utilities.h"
-#include "metriko/core/common/predicates.h"
 
 namespace metriko::qex {
     class Qvert {
@@ -15,8 +14,7 @@ namespace metriko::qex {
             const complex &uv,
             const Row3d &pos,
             const int sid
-        ) : uv(uv), pos(pos), sid(sid) {
-        }
+        ) : uv(uv), pos(pos), sid(sid) { }
     };
 
     class Qport {
@@ -40,17 +38,14 @@ namespace metriko::qex {
             const complex uv,
             const complex dir,
             const Row3d &pos
-        ) : idx(idx), vid(vid), eid(eid), fid(fid), uv(uv), dir(dir), pos(pos) {
-        }
+        ) : idx(idx), vid(vid), eid(eid), fid(fid), uv(uv), dir(dir), pos(pos) { }
     };
 
     class Qedge {
     public:
         const Qport &port1;
         const Qport &port2;
-
-        Qedge(const Qport &port1, const Qport &port2) : port1(port1), port2(port2) {
-        }
+        Qedge(const Qport &port1, const Qport &port2) : port1(port1), port2(port2) { }
     };
 
     class Qhalf {
@@ -60,9 +55,7 @@ namespace metriko::qex {
         const bool cannonical;
         const Qport &port1() const { return cannonical ? edge.port1 : edge.port2; }
         const Qport &port2() const { return cannonical ? edge.port2 : edge.port1; }
-
-        Qhalf(const Qedge &edge, const int idx, const bool cann): edge(edge), idx(idx), cannonical(cann) {
-        }
+        Qhalf(const Qedge &edge, const int idx, const bool cann): edge(edge), idx(idx), cannonical(cann) { }
     };
 
     class Qface {
@@ -70,68 +63,42 @@ namespace metriko::qex {
         std::vector<Qhalf> qhalfs;
     };
 
-    inline complex convert(Row2d a) { return {a.x(), a.y()}; }
-
-    inline Eigen::Matrix2d matching2rot(int matching) {
-        Eigen::Matrix2d mat;
-        if (matching == 0 || matching > 100) mat << 1, 0, 0, 1; // todo: tmp
-        else if (matching == 1) mat << 0, -1, 1, 0;
-        else if (matching == 2) mat << -1, 0, 0, -1;
-        else mat << 0, 1, -1, 0;
-        return mat;
-    }
-
-    inline void compute_trs_matrix_tmp(
+    inline void compute_trs_matrix(
         const Hmesh &mesh,
         const VecXc &cfn,
         const VecXi &matching,
         const int rosyN,
-        VecXi &heMatching,
-        MatXd &heTranslation
+        VecXc &heR,
+        VecXc &heT
     ) {
-        heMatching.resize(mesh.nH);
-        heTranslation.resize(mesh.nH, 2);
+        heR.resize(mesh.nH);
+        heT.resize(mesh.nH);
         for (Half h: mesh.halfs) {
             Crnr c1 = h.next().crnr();
             Crnr c2 = h.twin().prev().crnr();
-            Vec2d uv1 = Vec2d(cfn(c1.id).real(), cfn(c1.id).imag());
-            Vec2d uv2 = Vec2d(cfn(c2.id).real(), cfn(c2.id).imag());
+            auto uv1 = cfn(c1.id);
+            auto uv2 = cfn(c2.id);
             int m = (h.isCanonical() ? 1 : -1) * matching[h.edge().id];
             m = m < 0 ? (rosyN + m % rosyN) % rosyN : m % rosyN;
-            Vec2d t = uv2 - matching2rot(m) * uv1;
-            heMatching(h.id) = m;
-            heTranslation.row(h.id) = Row2d{std::round(t.x()), std::round(t.y())};
-        }
-    }
-
-    inline void compute_trs_matrix(
-        const Hmesh &mesh,
-        const MatXd &cfn,
-        const VecXi &matching,
-        const int rosyN,
-        VecXi &heMatching,
-        MatXd &heTranslation
-    ) {
-        heMatching.resize(mesh.nH);
-        heTranslation.resize(mesh.nH, 2);
-        for (Half h: mesh.halfs) {
-            Crnr c1 = h.next().crnr();
-            Crnr c2 = h.twin().prev().crnr();
-            Vec2d uv1 = cfn.row(c1.id).transpose();
-            Vec2d uv2 = cfn.row(c2.id).transpose();
-            int m = (h.isCanonical() ? 1 : -1) * matching[h.edge().id];
-            m = m < 0 ? (rosyN + m % rosyN) % rosyN : m % rosyN;
-            Vec2d t = uv2 - matching2rot(m) * uv1;
-            heMatching(h.id) = m;
-            heTranslation.row(h.id) = Row2d{std::round(t.x()), std::round(t.y())};
+            auto r = get_quater_rot(m);
+            auto t = uv2 - r * uv1;
+            heR(h.id) = r;
+            heT(h.id) = complex(std::round(t.real()), std::round(t.imag()));
         }
     }
 
     inline double orientation(complex pa, complex pb, complex pc) {
-        auto pa_ = std::array{pa.real(), pa.imag()};
-        auto pb_ = std::array{pb.real(), pb.imag()};
-        auto pc_ = std::array{pc.real(), pc.imag()};
-        return orient2dfast(pa_.data(), pb_.data(), pc_.data());
+        // orient2dfast equivalent
+        double acx = pa.real() - pc.real();
+        double bcx = pb.real() - pc.real();
+        double acy = pa.imag() - pc.imag();
+        double bcy = pb.imag() - pc.imag();
+        return acx * bcy - acy * bcx;
+
+        //auto pa_ = std::array{pa.real(), pa.imag()};
+        //auto pb_ = std::array{pb.real(), pb.imag()};
+        //auto pc_ = std::array{pc.real(), pc.imag()};
+        //return orient2d(pa_.data(), pb_.data(), pc_.data());
     }
 
     inline bool is_collinear(complex pa, complex pb, complex pc) {
@@ -139,22 +106,17 @@ namespace metriko::qex {
         return abs(o) < ACCURACY;
     }
 
-    inline bool is_inside_triangle(
-        complex pa,
-        complex pb,
-        complex pc,
-        complex uv
-    ) {
-        return orientation(pa, pb, uv) > 0 &&
-               orientation(pb, pc, uv) > 0 &&
-               orientation(pc, pa, uv) > 0;
+    inline bool is_points_into(complex p1, complex p2, complex p3, complex uv) {
+        return orientation(p1, p2, uv) > ACCURACY && orientation(p1, p3, uv) < ACCURACY;
     }
 
-    inline bool is_inside_triangle(
-        const Face f,
-        const VecXc &cfn,
-        const complex uv
-    ) {
+    inline bool is_inside_triangle(complex pa, complex pb, complex pc, complex uv) {
+        return orientation(pa, pb, uv) > ACCURACY &&
+               orientation(pb, pc, uv) > ACCURACY &&
+               orientation(pc, pa, uv) > ACCURACY;
+    }
+
+    inline bool is_inside_triangle(const Face f, const VecXc &cfn, const complex uv) {
         auto uv1 = cfn(f.id * 3 + 0);
         auto uv2 = cfn(f.id * 3 + 1);
         auto uv3 = cfn(f.id * 3 + 2);
