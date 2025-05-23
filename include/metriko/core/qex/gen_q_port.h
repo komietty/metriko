@@ -1,5 +1,5 @@
-#ifndef GEN_Q_PORT_H
-#define GEN_Q_PORT_H
+#ifndef METRIKO_QEX_GEN_Q_PORT_H
+#define METRIKO_QEX_GEN_Q_PORT_H
 #include "common.h"
 
 namespace metriko::qex {
@@ -33,7 +33,7 @@ namespace metriko::qex {
                     auto dir = get_quater_rot((r + i + 2) % 4); // considering r = 0 and boundary case
                     bool f1 = orientation(uv1, uv2, uv + dir) >= 0;
                     auto ev = conversion_2d_3d(h.face(), cfn, uv + dir).normalized();
-                    auto it = rg::find_if(visit, [&](const Row3d &v) { return (ev - v).norm() < ACCURACY; });
+                    auto it = rg::find_if(visit, [&](const Row3d &v) { return (ev - v).norm() < EPS; });
                     if (f1 && it == visit.end()) {
                         tmp.emplace_back(-1, -1, e.id, h.face().id, nearby_grid(uv), dir, qv.pos);
                         visit.emplace_back(ev);

@@ -1,5 +1,5 @@
-#ifndef GEN_Q_FACE_H
-#define GEN_Q_FACE_H
+#ifndef METRIKO_QEX_GEN_Q_FACE_H
+#define METRIKO_QEX_GEN_Q_FACE_H
 #include "common.h"
 
 namespace metriko::qex {

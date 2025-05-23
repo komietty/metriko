@@ -1,5 +1,5 @@
-#ifndef SANITIZE_H
-#define SANITIZE_H
+#ifndef METRIKO_QEX_SANITIZATION_H
+#define METRIKO_QEX_SANITIZATION_H
 #include "common.h"
 
 namespace metriko::qex {

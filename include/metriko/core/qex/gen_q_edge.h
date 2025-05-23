@@ -1,5 +1,5 @@
-#ifndef GEN_Q_EDGE_H
-#define GEN_Q_EDGE_H
+#ifndef METRIKO_QEX_GEN_Q_EDGE_H
+#define METRIKO_QEX_GEN_Q_EDGE_H
 #include "common.h"
 #include "metriko/core/hmesh/utilities.h"
 
@@ -19,7 +19,7 @@ namespace metriko::qex {
         Row3d da = (pa2 - pa1).normalized();
         Row3d db = (pb2 - pb1).normalized();
         Row3d dc = (pa1 - pb1).normalized();
-        return abs(1. - db.dot(dc)) < ACCURACY && abs(1. + da.dot(db)) < ACCURACY;
+        return abs(1. - db.dot(dc)) < EPS && abs(1. + da.dot(db)) < EPS;
     }
 
     inline std::pair<Half, complex> pick_next_half(
@@ -32,7 +32,7 @@ namespace metriko::qex {
             auto uv1 = cfn(h.next().crnr().id);
             auto uv2 = cfn(h.prev().crnr().id);
             double rab, rcd;
-            if (find_strict_intersection(ori, ori + dir * 1e2, uv1, uv2, rab, rcd) && rab > ACCURACY)
+            if (find_strict_intersection(ori, ori + dir * 1e2, uv1, uv2, rab, rcd) && rab > EPS)
                 return std::make_pair(h, lerp(uv1, uv2, rcd));
         }
         throw std::runtime_error("no next half found");
@@ -65,7 +65,7 @@ namespace metriko::qex {
                 if (is_inside_triangle(f, cfn, gri)) {
                     auto it = rg::find_if(fqports, [&](const Qport &p) {
                         if (pfr.isConnected || p.idx == pfr.idx || p.fid != f.id) return false;
-                        return equal(p.dir, -dir) && abs(p.uv - gri) < ACCURACY;
+                        return equal(p.dir, -dir) && abs(p.uv - gri) < EPS;
                     });
                     assert(it != fqports.end());
                     pfr.isConnected = true;

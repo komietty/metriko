@@ -1,7 +1,6 @@
-#ifndef GEN_Q_VERT_H
-#define GEN_Q_VERT_H
+#ifndef METRIKO_QEX_GEN_Q_VERT_H
+#define METRIKO_QEX_GEN_Q_VERT_H
 #include "common.h"
-#include "gen_q_edge.h"
 #include "metriko/core/hmesh/utilities.h"
 
 namespace metriko::qex {
@@ -18,7 +17,7 @@ namespace metriko::qex {
             auto uv = cfn(c.id);
             auto x = std::fmod(std::abs(uv.real()), 1.);
             auto y = std::fmod(std::abs(uv.imag()), 1.);
-            if ((x < ACCURACY || 1 - x < ACCURACY) && (y < ACCURACY || 1 - y < ACCURACY))
+            if ((x < EPS || 1 - x < EPS) && (y < EPS || 1 - y < EPS))
                 vqvs.emplace_back(complex(x, y), v.pos(), v.id);
         }
 
@@ -33,7 +32,7 @@ namespace metriko::qex {
             for (int y = minY; y <= maxY; y++) {
                 auto xy = complex(x, y);
                 auto a = abs(xy - uv1) / abs(uv2 - uv1);
-                if (is_collinear(uv1, uv2, xy) && a > ACCURACY && a < 1 - ACCURACY)
+                if (is_collinear(uv1, uv2, xy) && a > EPS && a < 1 - EPS)
                     eqvs.emplace_back(xy, p1 + (p2 - p1) * a, e.id);
             }}
         }
