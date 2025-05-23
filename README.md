@@ -20,6 +20,7 @@ Metriko is currently in early development. Available features include:
 - Integer Grid Mapping (IGM) using an iterative rounding algorithm
 - T-mesh implementation based on the motorcycle graph
 - Quantization and mesh generation using T-mesh
+- Extraction of a quad mesh(QEx) from a locally-injective uv map
 
 Known limitations and issues:
 - Quantization results can vary in quality for coarse quads
@@ -39,16 +40,17 @@ make
 If SuiteSparse is installed on your machine, it will be automatically integrated via CMake, providing significantly faster matrix computations compared to Eigen.
 
 ## References
--  BOMMES, D., ZIMMER, H., AND KOBBELT, L. 2009. Mixedinteger quadrangulation. In Proc. SIGGRAPH 2009, 1–10. DOI: [10.1007/978-3-642-11620-9_5](https://doi.org/10.1007/978-3-642-11620-9_5)
+-  Bommes, D., Zimmer, H., And Kobbelt, L. 2009. Mixedinteger quadrangulation. In Proc. SIGGRAPH 2009, 1–10. DOI: [10.1007/978-3-642-11620-9_5](https://doi.org/10.1007/978-3-642-11620-9_5)
 
-- BOMMES, D., CAMPEN, M., EBKE, H.-C., ALLIEZ, P., AND KOBBELT, L. 2013. Integer-grid maps for reliable quad meshing. In Proc. SIGGRAPH 2013, 98:1–98:12. DOI: [10.1145/2461912.2462005](https://doi.org/10.1145/2461912.2462005)
+- Bommes, D., Campen, M., Ebke, H.-C., Alliez, P., And Kobbelt, L. 2013. Integer-grid maps for reliable quad meshing. In Proc. SIGGRAPH 2013, 98:1–98:12. DOI: [10.1145/2461912.2462005](https://doi.org/10.1145/2461912.2462005)
 
 - Campen, M., Bommes, D., Kobbelt, L. 2015. Quantized global parametrization. ACM Trans. Graph 34(6), 192:1–192:12. DOI: [10.1145/2816795.2818140](https://doi.org/10.1145/2816795.2818140)
 
-- EPPSTEIN, D., GOODRICH, M. T., KIM, E., AND TAMSTORF, R. 2008. Motorcycle Graphs: Canonical Quad Mesh Partitioning. Computer Graphics Forum 27, 5, 1477–1486. DOI: [10.1111/j.1467-8659.2008.01288.x](https://doi.org/10.1111/j.1467-8659.2008.01288.x)
+- Eppstein, D., GOODRICH, M. T., Kim, E., And Tamstorf, R. 2008. Motorcycle Graphs: Canonical Quad Mesh Partitioning. Computer Graphics Forum 27, 5, 1477–1486. DOI: [10.1111/j.1467-8659.2008.01288.x](https://doi.org/10.1111/j.1467-8659.2008.01288.x)
 
 - Knöppel, F., Crane, K., Pinkall, U. & Schröder, P. 2013 Globally optimal direction fields. ACM Trans. Graph. 32, 1–10. DOI: [10.1145/2461912.2462005](https://doi.org/10.1145/2461912.2462005)
 
+- Ebke, H.-C., Bommes, D., Campen, M., Kobbelt, L. 2013. QEx: Robust quad mesh extraction. ACM Trans. Graph. 32(6), Article 168, 1–10. DOI: [10.1145/2508363.2508372](https://doi.org/10.1145/2508363.2508372) 
 
 - Lyon, M., Campen, M., Bommes, D., Kobbelt, L. 2019. Parametrization quantization with free boundaries for trimmed quad meshing. ACM Trans. Graph. 38(4), 51:1–51:14. DOI: [10.1145/3306346.3323010](https://doi.org/10.1145/3306346.3323019)
 

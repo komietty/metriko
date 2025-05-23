@@ -73,7 +73,13 @@ endif()
 # ===  done finding Suitesparse === #
 
 add_library(${PROJECT_NAME} INTERFACE)
-target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX _USE_MATH_DEFINES)
+
+target_compile_definitions(${PROJECT_NAME} INTERFACE
+        NOMINMAX
+        _USE_MATH_DEFINES
+        METRIKO_DEBUG
+)
+
 target_link_libraries(${PROJECT_NAME} INTERFACE igl::core)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
 

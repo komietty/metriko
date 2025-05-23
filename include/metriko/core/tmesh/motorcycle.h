@@ -194,15 +194,13 @@ namespace metriko {
 
                 rg::sort(temps, [&](const auto &p0, const auto &p1) {
                     complex dir = b - a;
-                    double dotA = dot(p0.dir, dir);
-                    double dotB = dot(p1.dir, dir);
-                    return dotA > dotB;
+                    return dot(p0.dir, dir) > dot(p1.dir, dir);
+                    //double dotA = dot(p0.dir, dir);
+                    //double dotB = dot(p1.dir, dir);
+                    //return dotA > dotB;
                 });
 
-                for (auto &p: temps) {
-                    p.id = counter;
-                    counter++;
-                }
+                for (auto &p: temps) { p.id = counter; counter++; }
 
                 ports.insert(ports.end(), temps.begin(), temps.end());
             }
