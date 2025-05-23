@@ -27,7 +27,7 @@ namespace metriko::qex {
                 auto it2 = rg::find_if(qhs, [&](auto &qh) {
                     return qh.port1().idx == qps[qp.prev_id].idx;
                 });
-                //assert(it2 != qhs.end());
+                assert(it2 != qhs.end());
                 if (it2 != qhs.end()) {
                     qfhs.emplace_back(*it2);
                     visit[it2->idx] = true;

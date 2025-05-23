@@ -71,13 +71,14 @@ int main(int argc, char** argv) {
         uv1.row(f.id * 3 + 2) << rp.cfn(f.id, 8), rp.cfn(f.id, 9);
     }
 
-    qex::sanitization(*mesh, cmbf->matching, cmbf->singular, 4, uv2);
-
     for (const Face f: mesh->faces) {
         uv2(f.id * 3 + 0) = complex{uv1(f.id * 3 + 0, 0), uv1(f.id * 3 + 0, 1)};
         uv2(f.id * 3 + 1) = complex{uv1(f.id * 3 + 1, 0), uv1(f.id * 3 + 1, 1)};
         uv2(f.id * 3 + 2) = complex{uv1(f.id * 3 + 2, 0), uv1(f.id * 3 + 2, 1)};
     }
+
+    qex::sanitization(*mesh, cmbf->matching, cmbf->singular, 4, uv2);
+
     //*/
 
     //toJson("/Users/saki/Desktop/test_horsers_2.json", uv2);
@@ -99,7 +100,7 @@ int main(int argc, char** argv) {
         surf->addFaceScalarQuantity("tgt", fp);
         surf->addFaceVectorQuantity("cmb field", extf);
         //surf->setEdgeWidth(1);
-        surf->setEnabled(true);
+        surf->setEnabled(false);
         prms->setEnabled(true);
         prms->setStyle(polyscope::ParamVizStyle::GRID);
         prms->setGridColors(std::pair(glm::vec3(1, 1, 1), glm::vec3(0.2, 0.2, 0.2)));
@@ -165,7 +166,7 @@ int main(int argc, char** argv) {
     std::vector<double> QP_flag(q_ports.size(), 0);
     for (const auto& q: q_ports) {
         Face f = mesh->faces[q.fid];
-        Row3d p = conversion_2d_3d(f, uv2, q.uv + q.dir * 0.25);
+        Row3d p = conversion_2d_3d(f, uv2, q.uv + q.dir * 0.15);
         QP.emplace_back(p.x(), p.y(), p.z());
         QP_idx.emplace_back(q.idx);
         QP_fid.emplace_back(f.id);
@@ -183,7 +184,7 @@ int main(int argc, char** argv) {
     }
 
     auto qp = polyscope::registerPointCloud("QP", QP);
-    qp->setEnabled(true);
+    qp->setEnabled(false);
     qp->resetTransform();
     qp->setPointRadius(0.003);
     qp->addScalarQuantity("QP_idx", QP_idx);

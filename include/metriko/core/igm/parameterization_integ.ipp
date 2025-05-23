@@ -111,9 +111,10 @@ namespace metriko {
                 evaluation += (v1 - v2).norm();
             }
         }
-        std::cout <<
-                "Deviation of recovered tangent field from original tangent field: "
+#ifdef METRIKO_DEBUG
+        std::cout << "Deviation of the recovered tf from the original : "
                 << evaluation / (ext.rows() * N) << std::endl;
+#endif
 
         return success;
     }

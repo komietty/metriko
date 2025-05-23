@@ -88,25 +88,14 @@ namespace metriko {
         return isccw(a, b, a + dir) && isccw(a, a + dir, c);
     }
 
-    [[deprecated]]
-    inline int inside(
-        const complex a,
-        const complex b,
-        const complex c,
-        const complex tgt,
-        const double precision = 1e-6
-    ) {
-        if (abs(tgt - a) < precision || abs(tgt - b) < precision || abs(tgt - c) < precision) return 2;
-        return 0;
-    }
-
     struct minmax_int {
         int min_x;
         int min_y;
         int max_x;
         int max_y;
     };
-    inline minmax_int get_minmax_int (std::vector<complex> uvs) {
+
+    inline minmax_int get_minmax_int(std::vector<complex> uvs) {
         auto xs = vw::transform(uvs, [](complex uv) { return uv.real(); });
         auto ys = vw::transform(uvs, [](complex uv) { return uv.imag(); });
         return minmax_int{

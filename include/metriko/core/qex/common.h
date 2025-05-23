@@ -14,7 +14,8 @@ namespace metriko::qex {
             const complex &uv,
             const Row3d &pos,
             const int sid
-        ) : uv(uv), pos(pos), sid(sid) { }
+        ) : uv(uv), pos(pos), sid(sid) {
+        }
     };
 
     class Qport {
@@ -38,14 +39,17 @@ namespace metriko::qex {
             const complex uv,
             const complex dir,
             const Row3d &pos
-        ) : idx(idx), vid(vid), eid(eid), fid(fid), uv(uv), dir(dir), pos(pos) { }
+        ) : idx(idx), vid(vid), eid(eid), fid(fid), uv(uv), dir(dir), pos(pos) {
+        }
     };
 
     class Qedge {
     public:
         const Qport &port1;
         const Qport &port2;
-        Qedge(const Qport &port1, const Qport &port2) : port1(port1), port2(port2) { }
+
+        Qedge(const Qport &port1, const Qport &port2) : port1(port1), port2(port2) {
+        }
     };
 
     class Qhalf {
@@ -55,7 +59,9 @@ namespace metriko::qex {
         const bool cannonical;
         const Qport &port1() const { return cannonical ? edge.port1 : edge.port2; }
         const Qport &port2() const { return cannonical ? edge.port2 : edge.port1; }
-        Qhalf(const Qedge &edge, const int idx, const bool cann): edge(edge), idx(idx), cannonical(cann) { }
+
+        Qhalf(const Qedge &edge, const int idx, const bool cann): edge(edge), idx(idx), cannonical(cann) {
+        }
     };
 
     class Qface {
@@ -88,17 +94,17 @@ namespace metriko::qex {
     }
 
     inline double orientation(complex pa, complex pb, complex pc) {
-        // orient2dfast equivalent
         double acx = pa.real() - pc.real();
         double bcx = pb.real() - pc.real();
         double acy = pa.imag() - pc.imag();
         double bcy = pb.imag() - pc.imag();
         return acx * bcy - acy * bcx;
 
-        //auto pa_ = std::array{pa.real(), pa.imag()};
-        //auto pb_ = std::array{pb.real(), pb.imag()};
-        //auto pc_ = std::array{pc.real(), pc.imag()};
-        //return orient2d(pa_.data(), pb_.data(), pc_.data());
+        // equivalently...
+        // auto pa_ = std::array{pa.real(), pa.imag()};
+        // auto pb_ = std::array{pb.real(), pb.imag()};
+        // auto pc_ = std::array{pc.real(), pc.imag()};
+        // return orient2d(pa_.data(), pb_.data(), pc_.data());
     }
 
     inline bool is_collinear(complex pa, complex pb, complex pc) {
@@ -121,6 +127,25 @@ namespace metriko::qex {
         auto uv2 = cfn(f.id * 3 + 1);
         auto uv3 = cfn(f.id * 3 + 2);
         return is_inside_triangle(uv1, uv2, uv3, uv);
+    }
+
+    inline complex nearby_grid(const complex a) {
+        return {std::round(a.real()), std::round(a.imag())};
+    }
+
+    inline double nearby_grid(double x, double dir) {
+        if (dir == 0) return x;
+        double f = abs(fmod(x, 1.));
+        if (f < ACCURACY || 1 - f < ACCURACY) x += dir * ACCURACY;
+        x = dir > 0 ? std::ceil(x) : std::floor(x);
+        return x;
+    }
+
+    inline complex nearby_grid(complex uv, complex dir) {
+        return {
+            nearby_grid(uv.real(), dir.real()),
+            nearby_grid(uv.imag(), dir.imag())
+        };
     }
 }
 

@@ -4,21 +4,6 @@
 #include "metriko/core/hmesh/utilities.h"
 
 namespace metriko::qex {
-    inline double nearby_grid(double x, double dir) {
-        if (dir == 0) return x;
-        double f = abs(fmod(x, 1.));
-        if (f < ACCURACY || 1 - f < ACCURACY) x += dir * ACCURACY;
-        x = dir > 0 ? std::ceil(x) : std::floor(x);
-        return x;
-    }
-
-    inline complex nearby_grid(complex uv, complex dir) {
-        return {
-            nearby_grid(uv.real(), dir.real()),
-            nearby_grid(uv.imag(), dir.imag())
-        };
-    }
-
     inline bool predict_extrinsic_collinear(
         const Hmesh &mesh,
         const VecXc &cfn,
@@ -47,8 +32,8 @@ namespace metriko::qex {
             auto uv1 = cfn(h.next().crnr().id);
             auto uv2 = cfn(h.prev().crnr().id);
             double rab, rcd;
-            if (find_strict_intersection(ori, ori + dir * 1e2, uv1, uv2, rab, rcd) && rab > 1e-10)
-                return std::pair<Half, complex>({h, lerp(uv1, uv2, rcd)});
+            if (find_strict_intersection(ori, ori + dir * 1e2, uv1, uv2, rab, rcd) && rab > ACCURACY)
+                return std::make_pair(h, lerp(uv1, uv2, rcd));
         }
         throw std::runtime_error("no next half found");
     }
@@ -123,12 +108,13 @@ namespace metriko::qex {
                 f = nh.twin().face();
                 ori = hit;
                 complex t = heT(nh.id);
-                complex r = heR[nh.id];
+                complex r = heR(nh.id);
                 ori = r * ori + t;
                 dir = r * dir;
                 gri = nearby_grid(ori, dir);
             }
-            loop_end:
+        loop_end:
+
         }
         return qedges;
     }

@@ -38,9 +38,8 @@ namespace metriko::qex {
                     auto it = rg::find_if(visit, [&](const Row3d &v) { return (ev - v).norm() < ACCURACY; });
                     if (f1 && it == visit.end()) {
                         auto l = lerp(uv1, uv2, alpha);
-                        auto x = std::round(l.real());
-                        auto y = std::round(l.imag());
-                        ports_per_he.emplace_back(-1, -1, e.id, h.face().id, complex(x, y), dir, qv.pos);
+                        auto g = nearby_grid(l);
+                        ports_per_he.emplace_back(-1, -1, e.id, h.face().id, g, dir, qv.pos);
                         visit.emplace_back(ev);
                     }
                 }
