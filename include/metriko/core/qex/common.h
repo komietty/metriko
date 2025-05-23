@@ -1,5 +1,5 @@
-#ifndef metriko_QEX_COMMON_H
-#define metriko_QEX_COMMON_H
+#ifndef METRIKO_QEX_COMMON_H
+#define METRIKO_QEX_COMMON_H
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/common/utilities.h"
 
@@ -109,17 +109,17 @@ namespace metriko::qex {
 
     inline bool is_collinear(complex pa, complex pb, complex pc) {
         double o = orientation(pa, pb, pc);
-        return abs(o) < ACCURACY;
+        return abs(o) < EPS;
     }
 
     inline bool is_points_into(complex p1, complex p2, complex p3, complex uv) {
-        return orientation(p1, p2, uv) > ACCURACY && orientation(p1, p3, uv) < ACCURACY;
+        return orientation(p1, p2, uv) > EPS && orientation(p1, p3, uv) < EPS;
     }
 
     inline bool is_inside_triangle(complex pa, complex pb, complex pc, complex uv) {
-        return orientation(pa, pb, uv) > ACCURACY &&
-               orientation(pb, pc, uv) > ACCURACY &&
-               orientation(pc, pa, uv) > ACCURACY;
+        return orientation(pa, pb, uv) > EPS &&
+               orientation(pb, pc, uv) > EPS &&
+               orientation(pc, pa, uv) > EPS;
     }
 
     inline bool is_inside_triangle(const Face f, const VecXc &cfn, const complex uv) {
@@ -136,7 +136,7 @@ namespace metriko::qex {
     inline double nearby_grid(double x, double dir) {
         if (dir == 0) return x;
         double f = abs(fmod(x, 1.));
-        if (f < ACCURACY || 1 - f < ACCURACY) x += dir * ACCURACY;
+        if (f < EPS || 1 - f < EPS) x += dir * EPS;
         x = dir > 0 ? std::ceil(x) : std::floor(x);
         return x;
     }

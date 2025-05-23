@@ -9,9 +9,9 @@
 #include "metriko/core/qex/gen_q_port.h"
 #include "metriko/core/qex/gen_q_edge.h"
 #include "metriko/core/qex/gen_q_face.h"
-#include <nlohmann/json.hpp>
-
 using namespace metriko;
+
+/*
 using json = nlohmann::json;
 
 void toJson(const std::string& path, const VecXc& cfn) {
@@ -40,8 +40,9 @@ void fromJson(const std::string& path, MatXd& uv1, VecXc& uv2) {
         }
     }
 }
+*/
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     MatXd V;
     MatXi F;
     int N = 4;
@@ -71,12 +72,23 @@ int main(int argc, char** argv) {
     }
 
     for (const Face f: mesh->faces) {
-        uv2(f.id * 3 + 0) = complex{uv1(f.id * 3 + 0, 0), uv1(f.id * 3 + 0, 1)};
-        uv2(f.id * 3 + 1) = complex{uv1(f.id * 3 + 1, 0), uv1(f.id * 3 + 1, 1)};
-        uv2(f.id * 3 + 2) = complex{uv1(f.id * 3 + 2, 0), uv1(f.id * 3 + 2, 1)};
+        complex a = complex{uv1(f.id * 3 + 0, 0), uv1(f.id * 3 + 0, 1)};
+        complex b = complex{uv1(f.id * 3 + 1, 0), uv1(f.id * 3 + 1, 1)};
+        complex c = complex{uv1(f.id * 3 + 2, 0), uv1(f.id * 3 + 2, 1)};
+        assert(qex::orientation(a, b, c) > 0);
+        uv2(f.id * 3 + 0) = a;
+        uv2(f.id * 3 + 1) = b;
+        uv2(f.id * 3 + 2) = c;
     }
 
     qex::sanitization(*mesh, cmbf->matching, cmbf->singular, 4, uv2);
+
+    for (const Face f: mesh->faces) {
+        assert(qex::orientation(
+            uv2(f.id * 3 + 0),
+            uv2(f.id * 3 + 1),
+            uv2(f.id * 3 + 2)) > 0);
+    }
 
     //*/
 
@@ -99,7 +111,7 @@ int main(int argc, char** argv) {
     // visuailize seam
     {
         std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2>> es;
+        std::vector<std::array<size_t, 2> > es;
         size_t i = 0;
         for (auto e: mesh->edges) {
             if (!seam[e.id]) continue;
@@ -126,9 +138,9 @@ int main(int argc, char** argv) {
     std::vector<glm::vec3> VQV;
     std::vector<glm::vec3> EQV;
     std::vector<glm::vec3> FQV;
-    for (const auto& q: vqvs) { VQV.emplace_back(q.pos.x(), q.pos.y(), q.pos.z()); }
-    for (const auto& q: eqvs) { EQV.emplace_back(q.pos.x(), q.pos.y(), q.pos.z()); }
-    for (const auto& q: fqvs) { FQV.emplace_back(q.pos.x(), q.pos.y(), q.pos.z()); }
+    for (const auto &q: vqvs) { VQV.emplace_back(q.pos.x(), q.pos.y(), q.pos.z()); }
+    for (const auto &q: eqvs) { EQV.emplace_back(q.pos.x(), q.pos.y(), q.pos.z()); }
+    for (const auto &q: fqvs) { FQV.emplace_back(q.pos.x(), q.pos.y(), q.pos.z()); }
     auto vq = polyscope::registerPointCloud("VQV", VQV);
     auto eq = polyscope::registerPointCloud("EQV", EQV);
     auto fq = polyscope::registerPointCloud("FQV", FQV);
@@ -217,15 +229,15 @@ int main(int argc, char** argv) {
 
     //*
     {
-        std::vector<std::array<size_t, 4>> QF;
+        std::vector<std::array<size_t, 4> > QF;
         int l = (int) qfaces.size();
         MatXd pos(l * 4, 3);
         MatXi idx(l, 4);
         for (int i = 0; i < l; i++) {
-        for (int j = 0; j < 4; j++) {
-            pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
-            idx(i, j) = i * 4 + j;
-        }
+            for (int j = 0; j < 4; j++) {
+                pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
+                idx(i, j) = i * 4 + j;
+            }
         }
         auto surf = polyscope::registerSurfaceMesh("quad mesh!", pos, idx);
         surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);

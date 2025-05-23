@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
 
-    /// ---- visualize mesh ---- ///
+    // visualize mesh
     {
         const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
         const auto prms = surf->addParameterizationQuantity("params", uv1);
@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
         prms->setCheckerSize(1);
     }
 
-    ///--- visuailize seam ---///
+    // visuailize seam
     {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2> > es;
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
         c->setRadius(0.003);
     }
 
-    ///--- gen mport, medge ---///
+    // gen mport, medge
     auto graph = MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);
     auto tmesh = Tmesh(graph.mcurvs);
     VecXd R = VecXd::Zero(tmesh.nTE);
