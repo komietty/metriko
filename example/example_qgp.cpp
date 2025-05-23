@@ -10,50 +10,28 @@
 #include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
 
 using namespace metriko;
-int N = 4;
-MatXd flatV;
-MatXi flatF;
-MatXd uv1; // real number uv
-VecXc uv2; // complex number uv
-std::vector<bool> seam;
-std::unique_ptr<Hmesh> mesh;
-std::unique_ptr<FaceRosyField> rawf;
-std::unique_ptr<FaceRosyField> cmbf;
-
-MatXd V;
-MatXi F;
-
 int main(int argc, char **argv) {
+    MatXd V;
+    MatXi F;
+    int N = 4;
     igl::readOBJ(argv[1], V, F);
-    mesh = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
+    auto mesh = std::make_unique<Hmesh>(V, F);
+    auto rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
-    cmbf = compute_combbed_field(*rawf, seam);
-    MatXd cmbExtRosy(mesh->nF, 3 * N);
-    MatXd cmbExtZero(mesh->nF, 3);
-    for (Face f: mesh->faces) {
-        complex c0 = cmbf->field(f.id, 0);
-        complex c1 = cmbf->field(f.id, 1);
-        complex c2 = cmbf->field(f.id, 2);
-        complex c3 = cmbf->field(f.id, 3);
-        cmbExtZero.row(f.id) = (c0.real() * f.basisX() + c0.imag() * f.basisY()).normalized();
-        cmbExtRosy.block(f.id, 0, 1, 3) = (c0.real() * f.basisX() + c0.imag() * f.basisY()).normalized();
-        cmbExtRosy.block(f.id, 3, 1, 3) = (c1.real() * f.basisX() + c1.imag() * f.basisY()).normalized();
-        cmbExtRosy.block(f.id, 6, 1, 3) = (c2.real() * f.basisX() + c2.imag() * f.basisY()).normalized();
-        cmbExtRosy.block(f.id, 9, 1, 3) = (c3.real() * f.basisX() + c3.imag() * f.basisY()).normalized();
-    }
+    auto cmbf = compute_combbed_field(*rawf, seam);
+    MatXd extf = compute_extrinsic_field(*mesh, *cmbf, N);
 
-    RosyParameterization rp(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
+    RosyParameterization rp(*mesh, *cutm, extf, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
     rp.seamless = false;
     rp.localInjectivity = true;
     rp.verbose = false;
     rp.setup();
     rp.integ();
+    MatXd uv1(mesh->nF * 3, 2);
+    VecXc uv2(mesh->nF * 3);
 
-    uv1.resize(mesh->nF * 3, 2);
-    uv2.resize(mesh->nF * 3);
     for (const Face f: mesh->faces) {
         uv1.row(f.id * 3 + 0) << rp.cfn(f.id, 0), rp.cfn(f.id, 1);
         uv1.row(f.id * 3 + 1) << rp.cfn(f.id, 4), rp.cfn(f.id, 5);
@@ -74,7 +52,7 @@ int main(int argc, char **argv) {
         const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
         const auto prms = surf->addParameterizationQuantity("params", uv1);
         surf->setEnabled(false);
-        surf->addFaceVectorQuantity("cmb field", cmbExtZero);
+        surf->addFaceVectorQuantity("cmb field", extf);
         prms->setStyle(polyscope::ParamVizStyle::GRID);
         prms->setCheckerSize(1);
     }
@@ -110,7 +88,6 @@ int main(int argc, char **argv) {
         for (const Msgmt &seg: te.seg_fr.curv->sgmts) {
             if (seg == te.seg_fr) bgn = true;
             if (bgn) {
-                //R[i] += std::abs(seg.to.uv - seg.fr.uv);
                 R[i] += std::abs(seg.diff());
                 if (seg == te.seg_to) break;
             }

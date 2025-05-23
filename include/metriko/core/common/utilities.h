@@ -34,6 +34,14 @@ namespace metriko {
         return a * (1. - t) + b * t;
     }
 
+    inline complex normalize(
+        const complex a
+    ) {
+        double l = abs(a);
+        assert(l > 0);
+        return a / l;
+    }
+
     inline double dot(
         const complex a,
         const complex b
@@ -48,16 +56,20 @@ namespace metriko {
         return a.real() * b.imag() - a.imag() * b.real();
     }
 
+    [[deprecated]]
     inline bool isccw(
         const complex a,
         const complex b,
         const complex c
     ) {
         const double v = cross(b - a, c - a);
-        if (v == 0) std::cout << "Edge case!: cross == 0" << std::endl;
+        if (v == 0) {
+            std::cout << "edge case: cross == 0" << std::endl;
+        }
         return v > 0;
     }
 
+    [[deprecated]]
     inline double orientation(
         const complex a,
         const complex b,
@@ -66,6 +78,7 @@ namespace metriko {
         return cross(b - a, c - a);
     }
 
+    [[deprecated]]
     inline bool points_into(
         const complex dir,
         const complex a,
@@ -75,16 +88,23 @@ namespace metriko {
         return isccw(a, b, a + dir) && isccw(a, a + dir, c);
     }
 
-    inline int inside(
-        const complex a,
-        const complex b,
-        const complex c,
-        const complex tgt,
-        const double precision = 1e-6
-    ) {
-        if (abs(tgt - a) < precision || abs(tgt - b) < precision || abs(tgt - c) < precision) return 2;
-        return 0;
-    }
+    struct minmax_int {
+        int min_x;
+        int min_y;
+        int max_x;
+        int max_y;
+    };
+
+    inline minmax_int get_minmax_int(std::vector<complex> uvs) {
+        auto xs = vw::transform(uvs, [](complex uv) { return uv.real(); });
+        auto ys = vw::transform(uvs, [](complex uv) { return uv.imag(); });
+        return minmax_int{
+            static_cast<int>(std::floor(rg::min(xs))),
+            static_cast<int>(std::floor(rg::min(ys))),
+            static_cast<int>(std::ceil(rg::max(xs))),
+            static_cast<int>(std::ceil(rg::max(ys)))
+        };
+    };
 
     inline complex calc_coefficient(
         const complex origin,
@@ -105,12 +125,12 @@ namespace metriko {
     // Find the intersection of a line passing through a and b and another line passing through c and d.
     // Return true if segments are not parallel. Check 0 <= ratio <= 1 if you want a segment-segment intersection.
     inline bool find_extended_intersection(
-        const complex& a,
-        const complex& b,
-        const complex& c,
-        const complex& d,
-        double& ratio_a2b,
-        double& ratio_c2d
+        const complex &a,
+        const complex &b,
+        const complex &c,
+        const complex &d,
+        double &ratio_a2b,
+        double &ratio_c2d
     ) {
         Mat2d m;
         m << d.real() - c.real(), -(b - a).real(), d.imag() - c.imag(), -(b - a).imag();
@@ -122,12 +142,12 @@ namespace metriko {
     }
 
     inline bool find_strict_intersection(
-        const complex& a,
-        const complex& b,
-        const complex& c,
-        const complex& d,
-        double& ratio_a2b,
-        double& ratio_c2d
+        const complex &a,
+        const complex &b,
+        const complex &c,
+        const complex &d,
+        double &ratio_a2b,
+        double &ratio_c2d
     ) {
         return find_extended_intersection(a, b, c, d, ratio_a2b, ratio_c2d) &&
                ratio_a2b > 0 &&
@@ -135,7 +155,6 @@ namespace metriko {
                ratio_c2d > 0 &&
                ratio_c2d < 1;
     }
-
 }
 
 #endif

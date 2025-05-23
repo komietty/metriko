@@ -89,7 +89,6 @@ namespace metriko {
         //----- Seamless Solution -----//
         VecXd X_  = isLM.x.head(ni.UFull.cols());
         VecXd F2_ = (ni.UExt * isLM.x).tail(2 * N * nF); // x is changed from F2, but how is this important??
-        std::cout << "F2 diff: " << (F2_ - intrinsicField).norm() << std::endl;
         SI si(ni, X_, F2_, integerIdcs, singularIdcs, roundSeams);
 
         bool success = true;
