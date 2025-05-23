@@ -41,7 +41,6 @@ void fromJson(const std::string& path, MatXd& uv1, VecXc& uv2) {
     }
 }
 
-
 int main(int argc, char** argv) {
     MatXd V;
     MatXi F;
@@ -81,25 +80,15 @@ int main(int argc, char** argv) {
 
     //*/
 
-    //toJson("/Users/saki/Desktop/test_horsers_2.json", uv2);
-    //MatXd uv1;
-    //VecXc uv2;
-    //fromJson("/Users/saki/Desktop/test_horsers_2.json", uv1, uv2);
-
     polyscope::init();
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
 
-    /// ---- visualize mesh ---- ///
+    // visualize mesh
     {
-        std::vector<double> fp(F.rows(), 0);
-        //fp[0] = 100;
-
         const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
         const auto prms = surf->addParameterizationQuantity("params", uv1);
-        surf->addFaceScalarQuantity("tgt", fp);
         surf->addFaceVectorQuantity("cmb field", extf);
-        //surf->setEdgeWidth(1);
         surf->setEnabled(false);
         prms->setEnabled(true);
         prms->setStyle(polyscope::ParamVizStyle::GRID);
@@ -107,7 +96,7 @@ int main(int argc, char** argv) {
         prms->setCheckerSize(1);
     }
 
-    ///--- visuailize seam ---///
+    // visuailize seam
     {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -133,7 +122,7 @@ int main(int argc, char** argv) {
     std::vector<qex::Qvert> fqvs;
     qex::generate_q_vert(*mesh, uv2, vqvs, eqvs, fqvs);
 
-    //--- display q_vert ---//
+    // display qvert
     std::vector<glm::vec3> VQV;
     std::vector<glm::vec3> EQV;
     std::vector<glm::vec3> FQV;
@@ -158,7 +147,8 @@ int main(int argc, char** argv) {
     qex::generate_eqvert_qport(*mesh, uv2, eqvs, q_ports);
     qex::generate_fqvert_qport(*mesh, fqvs, q_ports);
 
-    //--- display vert_q_port ---//
+    // display qport
+    /*
     std::vector<glm::vec3> QP;
     std::vector<int> QP_idx, QP_fid, QP_dir, QP_n, QP_p;
     std::vector<int> QP_sid_vert, QP_sid_edge, QP_sid_face;
@@ -198,11 +188,12 @@ int main(int argc, char** argv) {
     qp->addScalarQuantity("QP0_next", QP_n);
     qp->addScalarQuantity("QP0_prev", QP_p);
     qp->addScalarQuantity("QP_flag", QP_flag);
+    //*/
 
-    //*
     auto qedges = qex::generate_q_edge(*mesh, uv2, cmbf->matching, q_ports);
     auto qfaces = qex::generate_q_faces(q_ports, qedges);
 
+    /*
     std::vector<std::array<size_t, 2>> QE;
     std::vector<glm::vec3> QN;
     std::vector<double> p1;
@@ -227,28 +218,17 @@ int main(int argc, char** argv) {
     //*
     {
         std::vector<std::array<size_t, 4>> QF;
-        int l = qfaces.size();
+        int l = (int) qfaces.size();
         MatXd pos(l * 4, 3);
         MatXi idx(l, 4);
-        //std::array<size_t, 4> QF_idcs;
         for (int i = 0; i < l; i++) {
         for (int j = 0; j < 4; j++) {
             pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
             idx(i, j) = i * 4 + j;
-            //if (i == 9550) {
-            //idx(i, j) = i * 4 + j;
-            //}else {
-            //idx(i, j) = 0;
-            //}
-            //QF_idcs[j] = qfaces[i].qhalfs[j].port1().idx;
         }
-            //if (i == 9550) {
-            //    QF.emplace_back(QF_idcs);
-            //}
         }
         auto surf = polyscope::registerSurfaceMesh("quad mesh!", pos, idx);
         surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
-        //surf->addFaceVectorQuantity("qedge ids", QF);
         surf->setEdgeWidth(1.);
     }
     //*/

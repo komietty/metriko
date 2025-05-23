@@ -6,20 +6,16 @@ namespace metriko::qex {
     inline void generate_eqvert_qport(
         const Hmesh &mesh,
         const VecXc &cfn,
-        const std::vector<Qvert> &eqvs,
-        std::vector<Qport> &q_ports
+        const std::vector<Qvert> &eqverts,
+        std::vector<Qport> &qports
     ) {
-        std::vector<Qport> ports_per_qv;
+        std::vector<Qport> tmp;
         std::vector<Row3d> visit;
 
-        for (const Qvert &qv: eqvs) {
-            ports_per_qv.clear();
+        for (const Qvert &qv: eqverts) {
+            tmp.clear();
             Edge e = mesh.edges[qv.sid];
-            std::vector hs{e.half(), e.half().twin()};
-
-            for (const Half h: hs) {
-                std::vector<Qport> ports_per_he;
-                ports_per_he.clear();
+            for (const Half h: std::vector{e.half(), e.half().twin()}) {
                 Crnr c1 = h.next().crnr();
                 Crnr c2 = h.prev().crnr();
                 auto uv1 = cfn(c1.id);
@@ -27,58 +23,48 @@ namespace metriko::qex {
                 auto uv3 = cfn(h.crnr().id);
                 Row3d p1 = c1.vert().pos();
                 Row3d p2 = c2.vert().pos();
-                double alpha = (qv.pos - p1).norm() / (p2 - p1).norm();
-                auto uv = lerp(uv1, uv2, alpha);
+                auto uv = lerp(uv1, uv2, (qv.pos - p1).norm() / (p2 - p1).norm());
+
+                int r;
+                for (r = 0; r < 4; r++) {
+                    if (is_points_into(uv1, uv2, uv3, uv1 + get_quater_rot(r))) break;
+                }
                 for (int i = 0; i < 4; i++) {
-                    complex dir = get_quater_rot(i);
-                    // extrinsic... better solution??
-                    assert(orientation(uv1, uv2, uv3) > 0);
+                    auto dir = get_quater_rot((r + i + 2) % 4); // considering r = 0 and boundary case
                     bool f1 = orientation(uv1, uv2, uv + dir) >= 0;
-                    Row3d ev = conversion_2d_3d(h.face(), cfn, uv + dir).normalized();
+                    auto ev = conversion_2d_3d(h.face(), cfn, uv + dir).normalized();
                     auto it = rg::find_if(visit, [&](const Row3d &v) { return (ev - v).norm() < ACCURACY; });
                     if (f1 && it == visit.end()) {
-                        auto l = lerp(uv1, uv2, alpha);
-                        auto g = nearby_grid(l);
-                        ports_per_he.emplace_back(-1, -1, e.id, h.face().id, g, dir, qv.pos);
+                        tmp.emplace_back(-1, -1, e.id, h.face().id, nearby_grid(uv), dir, qv.pos);
                         visit.emplace_back(ev);
                     }
                 }
-
-                // sort ports inside a face
-                rg::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
-                    auto dir = uv2 - uv1;
-                    return dot(pa.dir, dir) > dot(pb.dir, dir);
-                });
-
-                for (auto &p: ports_per_he) { ports_per_qv.emplace_back(p); }
             }
 
-            const int s = ports_per_qv.size();
-            assert(s == 4);
-
-            for (int i = 0; i < s; i++) { ports_per_qv[i].idx = (int) q_ports.size() + i; }
-            for (int i = 0; i < s; i++) {
-                ports_per_qv[i].prev_id = ports_per_qv[(i - 1 + s) % s].idx;
-                ports_per_qv[i].next_id = ports_per_qv[(i + 1 + s) % s].idx;
+            assert(tmp.size() == 4);
+            for (int i = 0; i < 4; i++) { tmp[i].idx = (int) qports.size() + i; }
+            for (int i = 0; i < 4; i++) {
+                tmp[i].prev_id = tmp[(i - 1 + 4) % 4].idx;
+                tmp[i].next_id = tmp[(i + 1 + 4) % 4].idx;
             }
-            q_ports.insert(q_ports.end(), ports_per_qv.begin(), ports_per_qv.end());
+            qports.insert(qports.end(), tmp.begin(), tmp.end());
         }
     }
 
     inline void generate_fqvert_qport(
         const Hmesh &mesh,
-        const std::vector<Qvert> &fqvs,
-        std::vector<Qport> &q_ports
+        const std::vector<Qvert> &fqverts,
+        std::vector<Qport> &qports
     ) {
-        for (const Qvert &qv: fqvs) {
-            const int fid = mesh.faces[qv.sid].id;
+        for (const Qvert &qv: fqverts) {
+            Face f = mesh.faces[qv.sid];
             for (int i = 0; i < 4; i++) {
-                q_ports.emplace_back(q_ports.size(), -1, -1, fid, qv.uv, get_quater_rot(i), qv.pos);
+                qports.emplace_back(qports.size(), -1, -1, f.id, qv.uv, get_quater_rot(i), qv.pos);
             }
             for (int i = 0; i < 4; i++) {
-                const int l = q_ports.size();
-                q_ports[l - i - 1].next_id = q_ports[l - (i - 1 + 4) % 4 - 1].idx;
-                q_ports[l - i - 1].prev_id = q_ports[l - (i + 1 + 4) % 4 - 1].idx;
+                int l = (int) qports.size();
+                qports[l - i - 1].next_id = qports[l - (i - 1 + 4) % 4 - 1].idx;
+                qports[l - i - 1].prev_id = qports[l - (i + 1 + 4) % 4 - 1].idx;
             }
         }
     }
@@ -86,51 +72,38 @@ namespace metriko::qex {
     inline void generate_vqvert_qport(
         const Hmesh &mesh,
         const VecXc &cfn,
-        const std::vector<Qvert> &vqvs,
-        std::vector<Qport> &q_ports
+        const std::vector<Qvert> &vqverts,
+        std::vector<Qport> &qports
     ) {
-        std::vector<Qport> ports_per_qv;
+        std::vector<Qport> tmp;
 
-        for (const Qvert &qv: vqvs) {
-            ports_per_qv.clear();
-            Vert vert = mesh.verts[qv.sid];
-            for (Half h: vert.adjHalfs()) {
-                std::vector<Qport> ports_per_he;
-                ports_per_he.clear();
-                auto u = cfn(h.next().crnr().id);
-                auto v = cfn(h.prev().crnr().id);
-                auto w = cfn(h.crnr().id);
-                const double orient = orientation(u, v, w);
-                if (orient <= 0) std::cerr << "not locally injective!" << std::endl;
-
+        for (const Qvert &qv: vqverts) {
+            tmp.clear();
+            Vert v = mesh.verts[qv.sid];
+            for (Half h: v.adjHalfs()) {
+                auto uv1 = cfn(h.next().crnr().id);
+                auto uv2 = cfn(h.prev().crnr().id);
+                auto uv3 = cfn(h.crnr().id);
                 int r;
                 for (r = 0; r < 4; r++) {
-                    if (is_points_into(u, v, w, u + get_quater_rot(r))) break;
+                    if (is_points_into(uv1, uv2, uv3, uv1 + get_quater_rot(r))) break;
                 }
                 for (int i = 0; i < 4; i++) {
-                    auto d = get_quater_rot((r - i + 4) % 4);
-                    bool f1 = is_points_into(u, v, w, u + d);
-                    bool f2 = is_collinear(u, v, u + d);
-                    bool f3 = dot(v - u, d) > 0;
-                    if (f1 || (f2 && f3)) ports_per_he.emplace_back(-1, vert.id, -1, h.face().id, u, d, qv.pos);
+                    auto d = get_quater_rot((r + i + 3) % 4); // considering r = 0
+                    bool f1 = is_points_into(uv1, uv2, uv3, uv1 + d);
+                    bool f2 = is_collinear(uv1, uv2, uv1 + d);
+                    bool f3 = dot(uv2 - uv1, d) > 0;
+                    if (f1 || (f2 && f3)) tmp.emplace_back(-1, v.id, -1, h.face().id, uv1, d, qv.pos);
                 }
-
-                // sort ports inside a face
-                rg::sort(ports_per_he, [&](const Qport &pa, const Qport &pb) {
-                    complex dir = v - u;
-                    return dot(pa.dir, dir) > dot(pb.dir, dir);
-                });
-
-                for (auto &p: ports_per_he) ports_per_qv.emplace_back(p);
             }
-            const int s = (int) ports_per_qv.size();
-            for (int i = 0; i < s; i++) { ports_per_qv[i].idx = (int) q_ports.size() + i; }
+            const int s = (int) tmp.size();
+            for (int i = 0; i < s; i++) { tmp[i].idx = (int) qports.size() + i; }
             for (int i = 0; i < s; i++) {
-                ports_per_qv[i].prev_id = ports_per_qv[(i - 1 + s) % s].idx;
-                ports_per_qv[i].next_id = ports_per_qv[(i + 1 + s) % s].idx;
+                tmp[i].prev_id = tmp[(i - 1 + s) % s].idx;
+                tmp[i].next_id = tmp[(i + 1 + s) % s].idx;
             }
 
-            q_ports.insert(q_ports.end(), ports_per_qv.begin(), ports_per_qv.end());
+            qports.insert(qports.end(), tmp.begin(), tmp.end());
         }
     }
 }

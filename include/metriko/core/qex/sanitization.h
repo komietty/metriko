@@ -4,8 +4,7 @@
 
 namespace metriko::qex {
 
-    inline void fix_singular_point() {
-    }
+    inline void fix_singular_point() { }
 
     inline void sanitization(
         const Hmesh& mesh,
@@ -33,7 +32,6 @@ namespace metriko::qex {
             for (Half h: v.adjHalfs()) {
                 if(!init) {
                     if (singular[v.id]) {
-                        fix_singular_point();
                         auto cc = h.next().crnr();
                         auto uv = cfn(cc.id);
                         cfn(cc.id) = complex(std::round(uv.real()), std::round(uv.imag()));
