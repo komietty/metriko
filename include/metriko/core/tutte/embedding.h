@@ -12,7 +12,6 @@ namespace metriko {
         std::vector<int> vids;
         std::vector<Half> halfs;
         std::vector<double> vals;
-        std::vector<std::pair<int, double>> values;
 
         EmbeddedTEdge(
             const Hmesh &mesh,
@@ -39,6 +38,41 @@ namespace metriko {
                    rg::find(halfs, e.half().twin()) != halfs.end();
         }
     };
+
+    class EmbeddedTHalf {
+    public:
+        int thid;
+        bool cannonical;
+        std::vector<int> vids;
+        std::vector<Half> halfs;
+        std::vector<double> vals;
+
+        EmbeddedTHalf(
+            const EmbeddedTEdge &etedge,
+            int thid,
+            bool cannonical
+        ): thid(thid), cannonical(cannonical) {
+            int nV = (int)etedge.vids.size();
+            int nH = (int)etedge.halfs.size();
+            assert(etedge.vals.size() == nV);
+            vids.resize(nV);
+            vals.resize(nV);
+            halfs.resize(nH);
+            for (int i = 0; i < nV; i++) vids[i] = etedge.vids[cannonical ? i : nV - i - 1];
+            for (int i = 0; i < nV; i++) vals[i] = etedge.vals[cannonical ? i : nV - i - 1];
+            for (int i = 0; i < nH; i++) halfs[i] = cannonical ? etedge.halfs[i] : etedge.halfs[i].twin();
+        }
+
+        bool contains(Half h) const {
+            return rg::find(halfs, h) != halfs.end();
+        }
+
+        bool contains(Edge e) const {
+            return rg::find(halfs, e.half()) != halfs.end() ||
+                   rg::find(halfs, e.half().twin()) != halfs.end();
+        }
+    };
+
 
     inline int find_closest_point(const VecXc &cfn, const complex uv, const Face f) {
         complex uv0 = cfn[f.half().crnr().id];
@@ -77,10 +111,6 @@ namespace metriko {
         for (int i = 1; i < ete.vids.size(); i++) {
             curr += x * ls[i - 1] / sum;
             ete.vals[i] = curr;
-        }
-
-        for (int i = 0; i < ete.vids.size(); i++) {
-            ete.values.emplace_back(ete.vids[i], ete.vals[i]);
         }
     }
 

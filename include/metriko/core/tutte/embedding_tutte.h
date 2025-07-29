@@ -4,8 +4,38 @@
 
 #ifndef METRIKO_EMBEDDING_TUTTE_H
 #define METRIKO_EMBEDDING_TUTTE_H
+#include "embedding.h"
 
 namespace metriko {
+    inline Mat2d compute_rotation(int i) {
+        Mat2d r0, r1, r2, r3;
+        r0 << 1, 0, 0, 1;
+        r1 << 0, -1, 1, 0;
+        r2 << -1, 0, 0, -1;
+        r3 << 0, 1, -1, 0;
+        auto r = std::vector{r2, r1, r0, r3}; // need fix
+        return r[i];
+    }
+
+    inline MatXd compute_transed_uv(
+        const MatXd &uv_curr,
+        const MatXd &uv_twin,
+        const int side_curr,
+        const int side_twin,
+        const Half half_curr // evaluating halfedge
+    ) {
+        auto dif = (side_twin - side_curr + 4) % 4;
+        auto rot = compute_rotation(dif);
+        MatXd uv_next = uv_twin.row(side_curr) * rot.transpose();
+        Half half_twin = half_curr.twin();
+        Crnr c0 = half_curr.next().crnr();
+        Crnr c1 = half_twin.prev().crnr();
+        Row2d offset = uv_next.row(c1.id) - uv_curr.row(c0.id);
+        uv_next.rowwise() += offset;
+        return uv_next;
+    }
+
+    /*
     inline complex compute_translation(
         const Tmesh &tmesh,
         const VecXd &X,
@@ -41,19 +71,20 @@ namespace metriko {
 
         return sum;
     }
+    */
 
     inline MatXd embedding_tutte_for_tquad(
-        const Hmesh &mesh,
-        const Tmesh &tmesh,
         const int tqid,
+        const Hmesh &hmesh,
+        const Tmesh &tmesh,
         const std::vector<EmbeddedTEdge> &etes,
-        const VecXd &X,
-        const Mat2d &rot,
-        const Row2d &oft
+        const VecXd &X
+        //const Mat2d &rot,
+        //const Row2d &oft
     ) {
         const Tquad &tq = tmesh.tquads[tqid];
         std::vector<std::pair<EmbeddedTEdge, bool> > tq_etes;
-        MatXd embeded_uv = MatXd::Zero(mesh.nV, 2);
+        MatXd embeded_uv = MatXd::Zero(hmesh.nV, 2);
         for (int thid: tq.thids) {
             const auto &th = tmesh.thalfs[thid];
             tq_etes.emplace_back(etes[th.edge().id], th.cannonical);
@@ -75,7 +106,7 @@ namespace metriko {
                 for (int j = 0; j < ete.vids.size(); j++) {
                     int vid = ete.vids[j];
                     double val = th.cannonical ? ete.vals[j] : X[te.id] - ete.vals[j];
-                    Row3d pos = mesh.pos.row(vid);
+                    Row3d pos = hmesh.pos.row(vid);
                     ps_.emplace_back(pos.x(), pos.y(), pos.z());
                     embeded_uv(vid, 0) = val * dir.real() + sum.real();
                     embeded_uv(vid, 1) = val * dir.imag() + sum.imag();
@@ -100,7 +131,7 @@ namespace metriko {
         }
 
         while (!queue.empty()) {
-            Face ff = mesh.faces[queue.front()];
+            Face ff = hmesh.faces[queue.front()];
             queue.pop();
             //assert(rg::find(visit, ff) == visit.end());
             for (Half hh: ff.adjHalfs()) {
@@ -126,7 +157,7 @@ namespace metriko {
         int counter = 0;
         std::vector<int> vidvec;
         for (int id: visit) {
-            Face face = mesh.faces[id];
+            Face face = hmesh.faces[id];
             for (Half h: face.adjHalfs()) {
                 vidvec.emplace_back(h.tail().id);
             }
@@ -136,8 +167,8 @@ namespace metriko {
         vidvec.clear();
         vidvec = std::vector(vidset.begin(), vidset.end());
 
-        MatXi face_table = MatXi::Zero(visit.size(), mesh.nF);
-        MatXd vert_table = MatXd::Zero(vidset.size(), mesh.nV);
+        MatXi face_table = MatXi::Zero(visit.size(), hmesh.nF);
+        MatXd vert_table = MatXd::Zero(vidset.size(), hmesh.nV);
         std::unordered_map<int, int> idcs_table;
         for (int i = 0; i < vidvec.size(); i++) {
             vert_table(i, vidvec[i]) = 1;
@@ -145,14 +176,14 @@ namespace metriko {
         }
 
         for (int id: visit) {
-            Face ff = mesh.faces[id];
+            Face ff = hmesh.faces[id];
             ps.emplace_back(ff.center().x(), ff.center().y(), ff.center().z());
             face_table(counter, id) = 1;
             counter++;
         }
 
-        MatXd V = vert_table * mesh.pos;
-        MatXi F = face_table * mesh.idx;
+        MatXd V = vert_table * hmesh.pos;
+        MatXi F = face_table * hmesh.idx;
         MatXd UV = vert_table * embeded_uv;
 
         for (int i = 0; i < F.rows(); i++) {
@@ -178,26 +209,26 @@ namespace metriko {
             uv.col(1) = res;
         }
 
-        auto s = polyscope::registerSurfaceMesh("ebd mesh " + std::to_string(tqid), V, F);
-        s->setEdgeWidth(1);
-        auto uvw = s->addVertexParameterizationQuantity("uv", uv);
+        //auto s = polyscope::registerSurfaceMesh("ebd mesh " + std::to_string(tqid), V, F);
+        //s->setEdgeWidth(1);
+        //auto uvw = s->addVertexParameterizationQuantity("uv", uv);
 
-        MatXd uv_ = uv * rot.transpose();
-        uv_.rowwise() += oft;
+        //MatXd uv_ = uv * rot.transpose();
+        //uv_.rowwise() += oft;
 
+        //auto uvw2 = s->addVertexParameterizationQuantity("uv2", uv_);
+        //uvw->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+        //uvw->setCheckerSize(1);
+        //uvw->setEnabled(false);
+        //uvw2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+        //uvw2->setCheckerSize(1);
+        //uvw2->setEnabled(true);
 
-        auto uvw2 = s->addVertexParameterizationQuantity("uv2", uv_);
-        uvw->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-        uvw->setCheckerSize(1);
-        uvw->setEnabled(false);
-        uvw2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-        uvw2->setCheckerSize(1);
-        uvw2->setEnabled(true);
-
-        MatXd uv_all = MatXd::Zero(mesh.nC, 2);
-        MatXd uv_vrt = vert_table.transpose() * uv_;
+        MatXd uv_all = MatXd::Zero(hmesh.nC, 2);
+        //MatXd uv_vrt = vert_table.transpose() * uv_;
+        MatXd uv_vrt = vert_table.transpose() * uv;
         for (int iF: visit) {
-            Face f = mesh.faces[iF];
+            Face f = hmesh.faces[iF];
             for (Half h: f.adjHalfs()) {
                 uv_all.row(h.crnr().id) = uv_vrt.row(h.next().head().id);
             }
@@ -205,14 +236,14 @@ namespace metriko {
         return uv_all;
     }
 
-    inline VecXi half_to_emb_tedge(
+    inline VecXi half_to_ethalf(
         const Hmesh &hmesh,
-        const std::vector<EmbeddedTEdge> &etes
+        const std::vector<EmbeddedTHalf> &eths
     ) {
         VecXi table(hmesh.nH, -1);
         for (Half h: hmesh.halfs) {
-            for (int i = 0; i < etes.size(); i++) {
-                if (etes[i].contains(h)) {
+            for (int i = 0; i < eths.size(); i++) {
+                if (eths[i].contains(h)) {
                     table[h.id] = i;
                     break;
                 }
@@ -226,10 +257,12 @@ namespace metriko {
     inline void sequential_mapping(
         const MatXd &uv_in,
         const Half half_in,
+        const EmbeddedTHalf &ethf_in,
         const std::vector<bool> &seam,
-        const std::vector<Half> &boundary,
+        const std::vector<Half> &tquad_boundary,
         std::vector<Half> &half_out,
-        MatXd &uv_out
+        std::vector<Edge> &edge_exclude, // edges which must not cross over again
+        MatXd &uv_all
     ) {
         std::queue<Half> queue;
         std::unordered_set<Edge> visit;
@@ -241,19 +274,50 @@ namespace metriko {
             Crnr c0 = f.half().crnr();
             Crnr c1 = f.half().next().crnr();
             Crnr c2 = f.half().prev().crnr();
-            uv_out.row(c0.id) = uv_in.row(c0.id);
-            uv_out.row(c1.id) = uv_in.row(c1.id);
-            uv_out.row(c2.id) = uv_in.row(c2.id);
+            uv_all.row(c0.id) = uv_in.row(c0.id);
+            uv_all.row(c1.id) = uv_in.row(c1.id);
+            uv_all.row(c2.id) = uv_in.row(c2.id);
             queue.pop();
             for (Half h: f.adjHalfs()) {
-                if (!visit.contains(h.edge()) && !seam[h.edge().id]) continue;
-                if (rg::find(boundary, h) != boundary.end()) { half_out.emplace_back(h); continue; }
+                // 0: if hit seam, just stops
+                if (seam[h.edge().id]) continue;
+                // 1: if hit the visited edge, just stops
+                if (visit.contains(h.edge())) continue;
+                // 2: if hit the excluded edge, just stops
+                if (rg::find(edge_exclude, h.edge()) != edge_exclude.end()) continue;
+                // 3: if hit ethalf where it comes from, just stops
+                if (!ethf_in.contains(h)) { edge_exclude.emplace_back(h.edge()); continue; }
+                // 4: if hit boundary, puts it as a bridge to the next tquad
+                if (rg::find(tquad_boundary, h) != tquad_boundary.end()) { half_out.emplace_back(h); continue; }
+                // 5: inside of tquad. add it to the queue
                 visit.emplace(h.edge());
                 queue.push(h.twin());
             }
         }
     }
 
+    inline void compute_tutte_parameterization(
+        const Hmesh &hmesh,
+        const Tmesh &tmesh,
+        const std::vector<EmbeddedTEdge> &etes,
+        const std::vector<EmbeddedTHalf> &eths,
+        const VecXd &X
+    ) {
+        // compute uv per tquad first...
+        std::vector<MatXd> uv_per_tquad;
+        for (const auto &tq: tmesh.tquads) {
+            MatXd uv = embedding_tutte_for_tquad(tq.id, hmesh, tmesh, etes, X);
+            uv_per_tquad.emplace_back(uv);
+        }
+
+        VecXi h2eth = half_to_ethalf(hmesh, eths);
+        Half half = eths[0].halfs[0];
+        auto eth = eths[h2eth[half.id]];
+        auto tqid = tmesh.th2quad[eth.thid];
+        std::queue<std::tuple<int, int, complex> > queue;
+    }
+
+    /*
     inline void embedding_tutte(
         const Hmesh &mesh,
         const Tmesh &tmesh,
@@ -287,8 +351,12 @@ namespace metriko {
             const Tquad &tq = tmesh.tquads[tqid];
             queue.pop();
 
-            uv_all += embedding_tutte_for_tquad(mesh, tmesh, tqid, etes, X, rots[rot_id],
-                                                Row2d(oft.real(), oft.imag()));
+            MatXd uv_for_tquad = embedding_tutte_for_tquad(
+                mesh, tmesh, tqid, etes, X, rots[rot_id],
+                Row2d(oft.real(), oft.imag()));
+            sequential_mapping()
+
+            uv_all +=
 
             for (int thid: tq.thids) {
                 //if (tq.id != bgn) continue;
@@ -322,6 +390,7 @@ namespace metriko {
             prms->setCheckerSize(1);
         }
     }
+    */
 }
 
 #endif
