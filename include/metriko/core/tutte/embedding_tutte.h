@@ -202,8 +202,56 @@ namespace metriko {
                 uv_all.row(h.crnr().id) = uv_vrt.row(h.next().head().id);
             }
         }
-
         return uv_all;
+    }
+
+    inline VecXi half_to_emb_tedge(
+        const Hmesh &hmesh,
+        const std::vector<EmbeddedTEdge> &etes
+    ) {
+        VecXi table(hmesh.nH, -1);
+        for (Half h: hmesh.halfs) {
+            for (int i = 0; i < etes.size(); i++) {
+                if (etes[i].contains(h)) {
+                    table[h.id] = i;
+                    break;
+                }
+            }
+        }
+        return table;
+    }
+
+    // take the tutte result as the input, embed it until seam intersection.
+    // computes halfedges to search with in the next loop at the same time.
+    inline void sequential_mapping(
+        const MatXd &uv_in,
+        const Half half_in,
+        const std::vector<bool> &seam,
+        const std::vector<Half> &boundary,
+        std::vector<Half> &half_out,
+        MatXd &uv_out
+    ) {
+        std::queue<Half> queue;
+        std::unordered_set<Edge> visit;
+        queue.push(half_in);
+        visit.emplace(half_in.edge());
+        while (queue.size() > 0) {
+            Half hfr = queue.front();
+            Face f = hfr.face();
+            Crnr c0 = f.half().crnr();
+            Crnr c1 = f.half().next().crnr();
+            Crnr c2 = f.half().prev().crnr();
+            uv_out.row(c0.id) = uv_in.row(c0.id);
+            uv_out.row(c1.id) = uv_in.row(c1.id);
+            uv_out.row(c2.id) = uv_in.row(c2.id);
+            queue.pop();
+            for (Half h: f.adjHalfs()) {
+                if (!visit.contains(h.edge()) && !seam[h.edge().id]) continue;
+                if (rg::find(boundary, h) != boundary.end()) { half_out.emplace_back(h); continue; }
+                visit.emplace(h.edge());
+                queue.push(h.twin());
+            }
+        }
     }
 
     inline void embedding_tutte(
@@ -214,7 +262,7 @@ namespace metriko {
     ) {
         std::vector<int> tqids_;
         tqids_.emplace_back(12);
-        std::queue<std::tuple<int, int, complex>> queue;
+        std::queue<std::tuple<int, int, complex> > queue;
         std::unordered_set<int> visit;
         complex origin = complex(10, 10);
         int bgn = 12;
@@ -234,12 +282,13 @@ namespace metriko {
 
         MatXd uv_all(mesh.nC, 2);
 
-        while (!queue.empty() && count < 10) {
+        while (!queue.empty() && count++ < 10) {
             auto [tqid, rot_id, oft] = queue.front();
             const Tquad &tq = tmesh.tquads[tqid];
             queue.pop();
 
-            uv_all += embedding_tutte_for_tquad(mesh, tmesh, tqid, etes, X, rots[rot_id], Row2d(oft.real(), oft.imag()));
+            uv_all += embedding_tutte_for_tquad(mesh, tmesh, tqid, etes, X, rots[rot_id],
+                                                Row2d(oft.real(), oft.imag()));
 
             for (int thid: tq.thids) {
                 //if (tq.id != bgn) continue;
@@ -261,7 +310,6 @@ namespace metriko {
                     }
                 }
             }
-            count++;
         }
 
         /// ---- visualize mesh ---- ///

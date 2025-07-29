@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
     }
 
     // visuailize seam
-    {
+    {/*
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2> > es;
         size_t counter = 0;
@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
         c->setEnabled(false);
         c->resetTransform();
         c->setRadius(0.003);
-    }
+    */}
 
     // gen mport, medge
     auto graph = MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);

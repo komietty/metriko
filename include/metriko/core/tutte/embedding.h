@@ -30,11 +30,11 @@ namespace metriko {
             }
         }
 
-        bool contains(Half h) {
+        bool contains(Half h) const {
             return rg::find(halfs, h) != halfs.end();
         }
 
-        bool contains(Edge e) {
+        bool contains(Edge e) const {
             return rg::find(halfs, e.half()) != halfs.end() ||
                    rg::find(halfs, e.half().twin()) != halfs.end();
         }

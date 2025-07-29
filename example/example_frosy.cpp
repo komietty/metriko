@@ -21,6 +21,7 @@ int main(int argc, char **argv) {
     surf->setSurfaceColor({0, 10./ 255., 27./ 255.});
     surf->setSmoothShade(true);
 
+    /*
     auto rawf = std::make_unique<FaceRosyField>(*mesh, rosyN, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
@@ -72,7 +73,7 @@ int main(int argc, char **argv) {
     pc->setPointRadius(0.005);
     pc->resetTransform();
 
-    /*--- visuailize seam ---*/
+    /--- visuailize seam ---/
     std::vector<glm::vec3> nodes;
     std::vector<std::array<size_t, 2>> edges;
     size_t counter = 0;
@@ -89,6 +90,7 @@ int main(int argc, char **argv) {
     auto pn = polyscope::registerCurveNetwork("seam", nodes, edges);
     pn->resetTransform();
     pn->setRadius(0.001);
+    */
 
     polyscope::show();
 }

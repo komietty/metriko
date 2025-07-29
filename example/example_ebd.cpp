@@ -6,11 +6,11 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/core/quantization/wip/embedding.h"
-#include "metriko/core/quantization/wip//convex_conbinatin_map.h"
+#include "metriko/core/tutte//embedding.h"
+#include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
-#include "../include/metriko/core/quantization/wip/visualize_tedge_ebd.h"
-#include "metriko/core/quantization/wip/embedding_tutte.h"
+#include "../include/metriko/core/tutte/visualize_tedge_ebd.h"
+#include "metriko/core/tutte/embedding_tutte.h"
 
 using namespace metriko;
 int N = 4;
@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < tmesh.nTE; i++) {
         auto res = gen_embedded_tedge_easy(*mesh, uv2, tmesh.tedges[i], passthrough);
         if (res.has_value()) etes.emplace_back(res.value());
-        else std::cout << "failed to generate embedded tedge" << std::endl;
+        else throw std::runtime_error("failed to generate embedded tedge");
     }
 
     reassign_quantization_values(*mesh, X, etes);
