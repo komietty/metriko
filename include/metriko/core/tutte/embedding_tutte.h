@@ -35,7 +35,6 @@ namespace metriko {
         return uv_next;
     }
 
-    /*
     inline complex compute_translation(
         const Tmesh &tmesh,
         const VecXd &X,
@@ -71,7 +70,7 @@ namespace metriko {
 
         return sum;
     }
-    */
+
 
     inline MatXd embedding_tutte_for_tquad(
         const int tqid,
@@ -197,12 +196,14 @@ namespace metriko {
         SprsD L = cotan_laplacian(*m);
         SprsD M = mass_matrix(*m);
         SprsD BL = boundary_snap_laplacian(*m);
-        MatXd uv(m->nV, 2); {
+        MatXd uv(m->nV, 2);
+        {
             Eigen::SparseLU<SprsD> lu;
             lu.compute(BL);
             VecXd res = lu.solve(UV.col(0));
             uv.col(0) = res;
-        } {
+        }
+        {
             Eigen::SparseLU<SprsD> lu;
             lu.compute(BL);
             VecXd res = lu.solve(UV.col(1));
@@ -252,20 +253,28 @@ namespace metriko {
         return table;
     }
 
+    struct EdgeHash {
+        std::size_t operator()(const Edge &e) const noexcept { return std::hash<int>{}(e.id); }
+    };
+
+    struct HalfHash {
+        std::size_t operator()(const Half &h) const noexcept { return std::hash<int>{}(h.id); }
+    };
+
     // take the tutte result as the input, embed it until seam intersection.
     // computes halfedges to search with in the next loop at the same time.
     inline void sequential_mapping(
         const MatXd &uv_in,
         const Half half_in,
-        const EmbeddedTHalf &ethf_in,
+        //const EmbeddedTHalf &ethf_in,
         const std::vector<bool> &seam,
         const std::vector<Half> &tquad_boundary,
-        std::vector<Half> &half_out,
-        std::vector<Edge> &edge_exclude, // edges which must not cross over again
+        std::unordered_set<Half, HalfHash> &half_out,
+        //std::vector<Edge> &edge_exclude, // edges which must not cross over again
         MatXd &uv_all
     ) {
         std::queue<Half> queue;
-        std::unordered_set<Edge> visit;
+        std::unordered_set<Edge, EdgeHash> visit;
         queue.push(half_in);
         visit.emplace(half_in.edge());
         while (queue.size() > 0) {
@@ -281,14 +290,19 @@ namespace metriko {
             for (Half h: f.adjHalfs()) {
                 // 0: if hit seam, just stops
                 if (seam[h.edge().id]) continue;
-                // 1: if hit the visited edge, just stops
+                // 1: if hit the visited edge, just stop
                 if (visit.contains(h.edge())) continue;
+
                 // 2: if hit the excluded edge, just stops
-                if (rg::find(edge_exclude, h.edge()) != edge_exclude.end()) continue;
+                //if (rg::find(edge_exclude, h.edge()) != edge_exclude.end()) continue;
                 // 3: if hit ethalf where it comes from, just stops
-                if (!ethf_in.contains(h)) { edge_exclude.emplace_back(h.edge()); continue; }
+                //if (!ethf_in.contains(h)) { edge_exclude.emplace_back(h.edge()); continue; }
+
                 // 4: if hit boundary, puts it as a bridge to the next tquad
-                if (rg::find(tquad_boundary, h) != tquad_boundary.end()) { half_out.emplace_back(h); continue; }
+                if (rg::find(tquad_boundary, h) != tquad_boundary.end()) {
+                    half_out.insert(h);
+                    continue;
+                }
                 // 5: inside of tquad. add it to the queue
                 visit.emplace(h.edge());
                 queue.push(h.twin());
@@ -296,11 +310,52 @@ namespace metriko {
         }
     }
 
-    inline void compute_tutte_parameterization(
+    // try to multiply rotation until halfedge coner values corresponds
+    // need to consider: is there any possibility of flip?
+    inline void apply_transition(
+        const Half h, // the halfedge of unfixed side
+        const MatXd &mat0, // the fixed uv information
+        MatXd &mat1 // the unfixed adjacent uv information
+    ) {
+        Half h0 = h.twin();
+        Half h1 = h;
+        Row2d uv0 = mat0.row(h0.next().crnr().id);
+        Row2d uv1 = mat1.row(h1.prev().crnr().id);
+        Row2d uv0a = mat0.row(h0.prev().crnr().id);
+        Row2d uv1a = mat1.row(h1.next().crnr().id);
+
+        for (int i = 0; i < 4; i++) {
+            Mat2d rot = compute_rotation(i);
+            Row2d res = rot * (uv1a - uv1).transpose() + uv0.transpose();
+            if ((res - uv0a).norm() < 1e-6) {
+                for (int j = 0; j < mat1.rows(); j++) {
+                    mat1.row(j) = rot * (mat1.row(j) - uv1).transpose() + uv0.transpose();
+                }
+                return;
+            }
+        }
+        throw new std::runtime_error("no corresponding rotation found");
+    }
+
+    inline std::pair<int, int> find_tqid_and_thid_from_half(
+        const Tmesh &tmesh,
+        const std::vector<EmbeddedTHalf> &eths,
+        const Half &h
+    ) {
+        for (auto tq: tmesh.tquads) {
+            for (int thid: tq.thids) {
+                if (eths[thid].contains(h)) return std::pair(tq.id, thid);
+            }
+        }
+        throw new std::runtime_error("half not found in any tquad");
+    }
+
+    inline MatXd compute_tutte_parameterization(
         const Hmesh &hmesh,
         const Tmesh &tmesh,
         const std::vector<EmbeddedTEdge> &etes,
         const std::vector<EmbeddedTHalf> &eths,
+        const std::vector<bool> &seam,
         const VecXd &X
     ) {
         // compute uv per tquad first...
@@ -310,14 +365,81 @@ namespace metriko {
             uv_per_tquad.emplace_back(uv);
         }
 
-        VecXi h2eth = half_to_ethalf(hmesh, eths);
-        Half half = eths[0].halfs[0];
-        auto eth = eths[h2eth[half.id]];
-        auto tqid = tmesh.th2quad[eth.thid];
-        std::queue<std::tuple<int, int, complex> > queue;
+        MatXd uv_all = MatXd::Zero(hmesh.nC, 2);
+        std::unordered_set<Half, HalfHash> halfs_out;
+
+        // test: the initial tquad
+        {
+            auto thids = tmesh.tquads[0].thids;
+            auto boundaries = std::vector<Half>{};
+            Half h = hmesh.halfs[eths[thids.front()].halfs.front().id]; // the first half of tquad
+            for (int thid: thids) {
+                auto eth = eths[thid];
+                for (auto h: eth.halfs) { boundaries.emplace_back(h); }
+            }
+
+            sequential_mapping(
+                uv_per_tquad[0],
+                h,
+                seam,
+                boundaries,
+                halfs_out,
+                uv_all
+            );
+        }
+
+        // test: the second tquad
+        {
+            const Half next_half = halfs_out.begin()->twin();
+            const int tqid = find_tqid_and_thid_from_half(tmesh, eths, next_half).first;
+            const Tquad tq = tmesh.tquads[tqid];
+            apply_transition(
+                next_half,
+                uv_per_tquad[0],
+                uv_per_tquad[tqid]
+            );
+
+            auto boundaries = std::vector<Half>{};
+            for (int thid: tq.thids) {
+                for (auto hh: eths[thid].halfs) { boundaries.emplace_back(hh); }
+            }
+
+            sequential_mapping(
+                uv_per_tquad[tqid],
+                next_half,
+                seam,
+                boundaries,
+                halfs_out,
+                uv_all
+            );
+        }
+
+
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2> > es;
+        size_t counter = 0;
+        for (auto hh: halfs_out) {
+            Row3d p1 = hh.tail().pos();
+            Row3d p2 = hh.head().pos();
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            es.emplace_back(std::array{counter, counter + 1});
+            counter += 2;
+        }
+        std::cout << "halfs out size: " << halfs_out.size() << std::endl;
+        auto c = polyscope::registerCurveNetwork("halfs out", ns, es);
+        c->setEnabled(true);
+        c->resetTransform();
+        c->setRadius(0.0015);
+        return uv_all;
+
+        //VecXi h2eth = half_to_ethalf(hmesh, eths);
+        //Half half = eths[0].halfs[0];
+        //auto eth = eths[h2eth[half.id]];
+        //auto tqid = tmesh.th2quad[eth.thid];
+        //std::queue<std::tuple<int, int, complex>> queue;
     }
 
-    /*
     inline void embedding_tutte(
         const Hmesh &mesh,
         const Tmesh &tmesh,
@@ -351,12 +473,12 @@ namespace metriko {
             const Tquad &tq = tmesh.tquads[tqid];
             queue.pop();
 
-            MatXd uv_for_tquad = embedding_tutte_for_tquad(
-                mesh, tmesh, tqid, etes, X, rots[rot_id],
-                Row2d(oft.real(), oft.imag()));
-            sequential_mapping()
+            //MatXd uv_for_tquad = embedding_tutte_for_tquad(
+            //    mesh, tmesh, tqid, etes, X, rots[rot_id],
+            //    Row2d(oft.real(), oft.imag()));
+            //sequential_mapping()
 
-            uv_all +=
+            //uv_all +=
 
             for (int thid: tq.thids) {
                 //if (tq.id != bgn) continue;
@@ -382,7 +504,7 @@ namespace metriko {
 
         /// ---- visualize mesh ---- ///
         {
-            const auto surf = polyscope::registerSurfaceMesh("mesh", mesh.pos, mesh.idx);
+            const auto surf = polyscope::registerSurfaceMesh("mesh_", mesh.pos, mesh.idx);
             const auto prms = surf->addParameterizationQuantity("params", uv_all);
             surf->setEnabled(false);
             prms->setStyle(polyscope::ParamVizStyle::GRID);
@@ -390,6 +512,8 @@ namespace metriko {
             prms->setCheckerSize(1);
         }
     }
+
+    /*
     */
 }
 

@@ -49,9 +49,9 @@ namespace metriko {
 
         EmbeddedTHalf(
             const EmbeddedTEdge &etedge,
-            int thid,
             bool cannonical
-        ): thid(thid), cannonical(cannonical) {
+        ): cannonical(cannonical) {
+            thid = etedge.teid * 2 + (cannonical ? 0 : 1);
             int nV = (int)etedge.vids.size();
             int nH = (int)etedge.halfs.size();
             assert(etedge.vals.size() == nV);

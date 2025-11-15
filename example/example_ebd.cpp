@@ -1,4 +1,3 @@
-#include <format>
 #include <igl/readOBJ.h>
 #include <polyscope/surface_mesh.h>
 #include <polyscope/point_cloud.h>
@@ -6,10 +5,10 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tutte//embedding.h"
-#include "metriko/core/tutte/convex_conbinatin_map.h"
+#include "metriko/core/tutte/embedding.h"
 #include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
 #include "../include/metriko/core/tutte/visualize_tedge_ebd.h"
+#include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/embedding_tutte.h"
 
 using namespace metriko;
@@ -73,14 +72,11 @@ int main(int argc, char **argv) {
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
 
     /// ---- visualize mesh ---- ///
-    {
         const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
-        const auto prms = surf->addParameterizationQuantity("params", uv1);
-        surf->setEnabled(false);
-        surf->addFaceVectorQuantity("cmb field", cmbExtZero);
-        prms->setStyle(polyscope::ParamVizStyle::GRID);
-        prms->setCheckerSize(1);
-    }
+        //const auto prms = surf->addParameterizationQuantity("params", uv1);
+        //surf->addFaceVectorQuantity("cmb field", cmbExtZero);
+        //prms->setStyle(polyscope::ParamVizStyle::GRID);
+        //prms->setCheckerSize(1);
 
     ///--- visuailize seam ---///
     {
@@ -98,9 +94,9 @@ int main(int argc, char **argv) {
             }
         }
         auto c = polyscope::registerCurveNetwork("seam", ns, es);
-        c->setEnabled(false);
+        c->setEnabled(true);
         c->resetTransform();
-        c->setRadius(0.003);
+        c->setRadius(0.0015);
     }
 
     ///--- gen mport, medge ---///
@@ -129,17 +125,27 @@ int main(int argc, char **argv) {
         split_verts[i] = visualizer::construct_verts_on_tedge(tmesh, X, R, i);
 
 
+
     std::vector<EmbeddedTEdge> etes;
+    std::vector<EmbeddedTHalf> eths;
     std::vector passthrough(mesh->nE, false);
     for (int i = 0; i < tmesh.nTE; i++) {
         auto res = gen_embedded_tedge_easy(*mesh, uv2, tmesh.tedges[i], passthrough);
-        if (res.has_value()) etes.emplace_back(res.value());
+        if (res.has_value()) {
+            etes.emplace_back(res.value());
+            eths.emplace_back(res.value(), true);
+            eths.emplace_back(res.value(), false);
+        }
         else throw std::runtime_error("failed to generate embedded tedge");
     }
 
     reassign_quantization_values(*mesh, X, etes);
     visualizer::visualize_embedding(*mesh, etes, X);
-    embedding_tutte(*mesh, tmesh, etes, X);
+    MatXd temp = compute_tutte_parameterization(*mesh, tmesh, etes, eths, seam, X);
+    auto prms = surf->addParameterizationQuantity("params_", temp);
+    prms->setEnabled(true);
+    prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+    prms->setCheckerSize(1);
 
     polyscope::show();
     return 0;

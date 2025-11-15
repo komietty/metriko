@@ -4,11 +4,12 @@
 
 #ifndef METRIKO_VISUALIZE_TEDGE_EBD_H
 #define METRIKO_VISUALIZE_TEDGE_EBD_H
+#include "embedding.h"
 
 namespace metriko::visualizer {
 
     inline void visualize_embedding(
-        const Hmesh&  hmesh,
+        const Hmesh& hmesh,
         const std::vector<EmbeddedTEdge>& embedded_t_edges,
         const VecXd& X
     ) {
