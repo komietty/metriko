@@ -17,69 +17,12 @@ namespace metriko {
         return r[i];
     }
 
-    inline MatXd compute_transed_uv(
-        const MatXd &uv_curr,
-        const MatXd &uv_twin,
-        const int side_curr,
-        const int side_twin,
-        const Half half_curr // evaluating halfedge
-    ) {
-        auto dif = (side_twin - side_curr + 4) % 4;
-        auto rot = compute_rotation(dif);
-        MatXd uv_next = uv_twin.row(side_curr) * rot.transpose();
-        Half half_twin = half_curr.twin();
-        Crnr c0 = half_curr.next().crnr();
-        Crnr c1 = half_twin.prev().crnr();
-        Row2d offset = uv_next.row(c1.id) - uv_curr.row(c0.id);
-        uv_next.rowwise() += offset;
-        return uv_next;
-    }
-
-    inline complex compute_translation(
-        const Tmesh &tmesh,
-        const VecXd &X,
-        const Tquad &curr_tq,
-        const Tquad &twin_tq,
-        const Thalf &flip_th,
-        const complex origin
-    ) {
-        Thalf th = tmesh.thalfs[curr_tq.find_first_thid(0)];
-        auto dir = complex(1, 0);
-        auto sum = origin;
-
-        while (true) {
-            //std::cout << "add curr: " << X[th.edge().id] * dir << std::endl;
-            sum += X[th.edge().id] * dir;
-            if (th.id == flip_th.id) break;
-            if (curr_tq.find_side(th) != curr_tq.find_side(th.next()))
-                dir *= complex(0, 1);
-            th = th.next();
-        }
-
-        th = th.twin();
-        dir *= -1;
-
-        while (true) {
-            if (th.id == twin_tq.find_first_thid(0)) break;
-            //std::cout << "add twin: " << X[th.edge().id] * dir << std::endl;
-            sum += X[th.edge().id] * dir;
-            if (twin_tq.find_side(th) != twin_tq.find_side(th.next()))
-                dir *= complex(0, 1);
-            th = th.next();
-        }
-
-        return sum;
-    }
-
-
     inline MatXd embedding_tutte_for_tquad(
         const int tqid,
         const Hmesh &hmesh,
         const Tmesh &tmesh,
         const std::vector<EmbeddedTEdge> &etes,
         const VecXd &X
-        //const Mat2d &rot,
-        //const Row2d &oft
     ) {
         const Tquad &tq = tmesh.tquads[tqid];
         std::vector<std::pair<EmbeddedTEdge, bool> > tq_etes;
@@ -87,8 +30,6 @@ namespace metriko {
         for (int thid: tq.thids) {
             const auto &th = tmesh.thalfs[thid];
             tq_etes.emplace_back(etes[th.edge().id], th.cannonical);
-
-            // assign values to vertices
         }
 
         std::vector<glm::vec3> ps_;
@@ -130,6 +71,7 @@ namespace metriko {
         }
 
         while (!queue.empty()) {
+            std::cout << "queue size: " << queue.size() << std::endl;
             Face ff = hmesh.faces[queue.front()];
             queue.pop();
             //assert(rg::find(visit, ff) == visit.end());
@@ -186,89 +128,37 @@ namespace metriko {
         MatXd UV = vert_table * embeded_uv;
 
         for (int i = 0; i < F.rows(); i++) {
-            for (int j = 0; j < 3; j++) {
-                F(i, j) = idcs_table[F(i, j)];
-            }
+            for (int j = 0; j < 3; j++) { F(i, j) = idcs_table[F(i, j)]; }
         }
 
         // here tutte's parameterization
         auto m = std::make_unique<Hmesh>(V, F);
-        SprsD L = cotan_laplacian(*m);
-        SprsD M = mass_matrix(*m);
+        SprsD L  = cotan_laplacian(*m);
+        SprsD M  = mass_matrix(*m);
         SprsD BL = boundary_snap_laplacian(*m);
         MatXd uv(m->nV, 2);
-        {
-            Eigen::SparseLU<SprsD> lu;
-            lu.compute(BL);
-            VecXd res = lu.solve(UV.col(0));
-            uv.col(0) = res;
-        }
-        {
-            Eigen::SparseLU<SprsD> lu;
-            lu.compute(BL);
-            VecXd res = lu.solve(UV.col(1));
-            uv.col(1) = res;
-        }
-
-        //auto s = polyscope::registerSurfaceMesh("ebd mesh " + std::to_string(tqid), V, F);
-        //s->setEdgeWidth(1);
-        //auto uvw = s->addVertexParameterizationQuantity("uv", uv);
-
-        //MatXd uv_ = uv * rot.transpose();
-        //uv_.rowwise() += oft;
-
-        //auto uvw2 = s->addVertexParameterizationQuantity("uv2", uv_);
-        //uvw->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-        //uvw->setCheckerSize(1);
-        //uvw->setEnabled(false);
-        //uvw2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-        //uvw2->setCheckerSize(1);
-        //uvw2->setEnabled(true);
+        { Eigen::SparseLU<SprsD> lu; lu.compute(BL); VecXd res = lu.solve(UV.col(0)); uv.col(0) = res; }
+        { Eigen::SparseLU<SprsD> lu; lu.compute(BL); VecXd res = lu.solve(UV.col(1)); uv.col(1) = res; }
 
         MatXd uv_all = MatXd::Zero(hmesh.nC, 2);
-        //MatXd uv_vrt = vert_table.transpose() * uv_;
         MatXd uv_vrt = vert_table.transpose() * uv;
         for (int iF: visit) {
             Face f = hmesh.faces[iF];
-            for (Half h: f.adjHalfs()) {
-                uv_all.row(h.crnr().id) = uv_vrt.row(h.next().head().id);
-            }
+            for (Half h: f.adjHalfs()) { uv_all.row(h.crnr().id) = uv_vrt.row(h.next().head().id); }
         }
         return uv_all;
     }
 
-    inline VecXi half_to_ethalf(
-        const Hmesh &hmesh,
-        const std::vector<EmbeddedTHalf> &eths
-    ) {
-        VecXi table(hmesh.nH, -1);
-        for (Half h: hmesh.halfs) {
-            for (int i = 0; i < eths.size(); i++) {
-                if (eths[i].contains(h)) {
-                    table[h.id] = i;
-                    break;
-                }
-            }
-        }
-        return table;
-    }
-
-    struct EdgeHash {
-        std::size_t operator()(const Edge &e) const noexcept { return std::hash<int>{}(e.id); }
-    };
-
-    struct HalfHash {
-        std::size_t operator()(const Half &h) const noexcept { return std::hash<int>{}(h.id); }
-    };
+    struct EdgeHash { std::size_t operator()(const Edge &e) const noexcept { return std::hash<int>{}(e.id); } };
+    struct HalfHash { std::size_t operator()(const Half &h) const noexcept { return std::hash<int>{}(h.id); } };
 
     // take the tutte result as the input, embed it until seam intersection.
     // computes halfedges to search with in the next loop at the same time.
     inline std::unordered_set<Half, HalfHash> sequential_mapping(
         const MatXd &uv_in,
         const Half half_in,
-        //const EmbeddedTHalf &ethf_in,
         const std::vector<bool> &seam,
-        std::vector<bool> &flag, // the flag to check a corner is already checked or not
+        std::vector<bool> &flag,       // the flag to check a corner is already checked or not
         const std::vector<Half> &tquad_boundary,
         MatXd &uv_all
     ) {
@@ -320,9 +210,9 @@ namespace metriko {
     // try to multiply rotation until halfedge coner values corresponds
     // need to consider: is there any possibility of flip?
     inline void apply_transition(
-        const Half h, // the halfedge of unfixed side
+        const Half h,      // the halfedge of unfixed side
         const MatXd &mat0, // the fixed uv information
-        MatXd &mat1 // the unfixed adjacent uv information
+        MatXd &mat1        // the unfixed adjacent uv information
     ) {
         Half h0 = h.twin();
         Half h1 = h;
@@ -403,6 +293,9 @@ namespace metriko {
             uv_per_tquad.emplace_back(uv);
         }
 
+        //MatXd uv = embedding_tutte_for_tquad(tmesh.tquads[0].id, hmesh, tmesh, etes, X);
+        //uv_per_tquad.emplace_back(uv);
+
         MatXd uv_all = MatXd::Zero(hmesh.nC, 2);
         auto corner_flag = std::vector(hmesh.nC, false);
         std::unordered_set<Half, HalfHash> halfs_out;
@@ -429,7 +322,7 @@ namespace metriko {
         }
 
         int count = 0;
-        while (!rg::all_of(corner_flag, [&](auto f) { return f; }) && count < 1519) {
+        while (!rg::all_of(corner_flag, [&](auto f) { return f; }) && count < 29999) {
             auto h = queue.top();
             queue.pop();
             auto tqid_curr = find_tqid_and_thid_from_half(tmesh, eths, h).first;
@@ -475,9 +368,6 @@ namespace metriko {
             for (auto nh: next_halfs) queue.push(nh);
             count++;
         }
-        /*
-        */
-
 
         /*
         std::vector<std::pair<int, int> > next_tqid_hid_pair;
@@ -537,12 +427,77 @@ namespace metriko {
         //c->resetTransform();
         //c->setRadius(0.0015);
         return uv_all;
+    }
 
-        //VecXi h2eth = half_to_ethalf(hmesh, eths);
-        //Half half = eths[0].halfs[0];
-        //auto eth = eths[h2eth[half.id]];
-        //auto tqid = tmesh.th2quad[eth.thid];
-        //std::queue<std::tuple<int, int, complex>> queue;
+    /*
+    inline VecXi half_to_ethalf(
+        const Hmesh &hmesh,
+        const std::vector<EmbeddedTHalf> &eths
+    ) {
+        VecXi table(hmesh.nH, -1);
+        for (Half h: hmesh.halfs) {
+            for (int i = 0; i < eths.size(); i++) {
+                if (eths[i].contains(h)) {
+                    table[h.id] = i;
+                    break;
+                }
+            }
+        }
+        return table;
+    }
+
+    inline MatXd compute_transed_uv(
+        const MatXd &uv_curr,
+        const MatXd &uv_twin,
+        const int side_curr,
+        const int side_twin,
+        const Half half_curr // evaluating halfedge
+    ) {
+        auto dif = (side_twin - side_curr + 4) % 4;
+        auto rot = compute_rotation(dif);
+        MatXd uv_next = uv_twin.row(side_curr) * rot.transpose();
+        Half half_twin = half_curr.twin();
+        Crnr c0 = half_curr.next().crnr();
+        Crnr c1 = half_twin.prev().crnr();
+        Row2d offset = uv_next.row(c1.id) - uv_curr.row(c0.id);
+        uv_next.rowwise() += offset;
+        return uv_next;
+    }
+
+    inline complex compute_translation(
+        const Tmesh &tmesh,
+        const VecXd &X,
+        const Tquad &curr_tq,
+        const Tquad &twin_tq,
+        const Thalf &flip_th,
+        const complex origin
+    ) {
+        Thalf th = tmesh.thalfs[curr_tq.find_first_thid(0)];
+        auto dir = complex(1, 0);
+        auto sum = origin;
+
+        while (true) {
+            //std::cout << "add curr: " << X[th.edge().id] * dir << std::endl;
+            sum += X[th.edge().id] * dir;
+            if (th.id == flip_th.id) break;
+            if (curr_tq.find_side(th) != curr_tq.find_side(th.next()))
+                dir *= complex(0, 1);
+            th = th.next();
+        }
+
+        th = th.twin();
+        dir *= -1;
+
+        while (true) {
+            if (th.id == twin_tq.find_first_thid(0)) break;
+            //std::cout << "add twin: " << X[th.edge().id] * dir << std::endl;
+            sum += X[th.edge().id] * dir;
+            if (twin_tq.find_side(th) != twin_tq.find_side(th.next()))
+                dir *= complex(0, 1);
+            th = th.next();
+        }
+
+        return sum;
     }
 
     inline void embedding_tutte(
@@ -617,8 +572,6 @@ namespace metriko {
             prms->setCheckerSize(1);
         }
     }
-
-    /*
     */
 }
 

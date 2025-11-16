@@ -197,16 +197,16 @@ namespace metriko {
 
             rg::sort(pairs, [&fr](auto &a, auto &b) { return norm(fr - a.first) < norm(fr - b.first); });
             int vid0 = pairs[0].second;
-            if (vid0 == 1852) vid0 = 1859; // todo: temp for icosphere_5!!!!
-            if (vid0 == 1851) vid0 = 1858; // todo: temp for icosphere_5!!!!
-            if (vid0 == 1860) vid0 = 1852; // todo: temp for icosphere_5!!!!
+            //if (vid0 == 1852) vid0 = 1859; // todo: temp for icosphere_5!!!!
+            //if (vid0 == 1851) vid0 = 1858; // todo: temp for icosphere_5!!!!
+            //if (vid0 == 1860) vid0 = 1852; // todo: temp for icosphere_5!!!!
             if (vids.empty() || vids.back() != vid0) vids.emplace_back(vid0);
 
             rg::sort(pairs, [&to](auto &a, auto &b) { return norm(to - a.first) < norm(to - b.first); });
             int vid1 = pairs[0].second;
-            if (vid1 == 1852) vid1 = 1859; // todo: temp for icosphere_5!!!!
-            if (vid1 == 1851) vid1 = 1858; // todo: temp for icosphere_5!!!!
-            if (vid1 == 1860) vid1 = 1852; // todo: temp for icosphere_5!!!!
+            //if (vid1 == 1852) vid1 = 1859; // todo: temp for icosphere_5!!!!
+            //if (vid1 == 1851) vid1 = 1858; // todo: temp for icosphere_5!!!!
+            //if (vid1 == 1860) vid1 = 1852; // todo: temp for icosphere_5!!!!
             if (vids.empty() || vids.back() != vid1) vids.emplace_back(vid1);
         }
 
@@ -215,18 +215,6 @@ namespace metriko {
         for (int i = 1; i < vids.size() - 1; i++) passthroughs[vids[i]] = true;
         return EmbeddedTEdge(hmesh, tedge.id, vids);
     }
-
-
-    /*
-    inline std::vector<EmbeddedTEdge> gen_embedded_tedges(
-        const VecXc& cfn,
-        const std::vector<motorcycle::Tedge>& tedges
-    ) {
-        std::vector<EmbeddedTEdge> etes;
-        for (auto& te: tedges) etes.emplace_back(gen_embedded_tedge(cfn, te));
-        return etes;
-    }
-    */
 }
 
 #endif

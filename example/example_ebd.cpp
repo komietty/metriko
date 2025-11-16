@@ -1,4 +1,5 @@
 #include <igl/readOBJ.h>
+#include <igl/slim.h>
 #include <polyscope/surface_mesh.h>
 #include <polyscope/point_cloud.h>
 #include <polyscope/curve_network.h>
@@ -8,6 +9,7 @@
 #include "metriko/core/tutte/embedding.h"
 #include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
 #include "../include/metriko/core/tutte/visualize_tedge_ebd.h"
+#include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/embedding_tutte.h"
 
@@ -27,6 +29,9 @@ MatXi F;
 
 int main(int argc, char **argv) {
     igl::readOBJ(argv[1], V, F);
+
+    igl::upsample(V, F, 1);
+
     mesh = std::make_unique<Hmesh>(V, F);
     rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
@@ -72,11 +77,12 @@ int main(int argc, char **argv) {
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
 
     /// ---- visualize mesh ---- ///
-        const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
-        //const auto prms = surf->addParameterizationQuantity("params", uv1);
-        //surf->addFaceVectorQuantity("cmb field", cmbExtZero);
-        //prms->setStyle(polyscope::ParamVizStyle::GRID);
-        //prms->setCheckerSize(1);
+    //const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
+    const auto surf = polyscope::registerSurfaceMesh("cut_mesh", cutm->pos, cutm->idx);
+    //const auto prms = surf->addParameterizationQuantity("params", uv1);
+    //surf->addFaceVectorQuantity("cmb field", cmbExtZero);
+    //prms->setStyle(polyscope::ParamVizStyle::GRID);
+    //prms->setCheckerSize(1);
 
     ///--- visuailize seam ---///
     {
@@ -125,7 +131,6 @@ int main(int argc, char **argv) {
         split_verts[i] = visualizer::construct_verts_on_tedge(tmesh, X, R, i);
 
 
-
     std::vector<EmbeddedTEdge> etes;
     std::vector<EmbeddedTHalf> eths;
     std::vector passthrough(mesh->nE, false);
@@ -135,18 +140,61 @@ int main(int argc, char **argv) {
             etes.emplace_back(res.value());
             eths.emplace_back(res.value(), true);
             eths.emplace_back(res.value(), false);
-        }
-        else throw std::runtime_error("failed to generate embedded tedge");
+        } else throw std::runtime_error("failed to generate embedded tedge");
+        //auto res = gen_embedded_tedge(*mesh, uv2, tmesh.tedges[i], passthrough);
+        //etes.emplace_back(res);
+        //eths.emplace_back(res, true);
+        //eths.emplace_back(res, false);
     }
 
     reassign_quantization_values(*mesh, X, etes);
     visualizer::visualize_embedding(*mesh, etes, X);
-    MatXd temp = compute_tutte_parameterization(*mesh, tmesh, etes, eths, seam, X);
-    auto prms = surf->addParameterizationQuantity("params_", temp);
-    prms->setEnabled(true);
+
+    //const auto surf2 = polyscope::registerSurfaceMesh("subdiv_mesh", V, F);
+    MatXd uv = compute_tutte_parameterization(*mesh, tmesh, etes, eths, seam, X);
+    auto prms = surf->addParameterizationQuantity("params_1", uv);
+    prms->setEnabled(false);
     prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
     prms->setCheckerSize(1);
+
+
+    std::vector<int> b_;
+    std::vector<Row2d> bc_;
+
+    for (auto v: cutm->verts) {
+        if (v.isBoundary()) {
+            Row2d val = uv.row(v.half().next().crnr().id);
+            b_.push_back(v.id);
+            bc_.push_back(val);
+        }
+    }
+
+
+    Eigen::VectorXi b;
+    Eigen::MatrixXd bc;
+
+    b = Eigen::Map<VecXi>(b_.data(), b_.size());
+    bc.resize(bc_.size(), 2);
+    for (int i = 0; i < static_cast<int>(bc_.size()); ++i) { bc.row(i) = bc_[i]; }
+    double soft_const_p = 1e5;
+    Eigen::MatrixXd uv_init(cutm->nV, 2);
+    for (auto v: cutm->verts) {
+        uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
+    }
+    igl::SLIMData sData;
+    sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
+
+    slim_precompute(cutm->pos, cutm->idx, uv_init, sData, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, bc, soft_const_p);
+    slim_solve(sData, 10);
+
+    auto prms2 = surf->addVertexParameterizationQuantity("params_2", sData.V_o);
+    prms2->setEnabled(true);
+    prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+    prms2->setCheckerSize(1);
+    /*
+    */
 
     polyscope::show();
     return 0;
 }
+
