@@ -263,29 +263,35 @@ namespace metriko {
 
     // take the tutte result as the input, embed it until seam intersection.
     // computes halfedges to search with in the next loop at the same time.
-    inline void sequential_mapping(
+    inline std::unordered_set<Half, HalfHash> sequential_mapping(
         const MatXd &uv_in,
         const Half half_in,
         //const EmbeddedTHalf &ethf_in,
         const std::vector<bool> &seam,
+        std::vector<bool> &flag, // the flag to check a corner is already checked or not
         const std::vector<Half> &tquad_boundary,
-        std::unordered_set<Half, HalfHash> &half_out,
-        //std::vector<Edge> &edge_exclude, // edges which must not cross over again
         MatXd &uv_all
     ) {
         std::queue<Half> queue;
         std::unordered_set<Edge, EdgeHash> visit;
+        std::unordered_set<Half, HalfHash> nextH; // the halfedges to the other tquad
         queue.push(half_in);
         visit.emplace(half_in.edge());
+        if (flag[half_in.crnr().id]) return nextH;
+
         while (queue.size() > 0) {
             Half hfr = queue.front();
             Face f = hfr.face();
             Crnr c0 = f.half().crnr();
             Crnr c1 = f.half().next().crnr();
             Crnr c2 = f.half().prev().crnr();
+
             uv_all.row(c0.id) = uv_in.row(c0.id);
             uv_all.row(c1.id) = uv_in.row(c1.id);
             uv_all.row(c2.id) = uv_in.row(c2.id);
+            flag[c0.id] = true;
+            flag[c1.id] = true;
+            flag[c2.id] = true;
             queue.pop();
             for (Half h: f.adjHalfs()) {
                 // 0: if hit seam, just stops
@@ -294,20 +300,21 @@ namespace metriko {
                 if (visit.contains(h.edge())) continue;
 
                 // 2: if hit the excluded edge, just stops
-                //if (rg::find(edge_exclude, h.edge()) != edge_exclude.end()) continue;
+                //if (rg::find(edge_vst, h.edge()) != edge_vst.end()) continue;
                 // 3: if hit ethalf where it comes from, just stops
                 //if (!ethf_in.contains(h)) { edge_exclude.emplace_back(h.edge()); continue; }
 
                 // 4: if hit boundary, puts it as a bridge to the next tquad
                 if (rg::find(tquad_boundary, h) != tquad_boundary.end()) {
-                    half_out.insert(h);
+                    nextH.insert(h.twin());
                     continue;
                 }
-                // 5: inside of tquad. add it to the queue
+                // 5: inside tquad. add it to the queue
                 visit.emplace(h.edge());
                 queue.push(h.twin());
             }
         }
+        return nextH;
     }
 
     // try to multiply rotation until halfedge coner values corresponds
@@ -335,6 +342,37 @@ namespace metriko {
             }
         }
         throw new std::runtime_error("no corresponding rotation found");
+    }
+
+    inline void apply_transition_test(
+        const Half h, // the halfedge of unfixed side
+        const MatXd &mat0, // the fixed uv information
+        MatXd &mat1 // the unfixed adjacent uv information
+    ) {
+        Half h0 = h.twin();
+        Half h1 = h;
+        Row2d uv0  = mat0.row(h0.next().crnr().id);
+        Row2d uv1  = mat1.row(h1.prev().crnr().id);
+        Row2d uv0a = mat0.row(h0.prev().crnr().id);
+        Row2d uv1a = mat1.row(h1.next().crnr().id);
+        std::cout << "corner id a: " << h0.next().crnr().id << std::endl;
+        std::cout << "corner id b: " << h0.prev().crnr().id << std::endl;
+        std::cout << "uv0: " << uv0 << std::endl;
+        std::cout << "uv1: " << uv1 << std::endl;
+        std::cout << "uv0a: " << uv0a << std::endl;
+        std::cout << "uv1a: " << uv1a << std::endl;
+
+        //for (int i = 0; i < 4; i++) {
+        //    Mat2d rot = compute_rotation(i);
+        //    Row2d res = rot * (uv1a - uv1).transpose() + uv0.transpose();
+        //    if ((res - uv0a).norm() < 1e-6) {
+        //        for (int j = 0; j < mat1.rows(); j++) {
+        //            mat1.row(j) = rot * (mat1.row(j) - uv1).transpose() + uv0.transpose();
+        //        }
+        //        return;
+        //    }
+        //}
+        //throw new std::runtime_error("no corresponding rotation found");
     }
 
     inline std::pair<int, int> find_tqid_and_thid_from_half(
@@ -366,36 +404,102 @@ namespace metriko {
         }
 
         MatXd uv_all = MatXd::Zero(hmesh.nC, 2);
+        auto corner_flag = std::vector(hmesh.nC, false);
         std::unordered_set<Half, HalfHash> halfs_out;
+        std::unordered_set<Edge, EdgeHash> edges_visit;
+        std::stack<Half> queue; // todo: when using queue, it does not work in count 519...
 
-        // test: the initial tquad
+        // for the first tquad...
         {
-            auto thids = tmesh.tquads[0].thids;
+            Half h = hmesh.halfs[eths[tmesh.tquads[0].thids.front()].halfs.front().id];
+            auto tqid_curr = find_tqid_and_thid_from_half(tmesh, eths, h).first;
             auto boundaries = std::vector<Half>{};
-            Half h = hmesh.halfs[eths[thids.front()].halfs.front().id]; // the first half of tquad
-            for (int thid: thids) {
-                auto eth = eths[thid];
-                for (auto h: eth.halfs) { boundaries.emplace_back(h); }
-            }
+            for (int thid: tmesh.tquads[tqid_curr].thids)
+                for (auto hh: eths[thid].halfs) boundaries.emplace_back(hh);
 
-            sequential_mapping(
-                uv_per_tquad[0],
+            auto next_halfs = sequential_mapping(
+                uv_per_tquad[tqid_curr],
                 h,
                 seam,
+                corner_flag,
                 boundaries,
-                halfs_out,
                 uv_all
             );
+            for (auto nh: next_halfs) queue.push(nh);
         }
 
-        // test: the second tquad
-        {
-            const Half next_half = halfs_out.begin()->twin();
-            const int tqid = find_tqid_and_thid_from_half(tmesh, eths, next_half).first;
+        int count = 0;
+        while (!rg::all_of(corner_flag, [&](auto f) { return f; }) && count < 1519) {
+            auto h = queue.top();
+            queue.pop();
+            auto tqid_curr = find_tqid_and_thid_from_half(tmesh, eths, h).first;
+            auto tqid_prev = find_tqid_and_thid_from_half(tmesh, eths, h.twin()).first;
+
+            if (count == 519) {
+                std::cout << "tail: " << h.tail().pos() << ", head: " << h.head().pos() << std::endl;
+                std::cout << "face id: " << h.twin().face().id << std::endl;
+                std::cout << "crnr id: " << h.twin().crnr().id << std::endl;
+
+                for (auto tq: tmesh.tquads) {
+                    for (int thid: tq.thids) {
+                        if (eths[thid].contains(h)) std::cout << "thid: " << thid << std::endl;
+                    }
+                }
+                std::cout << "count: " << count << std::endl;
+
+                apply_transition_test(
+                    h,
+                    uv_per_tquad[tqid_prev],
+                    uv_per_tquad[tqid_curr]
+                );
+            } else {
+                apply_transition(
+                    h,
+                    uv_per_tquad[tqid_prev],
+                    uv_per_tquad[tqid_curr]
+                );
+            }
+
+            auto boundaries = std::vector<Half>{};
+            for (int thid: tmesh.tquads[tqid_curr].thids)
+                for (auto hh: eths[thid].halfs) boundaries.emplace_back(hh);
+
+            auto next_halfs = sequential_mapping(
+                uv_per_tquad[tqid_curr],
+                h,
+                seam,
+                corner_flag,
+                boundaries,
+                uv_all
+            );
+            for (auto nh: next_halfs) queue.push(nh);
+            count++;
+        }
+        /*
+        */
+
+
+        /*
+        std::vector<std::pair<int, int> > next_tqid_hid_pair;
+        for (Half h: halfs_out) {
+            auto [tqid, thid] = find_tqid_and_thid_from_half(tmesh, eths, h);
+            //std::cout << "candidate: " << tqid  << std::endl;
+            if (rg::none_of(next_tqid_hid_pair, [&](auto pair) { return pair.first == tqid; })) {
+                next_tqid_hid_pair.emplace_back(tqid, h.id);
+                //std::cout << "emplace: " << tqid << ", h.id: " << h.id << std::endl;
+            }
+            edges_visit.emplace(h.edge());
+        }
+
+
+        for (auto [tqid, hid]: next_tqid_hid_pair) {
+            //std::cout << "next half: " << next_half.id << std::endl;
+            //std::cout << "next tqid: " << tqid << std::endl;
+            const Half next_half = hmesh.halfs[hid];
             const Tquad tq = tmesh.tquads[tqid];
             apply_transition(
                 next_half,
-                uv_per_tquad[0],
+                uv_per_tquad[0], // must be changed when for loop
                 uv_per_tquad[tqid]
             );
 
@@ -410,27 +514,28 @@ namespace metriko {
                 seam,
                 boundaries,
                 halfs_out,
+                edges_visit,
                 uv_all
             );
         }
+        */
 
 
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2> > es;
-        size_t counter = 0;
-        for (auto hh: halfs_out) {
-            Row3d p1 = hh.tail().pos();
-            Row3d p2 = hh.head().pos();
-            ns.emplace_back(p1.x(), p1.y(), p1.z());
-            ns.emplace_back(p2.x(), p2.y(), p2.z());
-            es.emplace_back(std::array{counter, counter + 1});
-            counter += 2;
-        }
-        std::cout << "halfs out size: " << halfs_out.size() << std::endl;
-        auto c = polyscope::registerCurveNetwork("halfs out", ns, es);
-        c->setEnabled(true);
-        c->resetTransform();
-        c->setRadius(0.0015);
+        //std::vector<glm::vec3> ns;
+        //std::vector<std::array<size_t, 2> > es;
+        //size_t counter = 0;
+        //for (auto hh: halfs_out) {
+        //    Row3d p1 = hh.tail().pos();
+        //    Row3d p2 = hh.head().pos();
+        //    ns.emplace_back(p1.x(), p1.y(), p1.z());
+        //    ns.emplace_back(p2.x(), p2.y(), p2.z());
+        //    es.emplace_back(std::array{counter, counter + 1});
+        //    counter += 2;
+        //}
+        //auto c = polyscope::registerCurveNetwork("halfs out", ns, es);
+        //c->setEnabled(true);
+        //c->resetTransform();
+        //c->setRadius(0.0015);
         return uv_all;
 
         //VecXi h2eth = half_to_ethalf(hmesh, eths);
