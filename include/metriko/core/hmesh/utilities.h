@@ -9,60 +9,60 @@
 
 namespace metriko {
     inline complex calc_coefficient(
-        const Face face,
-        const VecXc& cfn,
+        const Face f,
+        const VecXc& cf,
         const complex uv
     ) {
         return calc_coefficient(
-            cfn(face.half().crnr().id),
-            cfn(face.half().next().crnr().id),
-            cfn(face.half().prev().crnr().id),
+            cf(f.half().crnr().id),
+            cf(f.half().next().crnr().id),
+            cf(f.half().prev().crnr().id),
             uv);
     }
 
     inline Row3d conversion_2d_3d(
-        const complex origin2d,
-        const complex p1_2d,
-        const complex p2_2d,
-        const Row3d& origin3d,
-        const Row3d& p1_3d,
-        const Row3d& p2_3d,
-        const complex uv
+        const complex o2, // origin of 2d
+        const complex a2, //
+        const complex b2, //
+        const Row3d&  o3, // origin of 3d
+        const Row3d&  a3, //
+        const Row3d&  b3, //
+        const complex uv  // target uv value
     ) {
-        const complex c = calc_coefficient(origin2d, p1_2d, p2_2d, uv);
-        return origin3d + (p1_3d - origin3d) * c.real() + (p2_3d - origin3d) * c.imag();
+        const complex c = calc_coefficient(o2, a2, b2, uv);
+        return o3 + (a3 - o3) * c.real() + (b3 - o3) * c.imag();
     }
 
     inline Row3d conversion_2d_3d(
-        const Face& face,
-        const VecXc& cfn,
+        const Face& f,
+        const VecXc& cf,
         const complex uv
     ) {
-        const Crnr c1 = face.half().crnr();
-        const Crnr c2 = face.half().next().crnr();
-        const Crnr c3 = face.half().prev().crnr();
+        const Crnr c1 = f.half().crnr();
+        const Crnr c2 = f.half().next().crnr();
+        const Crnr c3 = f.half().prev().crnr();
         return conversion_2d_3d(
-            cfn(c1.id),
-            cfn(c2.id),
-            cfn(c3.id),
+            cf(c1.id),
+            cf(c2.id),
+            cf(c3.id),
             c1.vert().pos(),
             c2.vert().pos(),
             c3.vert().pos(),
             uv);
     }
 
-    inline Half get_oppsite_half(
-        const VecXc& cfn,
-        const complex& origin,
-        const complex& dir,
-        const Half fr
+    inline Half get_opposite_half(
+        const VecXc& cf, // corner function
+        const complex o, // origin in 2d
+        const complex d, // direction in 2d
+        const Half fr    // the halfedge coming from
     ) {
         for (Half h: fr.face().adjHalfs()) {
             if (h.id == fr.id) continue;
-            auto a = cfn(h.prev().crnr().id) - origin;
-            auto b = cfn(h.next().crnr().id) - origin;
+            auto a = cf(h.prev().crnr().id) - o;
+            auto b = cf(h.next().crnr().id) - o;
             //if (abs(a) < 1e-3 || abs(b) < 1e-3) { return h; }
-            if (cross(a, dir) * cross(b, dir) < 0) return h;
+            if (cross(a, d) * cross(b, d) < 0) return h;
         }
 
         throw std::invalid_argument(

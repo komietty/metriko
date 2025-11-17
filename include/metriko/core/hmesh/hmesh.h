@@ -28,69 +28,69 @@ namespace metriko {
     };
 
     struct Face : Elem {
-        Half half() const;
-        Row3d basisX() const;
-        Row3d basisY() const;
-        Row3d normal() const;
-        Row3d center() const;
-        double area() const;
-        AdjIter<AdjFH> adjHalfs(bool ccw = true) const;
-        AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true) const;
+        [[nodiscard]] Half half() const;
+        [[nodiscard]] Row3d basisX() const;
+        [[nodiscard]] Row3d basisY() const;
+        [[nodiscard]] Row3d normal() const;
+        [[nodiscard]] Row3d center() const;
+        [[nodiscard]] double area() const;
+        [[nodiscard]] AdjIter<AdjFH> adjHalfs(bool ccw = true) const;
+        [[nodiscard]] AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true) const;
     };
 
     struct Edge : Elem {
-        Half half() const;
-        Vert vert0() const;
-        Vert vert1() const;
-        Face face0() const;
-        Face face1() const;
-        double len() const;
-        double cot() const;
-        bool isBoundary() const;
+        [[nodiscard]] Half half() const;
+        [[nodiscard]] Vert vert0() const;
+        [[nodiscard]] Vert vert1() const;
+        [[nodiscard]] Face face0() const;
+        [[nodiscard]] Face face1() const;
+        [[nodiscard]] double len() const;
+        [[nodiscard]] double cot() const;
+        [[nodiscard]] bool isBoundary() const;
     };
 
     struct Vert : Elem {
-        Half half() const;
-        Row3d pos() const;
-        Row3d basisX() const;
-        Row3d basisY() const;
-        Row3d normal() const;
-        bool isBoundary() const;
-        bool isInterior() const;
-        double baryArea() const;
-        double circArea() const;
-        AdjIter<AdjVH> adjHalfs(bool ccw = true) const;
-        AdjIter<AdjVH> adjHalfs(Half h, bool ccw = true) const;
+        [[nodiscard]] Half half() const;
+        [[nodiscard]] Row3d pos() const;
+        [[nodiscard]] Row3d basisX() const;
+        [[nodiscard]] Row3d basisY() const;
+        [[nodiscard]] Row3d normal() const;
+        [[nodiscard]] bool isBoundary() const;
+        [[nodiscard]] bool isInterior() const;
+        [[nodiscard]] double baryArea() const;
+        [[nodiscard]] double circArea() const;
+        [[nodiscard]] AdjIter<AdjVH> adjHalfs(bool ccw = true) const;
+        [[nodiscard]] AdjIter<AdjVH> adjHalfs(Half h, bool ccw = true) const;
     };
 
     struct Crnr : Elem {
-        Half half() const;
-        Vert vert() const;
-        Face face() const;
+        [[nodiscard]] Half half() const;
+        [[nodiscard]] Vert vert() const;
+        [[nodiscard]] Face face() const;
     };
 
     struct Loop : Elem {
-        Half half() const;
-        AdjIter<AdjLH> adjHalfs(bool ccw = true) const;
+        [[nodiscard]] Half half() const;
+        [[nodiscard]] AdjIter<AdjLH> adjHalfs(bool ccw = true) const;
     };
 
     struct Half : Elem {
-        Half next() const;
-        Half prev() const;
-        Half twin() const;
-        Vert tail() const;
-        Vert head() const;
-        Edge edge() const;
-        Face face() const;
-        Crnr crnr() const;
-        double len() const;
-        double cot() const;
-        double varg() const;
-        double farg() const;
-        double darg() const;
-        bool isBoundary()  const;
-        bool isCanonical() const;
-        Row3d vec() const;
+        [[nodiscard]] Half next() const;
+        [[nodiscard]] Half prev() const;
+        [[nodiscard]] Half twin() const;
+        [[nodiscard]] Vert tail() const;
+        [[nodiscard]] Vert head() const;
+        [[nodiscard]] Edge edge() const;
+        [[nodiscard]] Face face() const;
+        [[nodiscard]] Crnr crnr() const;
+        [[nodiscard]] double len() const;
+        [[nodiscard]] double cot() const;
+        [[nodiscard]] double varg() const;
+        [[nodiscard]] double farg() const;
+        [[nodiscard]] double darg() const;
+        [[nodiscard]] bool isBoundary()  const;
+        [[nodiscard]] bool isCanonical() const;
+        [[nodiscard]] Row3d vec() const;
     };
 
     struct Hmesh {
