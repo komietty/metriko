@@ -71,7 +71,7 @@ namespace metriko {
         int irow = 0;
 
         for (const Thalf &th: tmesh.thalfs) {
-            if (!th.cannonical) continue;
+            if (!th.cano) continue;
             auto loop = gen_basis_loop(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side, R, th, compare);
             for (int thid: loop) {
                 int teid = tmesh.thalfs[thid].teid;

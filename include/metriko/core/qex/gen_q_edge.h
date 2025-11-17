@@ -5,17 +5,17 @@
 
 namespace metriko::qex {
     inline bool predict_extrinsic_collinear(
-        const Hmesh &mesh,
-        const VecXc &cfn,
-        complex ori,
-        complex dir,
-        Face face,
-        const Qport &pair
+        const Hmesh &hm,  //
+        const VecXc &cf,  // corner function
+        const complex o,  // origin
+        const complex d,  // direction
+        const Face f,     // face
+        const Qport &pair //
     ) {
-        Row3d pb1 = conversion_2d_3d(face, cfn, ori);
-        Row3d pb2 = conversion_2d_3d(face, cfn, ori + dir);
-        Row3d pa1 = conversion_2d_3d(mesh.faces[pair.fid], cfn, pair.uv);
-        Row3d pa2 = conversion_2d_3d(mesh.faces[pair.fid], cfn, pair.uv + pair.dir);
+        Row3d pb1 = conversion_2d_3d(f, cf, o);
+        Row3d pb2 = conversion_2d_3d(f, cf, o + d);
+        Row3d pa1 = conversion_2d_3d(hm.faces[pair.fid], cf, pair.uv);
+        Row3d pa2 = conversion_2d_3d(hm.faces[pair.fid], cf, pair.uv + pair.dir);
         Row3d da = (pa2 - pa1).normalized();
         Row3d db = (pb2 - pb1).normalized();
         Row3d dc = (pa1 - pb1).normalized();
@@ -23,16 +23,16 @@ namespace metriko::qex {
     }
 
     inline std::pair<Half, complex> pick_next_half(
-        const VecXc &cfn,
-        complex ori,
-        complex dir,
-        Face face
+        const VecXc &cf, // corner function
+        const complex o, // origin
+        const complex d, // direction
+        const Face f     // face
     ) {
-        for (Half h: face.adjHalfs()) {
-            auto uv1 = cfn(h.next().crnr().id);
-            auto uv2 = cfn(h.prev().crnr().id);
+        for (Half h: f.adjHalfs()) {
+            auto uv1 = cf(h.next().crnr().id);
+            auto uv2 = cf(h.prev().crnr().id);
             double rab, rcd;
-            if (find_strict_intersection(ori, ori + dir * 1e2, uv1, uv2, rab, rcd) && rab > EPS)
+            if (find_strict_intersection(o, o + d * 1e2, uv1, uv2, rab, rcd) && rab > EPS)
                 return std::make_pair(h, lerp(uv1, uv2, rcd));
         }
         throw std::runtime_error("no next half found");
@@ -62,7 +62,7 @@ namespace metriko::qex {
 
             while (true) {
                 // face-qport case
-                if (is_inside_triangle(f, cfn, gri)) {
+                if (is_inside_face(f, cfn, gri)) {
                     auto it = rg::find_if(fqports, [&](const Qport &p) {
                         if (pfr.isConnected || p.idx == pfr.idx || p.fid != f.id) return false;
                         return equal(p.dir, -dir) && abs(p.uv - gri) < EPS;
@@ -114,7 +114,6 @@ namespace metriko::qex {
                 gri = nearby_grid(ori, dir);
             }
         loop_end:
-
         }
         return qedges;
     }

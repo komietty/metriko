@@ -23,7 +23,7 @@ namespace metriko {
 
             const auto &th = tm.thalfs[thid];
             const auto &te = th.edge();
-            if (!th.cannonical && te.seg_fr.id == 0) return false; /* is first seg */
+            if (!th.cano && te.seg_fr.id == 0) return false; /* is first seg */
 
             for (auto pair: th.adj_thalfs()) {
                 int teid = pair.edge().id;

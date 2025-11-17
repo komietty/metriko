@@ -42,6 +42,7 @@ void fromJson(const std::string& path, MatXd& uv1, VecXc& uv2) {
 }
 */
 
+// try testing horsers.obj with a grid scale of 0.005
 int main(int argc, char **argv) {
     MatXd V;
     MatXi F;
@@ -75,7 +76,7 @@ int main(int argc, char **argv) {
         complex a = complex{uv1(f.id * 3 + 0, 0), uv1(f.id * 3 + 0, 1)};
         complex b = complex{uv1(f.id * 3 + 1, 0), uv1(f.id * 3 + 1, 1)};
         complex c = complex{uv1(f.id * 3 + 2, 0), uv1(f.id * 3 + 2, 1)};
-        assert(qex::orientation(a, b, c) > 0);
+        assert(orientation(a, b, c) > 0);
         uv2(f.id * 3 + 0) = a;
         uv2(f.id * 3 + 1) = b;
         uv2(f.id * 3 + 2) = c;
@@ -84,7 +85,7 @@ int main(int argc, char **argv) {
     qex::sanitization(*mesh, cmbf->matching, cmbf->singular, 4, uv2);
 
     for (const Face f: mesh->faces) {
-        assert(qex::orientation(
+        assert(orientation(
             uv2(f.id * 3 + 0),
             uv2(f.id * 3 + 1),
             uv2(f.id * 3 + 2)) > 0);

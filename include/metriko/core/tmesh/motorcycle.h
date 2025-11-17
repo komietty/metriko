@@ -5,6 +5,7 @@
 #ifndef METRIKO_MOTORCYCLE_H
 #define METRIKO_MOTORCYCLE_H
 #include "../common/utilities.h"
+#include "../common/predicates.h"
 #include "../hmesh/hmesh.h"
 #include "../hmesh/utilities.h"
 
@@ -45,6 +46,8 @@ namespace metriko {
         complex uv;
         Mcurv *crash = nullptr;
         MvertType type = None;
+        // std::optional<Half>  half // is part of the halfedge?
+        // std::optional<Mport> port // is coming from the port?
 
         Mvert(
             const MotorcycleGraph *g,
@@ -101,7 +104,10 @@ namespace metriko {
 
         explicit Mcurv(const MotorcycleGraph *g, const Mport &port): Melem(g), port(port), cache() { }
 
+        int id() const { return port.id; }
+
         bool operator==(const Mcurv &rhs) const { return port.id == rhs.port.id; }
+
         void add_segment_init(const VecXc &cfn, const std::vector<Mcurv> &curvs, const VecXi &matching);
         void add_segment_next(const VecXc &cfn, const std::vector<Mcurv> &curvs, const VecXi &matching);
         void add_segment(const VecXc &cfn, const std::vector<Mcurv> &curvs, const Mcurv &exception, complex dir, complex uv0, Half h);
@@ -141,12 +147,12 @@ namespace metriko {
         std::vector<Mcurv> mcurvs;
 
         MotorcycleGraph(
-            const Hmesh &hmesh,
-            const VecXc &cfn,
+            const Hmesh &hm,
+            const VecXc &cf,
             const VecXi &matching,
             const VecXi &singular
-        ): cfn(cfn) {
-            gen_ports(hmesh, cfn, singular);
+        ): cfn(cf) {
+            gen_ports(hm, cfn, singular);
             for (auto &p: mports) mcurvs.emplace_back(this, p);
             for (auto &e: mcurvs) e.add_segment_init(cfn, mcurvs, matching);
             while (rg::any_of(mcurvs, [](auto &e) { return !e.cache.intersected; })) {
@@ -165,7 +171,7 @@ namespace metriko {
 
     inline void MotorcycleGraph::gen_ports(
         const Hmesh &mesh,
-        const VecXc &cfn,
+        const VecXc &cf,
         const VecXi &singular
     ) {
         std::vector<Mport> joint;
@@ -174,17 +180,20 @@ namespace metriko {
         for (auto v: mesh.verts | vw::filter([&](auto v_) { return singular[v_.id] != 0; })) {
             ports.clear();
             for (Half h: v.adjHalfs()) {
-                auto a = cfn(h.next().crnr().id);
-                auto b = cfn(h.prev().crnr().id);
-                auto c = cfn(h.crnr().id);
-                auto o = orientation(a, b, c);
+                auto a = cf(h.next().crnr().id);
+                auto b = cf(h.prev().crnr().id);
+                auto c = cf(h.crnr().id);
+                auto o = depricates::orientation(a, b, c); // todo fix!
                 std::vector<Mport> temps;
                 if (o < 0) throw std::invalid_argument("Orientation should be ccw order");
                 int r;
-                for (r = 0; r < 4; r++) { if (!points_into(get_quater_rot(r), a, b, c) && r > 0) break; }
+                for (r = 0; r < 4; r++) {
+                    //if (!is_points_into(get_quater_rot(r), a, b, c) && r > 0) break;
+                    if (!depricates::points_into(get_quater_rot(r), a, b, c) && r > 0) break; // todo fix!
+                }
                 for (int i = 0; i < 4; i++) {
                     complex dir = get_quater_rot(r - i);
-                    if (points_into(dir, a, b, c) ||
+                    if (depricates::points_into(dir, a, b, c) || // todo fix!
                         std::arg(dir) == std::arg(b - a) ||
                         std::arg(dir) == std::arg(c - a)
                     ) {
@@ -242,7 +251,7 @@ namespace metriko {
         auto m = (h.isCanonical() ? 1 : -1) * matching[h.edge().id];
         auto uv0 = lerp(cfn(h.next().crnr().id), cfn(h.prev().crnr().id), cache.ratio);
         auto dir = std::polar(1., PI / 2 * m) * cache.dir;
-        auto oh = get_oppsite_half(cfn, uv0, dir, h);
+        auto oh = get_opposite_half(cfn, uv0, dir, h);
         add_segment(cfn, curvs, *this, dir, uv0, oh);
     }
 

@@ -1,6 +1,7 @@
 #ifndef METRIKO_QEX_GEN_Q_PORT_H
 #define METRIKO_QEX_GEN_Q_PORT_H
 #include "common.h"
+#include "metriko/core/hmesh/utilities.h"
 
 namespace metriko::qex {
     inline void generate_eqvert_qport(

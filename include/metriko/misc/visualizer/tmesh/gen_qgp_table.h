@@ -55,7 +55,7 @@ namespace metriko::visualizer {
                 auto &vs = sverts_per_tedge[th.edge().id];
                 for (int j = 0; j < vs.size(); j++) {
                     if (!sverts_per_side.empty() && j == 0) continue;
-                    auto v = vs[th.cannonical ? j : vs.size() - 1 - j];
+                    auto v = vs[th.cano ? j : vs.size() - 1 - j];
                     auto d = compute_accum_value(sv0, v);
                     sverts_per_side.emplace_back(v.segment, v.uv, d);
                 }
