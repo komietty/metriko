@@ -122,8 +122,8 @@ namespace metriko::visualizer {
                 cfn_C(nH.prev().crnr().id),
                 ratio_c2d);
             if (int m = cmbf_matching[nH.edge().id]; m != 0)
-                dir *= std::polar(1., PI / 2 * (nH.isCanonical() ? 1 : -1) * m);
-            nH = get_opposite_half(cfn_C, uv0, dir, nH);
+                dir *= std::polar(1., PI / 2 * (nH.isCanonical() ? -1 : 1) * m);
+            nH = get_opposite_half(nH, cfn_C, uv0, dir);
             auto uv1_ = cfn_C(nH.prev().crnr().id);
             auto uv2_ = cfn_C(nH.next().crnr().id);
             find_extended_intersection(uv0, uv0 + dir, uv1_, uv2_, ratio_a2b, ratio_c2d);

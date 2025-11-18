@@ -81,7 +81,6 @@ int main(int argc, char **argv) {
     // gen mport, medge
     auto graph = MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);
 
-    /*
     auto tmesh = Tmesh(graph.mcurvs);
     VecXd R = VecXd::Zero(tmesh.nTE);
     for (int i = 0; i < tmesh.nTE; i++) {
@@ -122,7 +121,7 @@ int main(int argc, char **argv) {
         surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
         surf->setEdgeWidth(1.);
     }
-    */
+    /* */
     polyscope::show();
     return 0;
 }

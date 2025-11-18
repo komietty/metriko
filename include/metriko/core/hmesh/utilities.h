@@ -9,10 +9,9 @@
 #include "hmesh.h"
 
 namespace metriko {
-
 inline complex calc_coefficient(
     const Face f,
-    const VecXc& cf,
+    const VecXc &cf,
     const complex uv
 ) {
     return calc_coefficient(
@@ -26,18 +25,18 @@ inline Row3d conversion_2d_3d(
     const complex o2, // origin of 2d
     const complex a2, //
     const complex b2, //
-    const Row3d&  o3, // origin of 3d
-    const Row3d&  a3, //
-    const Row3d&  b3, //
-    const complex uv  // target uv value
+    const Row3d &o3, // origin of 3d
+    const Row3d &a3, //
+    const Row3d &b3, //
+    const complex uv // target uv value
 ) {
     const complex c = calc_coefficient(o2, a2, b2, uv);
     return o3 + (a3 - o3) * c.real() + (b3 - o3) * c.imag();
 }
 
 inline Row3d conversion_2d_3d(
-    const Face& f,
-    const VecXc& cf,
+    const Face &f,
+    const VecXc &cf,
     const complex uv
 ) {
     const Crnr c1 = f.half().crnr();
@@ -65,24 +64,27 @@ inline bool is_inside_face(
 }
 
 inline Half get_opposite_half(
-    const VecXc& cf, // corner function
+    const Half h0,   // half came in
+    const VecXc &cf, // corner function
     const complex o, // origin in 2d
-    const complex d, // direction in 2d
-    const Half fr    // the halfedge coming from
+    const complex d  // direction in 2d
 ) {
-    for (Half h: fr.face().adjHalfs()) {
-        if (h.id == fr.id) continue;
-        auto a = cf(h.prev().crnr().id) - o;
-        auto b = cf(h.next().crnr().id) - o;
-        //if (abs(a) < 1e-3 || abs(b) < 1e-3) { return h; }
-        if (cross(a, d) * cross(b, d) < 0) return h;
+    // if hit halfedge, return it
+    for (Half h: h0.face().adjHalfs()) {
+        if (h.id == h0.id) continue;
+        auto a = cf(h.next().crnr().id);
+        auto b = cf(h.prev().crnr().id);
+        if (is_points_into(o, a, b, o + d, 0)) return h;
     }
 
-    throw std::invalid_argument(
-        "Consider two cases below!\n"
-        "- The input uv is not strictly within uv-space of the face\n"
-        "- The direction points to the joint of two halfedges\n"
-    );
+    // if hit vertex, always return the left side (ccw side) halfedge
+    for (Half h: h0.face().adjHalfs()) {
+        auto b = cf(h.next().crnr().id);
+        auto v = b - o;
+        if (abs(v) > EPS && dot(v, d) > 0 && is_collinear(o, o + d, b)) return h;
+    }
+
+    throw std::invalid_argument("The input uv might not be inside of uv-space of the face");
 }
 }
 

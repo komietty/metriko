@@ -256,6 +256,7 @@ inline std::pair<Thalf, bool> Tquad::choose_next_thalf(
     auto find_th = [&thalfs](const Msgmt &ms, bool cano) -> Thalf {
         for (const Thalf &th: thalfs) {
             auto &te = th.edge();
+            std::cout << "test: " << ms.face.id << std::endl;
             if (th.cano == cano && (te.seg_fr == ms || te.seg_to == ms)) return th;
         }
         throw std::runtime_error("thalf not found");

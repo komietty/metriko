@@ -29,16 +29,14 @@ public:
         const Face face,
         const complex uv,
         const complex dir
-    ) : id(id), vert(vert), face(face), uv(uv), dir(dir) {
+    ): id(id), vert(vert), face(face), uv(uv), dir(dir) {
     }
 };
 
 class Melem {
 public:
     const MotorcycleGraph *mg;
-
-    explicit Melem(const MotorcycleGraph *mg) : mg(mg) {
-    }
+    explicit Melem(const MotorcycleGraph *mg) : mg(mg) { }
 };
 
 enum MvertType { None, HitL, HitR, HitB };
@@ -48,16 +46,16 @@ public:
     complex uv;
     Mcurv *crash = nullptr;
     MvertType type = None;
-    // std::optional<Half>  half // is part of the halfedge?
-    // std::optional<Mport> port // is coming from the port?
+    std::optional<Half> half; // part of the halfedge flag
 
     Mvert(
         const MotorcycleGraph *g,
         const complex uv,
+        const std::optional<Half>& half = std::nullopt,
         Mcurv *crash = nullptr,
         const MvertType side = None
-    ) : Melem(g), uv(uv), crash(crash), type(side) {
-    }
+    ) : Melem(g), uv(uv), crash(crash), type(side), half(half)
+    { }
 };
 
 class Msgmt : Melem {
@@ -104,17 +102,15 @@ public:
     std::vector<Msgmt> sgmts;
     Cache cache;
 
-    explicit Mcurv(const MotorcycleGraph *g, const Mport &port) : Melem(g), port(port), cache() { }
+    explicit Mcurv(const MotorcycleGraph *g, const Mport &p) : Melem(g), port(p), cache() { }
     int id() const { return port.id; }
     bool operator==(const Mcurv &rhs) const { return port.id == rhs.port.id; }
 
     void add_segment(
-        const VecXc &cfn,
-        const std::vector<Mcurv> &curvs,
-        const Mcurv &exception,
         complex dir,
         complex uv0,
-        Half h
+        Half h0,
+        Half h1
     );
 
     void split_segment(
@@ -125,10 +121,10 @@ public:
         for (auto it = sgmts.begin(); it != sgmts.end(); ++it) {
             if (*it == target) {
                 const bool ccw = cross(crash.diff(), it->diff()) > 0;
-                const auto uv = lerp(it->fr.uv, it->to.uv, ratio);
-                const auto fr = Mvert(mg, uv, crash.curv, ccw ? HitL : HitR);
-                const auto to = Mvert(mg, it->to.uv, it->to.crash, it->to.type);
-                it->to = Mvert(mg, uv, crash.curv, ccw ? HitR : HitL);
+                const auto uv  = lerp(it->fr.uv, it->to.uv, ratio);
+                const auto fr  = Mvert(mg, uv, std::nullopt, crash.curv, ccw ? HitL : HitR);
+                const auto to  = Mvert(mg, it->to.uv, it->to.half, it->to.crash, it->to.type);
+                it->to = Mvert(mg, uv, std::nullopt, crash.curv, ccw ? HitR : HitL);
                 sgmts.insert(it + 1, Msgmt(mg, this, it->face, fr, to));
                 return;
             }
@@ -146,7 +142,8 @@ public:
 
 class MotorcycleGraph {
 public:
-    const VecXc &cfn;
+    const Hmesh &hm;
+    const VecXc &cf;
     std::vector<Mport> mports;
     std::vector<Mcurv> mcurvs;
     std::vector<Cache> caches;
@@ -156,72 +153,43 @@ public:
         const VecXc &cf,
         const VecXi &matching,
         const VecXi &singular
-    ) : cfn(cf) {
-        gen_ports(hm, cfn, singular);
+    ) : hm(hm), cf(cf) {
+        gen_ports(singular);
         for (auto &p: mports) mcurvs.emplace_back(this, p);
 
         // Add the first segment for each curve
         for (auto &c: mcurvs) {
-            std::optional<Half> found;
+            std::optional<Half> h0;
+            std::optional<Half> h1;
             const auto &p = c.port;
             const auto &v = p.vert;
-            for (Half h: p.face.adjHalfs())
-                if (h.head() != v && h.tail() != v) found = h;
-            assert(found.has_value());
-            c.add_segment(cfn, mcurvs, c, p.dir, p.uv, found.value());
+            for (auto h: p.face.adjHalfs()) {
+                if      (h.tail() == v) h0 = h;
+                else if (h.head() != v) h1 = h;
+            }
+            c.add_segment(p.dir, p.uv, h0.value(), h1.value());
         }
 
         // Add further segments until every curve crash to another curve
+        // Need to consider parallel intersection (e.g., bumpy-cube case)
         while (rg::any_of(mcurvs, [](auto &e) { return !e.cache.intersected; })) {
             for (auto &c: mcurvs) {
-                // need to consider parallel intersection (e.g., bumpy cube case)
                 auto [ch, cr, cd, ci] = c.cache;
                 if (ci) continue;
-                auto h = ch.twin();
-                auto m = (h.isCanonical() ? 1 : -1) * matching[h.edge().id];
-                auto cf0 = cfn(h.next().crnr().id);
-                auto cf1 = cfn(h.prev().crnr().id);
-                auto uv  = lerp(cf0, cf1, cr);
-                auto dir = std::polar(1., PI / 2 * m) * cd;
-                c.add_segment(cfn, mcurvs, c, dir, uv, get_opposite_half(cfn, uv, dir, h));
+                auto h0 = ch.twin();
+                auto uv = lerp(cf(h0.next().crnr().id), cf(h0.prev().crnr().id), cr);
+                auto m  = (h0.isCanonical() ? -1 : 1) * matching[h0.edge().id];
+                auto d  = std::polar(1., PI / 2 * m) * cd;
+                auto h1 = get_opposite_half(h0, cf, uv, d);
+                c.add_segment(d, uv, h0, h1);
             }
         }
-
-        // debug
-        std::vector<glm::vec3> vis_port;
-        for (const auto &p: mports)
-            vis_port.emplace_back(p.vert.pos().x(), p.vert.pos().y(), p.vert.pos().z());
-        auto vq = polyscope::registerPointCloud("vis_port", vis_port);
-        vq->setPointRadius(0.005);
-        vq->resetTransform();
-
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2> > es;
-        size_t counter = 0;
-        for (auto c: mcurvs) {
-            for (auto &s: c.sgmts) {
-                Row3d p1 = conversion_2d_3d(s.face, cf, s.fr.uv);
-                Row3d p2 = conversion_2d_3d(s.face, cf, s.to.uv);
-                ns.emplace_back(p1.x(), p1.y(), p1.z());
-                ns.emplace_back(p2.x(), p2.y(), p2.z());
-                es.emplace_back(std::array{counter, counter + 1});
-                counter += 2;
-            }
-        }
-        auto c = polyscope::registerCurveNetwork("segments", ns, es);
-        c->setEnabled(true);
-        c->resetTransform();
-        c->setRadius(0.0005);
 
         // when done, assign index and next/prev info to each segment
-        for (auto &s: mcurvs) s.post_process();
+        for (auto &c: mcurvs) c.post_process();
     }
 
-    void gen_ports(
-        const Hmesh &hm,
-        const VecXc &cf,
-        const VecXi &singular
-    );
+    void gen_ports(const VecXi &singular);
 };
 }
 
@@ -229,11 +197,7 @@ namespace metriko {
 inline const Msgmt &Msgmt::next() const { return curv->sgmts[next_id]; }
 inline const Msgmt &Msgmt::prev() const { return curv->sgmts[prev_id]; }
 
-inline void MotorcycleGraph::gen_ports(
-    const Hmesh &hm,
-    const VecXc &cf,
-    const VecXi &singular
-) {
+inline void MotorcycleGraph::gen_ports(const VecXi &singular) {
     for (Vert v: hm.verts) {
         if (singular[v.id] == 0) continue;
         std::vector<Mport> buff0 {}; // the outer scope buffer to assign next/prev
@@ -250,8 +214,10 @@ inline void MotorcycleGraph::gen_ports(
             if (o < 0) throw std::invalid_argument("Orientation should be ccw order");
 
             int r;
-            for (r = 0; r < 4; r++)
-                if (!is_points_into(a, b, c, a + get_quater_rot(r)) && r > 0) break;
+            for (r = 0; r < 4; r++) {
+                auto d = get_quater_rot(r);
+                if (!is_points_into(a, b, c, a + d) && r > 0) break;
+            }
 
             for (int i = 0; i < 4; i++) {
                 auto d = get_quater_rot(r - i);
@@ -265,6 +231,7 @@ inline void MotorcycleGraph::gen_ports(
             buff0.insert(buff0.end(), buff1.begin(), buff1.end());
         }
 
+        for (int i = 0; i < buff0.size(); i++) { buff0[i].id = mports.size() + i; }
         for (int i = 0; i < buff0.size(); i++) {
             int s = buff0.size();
             buff0[i].prev = buff0[(i - 1 + s) % s].id;
@@ -272,52 +239,49 @@ inline void MotorcycleGraph::gen_ports(
         }
         mports.insert(mports.end(), buff0.begin(), buff0.end());
     }
-
-    for (int i = 0; i < mports.size(); i++) mports[i].id = i; // assign index
 }
 
 inline void Mcurv::add_segment(
-    const VecXc &cfn,
-    const std::vector<Mcurv> &curvs,
-    const Mcurv &exception,
-    const complex dir,
-    const complex uv0,
-    const Half h
+    const complex dir, // direction
+    const complex uv0, // origin
+    const Half h0,     // halfedge fr in the face
+    const Half h1      // halfedge to in the face
 ) {
-    complex uv1 = cfn(h.prev().crnr().id);
-    complex uv2 = cfn(h.next().crnr().id);
+    complex uv1 = mg->cf(h1.prev().crnr().id);
+    complex uv2 = mg->cf(h1.next().crnr().id);
     double r_ab, r_cd;
-    bool f = find_extended_intersection(uv0, uv0 + dir, uv1, uv2, r_ab, r_cd);
-    assert(f);
-
-    complex uv3 = lerp(uv1, uv2, r_cd);
+    bool r = find_extended_intersection(uv0, uv0 + dir, uv1, uv2, r_ab, r_cd);
+    assert(r);
+    r_cd = std::clamp(r_cd, 0., 1.);
+    auto uv3 = lerp(uv1, uv2, r_cd);
+    auto f = h1.face();
 
     std::vector<std::tuple<double, double, Msgmt>> candidates;
 
-    auto sgs = vw::all(curvs) |
-               vw::filter([&](auto &e) { return e != exception; }) |
+    auto sgs = vw::all(mg->mcurvs) |
+               vw::filter([&](auto &e) { return e != *this; }) |
                vw::transform([](auto &e) { return e.sgmts; }) |
                vw::join |
-               vw::filter([&h](auto &sg) { return sg.face.id == h.face().id; });
+               vw::filter([&f](auto &sg) { return sg.face.id == f.id; });
 
     for (auto &sg: sgs) {
         double ab = 0;
         double cd = 0;
-        if (find_strict_intersection(uv0, uv3, sg.fr.uv, sg.to.uv, ab, cd))
+        if (find_strict_intersection(uv0, uv3, sg.fr.uv, sg.to.uv, ab, cd, 0.))
             candidates.emplace_back(ab, cd, sg);
     }
 
     if (candidates.empty()) {
-        auto v1 = Mvert(mg, uv0);
-        auto v2 = Mvert(mg, uv3);
-        sgmts.emplace_back(mg, this, h.face(), v1, v2);
-        cache = Cache(h, r_cd, dir);
+        auto v1 = Mvert(mg, uv0, h0);
+        auto v2 = Mvert(mg, uv3, h1);
+        sgmts.emplace_back(mg, this, f, v1, v2);
+        cache = Cache(h1, r_cd, dir);
     } else {
         auto [ab, cd, sg] = rg::min(candidates, [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
-        auto v1 = Mvert(mg, uv0);
-        auto v2 = Mvert(mg, lerp(uv0, uv3, ab), sg.curv, HitB);
-        sgmts.emplace_back(mg, this, h.face(), v1, v2);
-        cache = Cache(h, r_cd, dir, true);
+        auto v1 = Mvert(mg, uv0, h0);
+        auto v2 = Mvert(mg, lerp(uv0, uv3, ab), std::nullopt, sg.curv, HitB);
+        sgmts.emplace_back(mg, this, f, v1, v2);
+        cache = Cache(h1, r_cd, dir, true);
         sg.curv->split_segment(sg, sgmts.back(), cd);
     }
 }

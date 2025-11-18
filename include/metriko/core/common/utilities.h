@@ -115,13 +115,14 @@ inline bool find_strict_intersection(
     const complex &c,
     const complex &d,
     double &ratio_a2b,
-    double &ratio_c2d
+    double &ratio_c2d,
+    const double eps = EPS
 ) {
     return find_extended_intersection(a, b, c, d, ratio_a2b, ratio_c2d) &&
-           ratio_a2b > 0 &&
-           ratio_a2b < 1 &&
-           ratio_c2d > 0 &&
-           ratio_c2d < 1;
+           ratio_a2b >= 0 + eps &&
+           ratio_a2b <= 1 - eps &&
+           ratio_c2d >= 0 + eps &&
+           ratio_c2d <= 1 - eps;
 }
 
 }
