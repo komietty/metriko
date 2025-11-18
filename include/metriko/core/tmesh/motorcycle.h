@@ -78,7 +78,7 @@ public:
     }
 
     bool operator==(const Msgmt &rhs) const {
-        return face  == rhs.face &&
+        return face  == rhs.face  &&
                fr.uv == rhs.fr.uv &&
                to.uv == rhs.to.uv;
     }
@@ -105,31 +105,7 @@ public:
     explicit Mcurv(const MotorcycleGraph *g, const Mport &p) : Melem(g), port(p), cache() { }
     int id() const { return port.id; }
     bool operator==(const Mcurv &rhs) const { return port.id == rhs.port.id; }
-
-    void add_segment(
-        complex dir,
-        complex uv0,
-        Half h0,
-        Half h1
-    );
-
-    void split_segment(
-        const Msgmt &target,
-        const Msgmt &crash,
-        const double ratio
-    ) {
-        for (auto it = sgmts.begin(); it != sgmts.end(); ++it) {
-            if (*it == target) {
-                const bool ccw = cross(crash.diff(), it->diff()) > 0;
-                const auto uv  = lerp(it->fr.uv, it->to.uv, ratio);
-                const auto fr  = Mvert(mg, uv, std::nullopt, crash.curv, ccw ? HitL : HitR);
-                const auto to  = Mvert(mg, it->to.uv, it->to.half, it->to.crash, it->to.type);
-                it->to = Mvert(mg, uv, std::nullopt, crash.curv, ccw ? HitR : HitL);
-                sgmts.insert(it + 1, Msgmt(mg, this, it->face, fr, to));
-                return;
-            }
-        }
-    }
+    void add_segment(complex dir, complex uv0, Half h0, Half h1);
 
     void post_process() {
         for (int i = 0; i < sgmts.size(); ++i) sgmts[i].id = i;
@@ -161,13 +137,13 @@ public:
         for (auto &c: mcurvs) {
             std::optional<Half> h0;
             std::optional<Half> h1;
-            const auto &p = c.port;
-            const auto &v = p.vert;
-            for (auto h: p.face.adjHalfs()) {
-                if      (h.tail() == v) h0 = h;
-                else if (h.head() != v) h1 = h;
+            const auto &pr = c.port;
+            const auto &vt = pr.vert;
+            for (auto h: pr.face.adjHalfs()) {
+                if      (h.tail() == vt) h0 = h;
+                else if (h.tail() != vt && h.head() != vt) h1 = h;
             }
-            c.add_segment(p.dir, p.uv, h0.value(), h1.value());
+            c.add_segment(pr.dir, pr.uv, h0.value(), h1.value());
         }
 
         // Add further segments until every curve crash to another curve
@@ -187,6 +163,42 @@ public:
 
         // when done, assign index and next/prev info to each segment
         for (auto &c: mcurvs) c.post_process();
+
+        // debug bgn
+        std::vector<glm::vec3> vis_port;
+        for (const auto &p: mports)
+            vis_port.emplace_back(p.vert.pos().x(), p.vert.pos().y(), p.vert.pos().z());
+        auto vq = polyscope::registerPointCloud("vis_port", vis_port);
+        vq->setPointRadius(0.002);
+        vq->resetTransform();
+
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2> > es;
+        size_t counter = 0;
+        std::vector<double> type;
+        std::vector<double> idcs;
+        for (auto c: mcurvs) {
+            for (auto &s: c.sgmts) {
+                Row3d p1 = conversion_2d_3d(s.face, cf, s.fr.uv);
+                Row3d p2 = conversion_2d_3d(s.face, cf, s.to.uv);
+
+                type.emplace_back(s.fr.type);
+                type.emplace_back(s.to.type);
+                idcs.emplace_back(s.id);
+
+                ns.emplace_back(p1.x(), p1.y(), p1.z());
+                ns.emplace_back(p2.x(), p2.y(), p2.z());
+                es.emplace_back(std::array{counter, counter + 1});
+                counter += 2;
+            }
+        }
+        auto c = polyscope::registerCurveNetwork("segments", ns, es);
+        c->addNodeScalarQuantity("type", type);
+        c->addEdgeScalarQuantity("idcs", idcs);
+        c->setEnabled(true);
+        c->resetTransform();
+        c->setRadius(0.0005);
+        // debug end
     }
 
     void gen_ports(const VecXi &singular);
@@ -205,10 +217,10 @@ inline void MotorcycleGraph::gen_ports(const VecXi &singular) {
 
         for (Half h: v.adjHalfs()) {
             buff1.clear();
-            auto a  = cf(h.next().crnr().id);
-            auto b  = cf(h.prev().crnr().id);
-            auto c  = cf(h.crnr().id);
-            auto o  = orientation(a, b, c);
+            auto a = cf(h.next().crnr().id);
+            auto b = cf(h.prev().crnr().id);
+            auto c = cf(h.crnr().id);
+            auto o = orientation(a, b, c);
             auto ab = b - a;
             auto ac = c - a;
             if (o < 0) throw std::invalid_argument("Orientation should be ccw order");
@@ -224,7 +236,8 @@ inline void MotorcycleGraph::gen_ports(const VecXi &singular) {
                 if (is_points_into(a, b, c, a + d) ||
                     std::arg(d) == std::arg(ab) ||
                     std::arg(d) == std::arg(ac)
-                ) buff1.emplace_back(-1, v, h.face(), a, d);
+                )
+                    buff1.emplace_back(-1, v, h.face(), a, d);
             }
 
             rg::sort(buff1, [&](auto &p0, auto &p1) { return dot(p0.dir, ab) > dot(p1.dir, ab); });
@@ -239,6 +252,25 @@ inline void MotorcycleGraph::gen_ports(const VecXi &singular) {
         }
         mports.insert(mports.end(), buff0.begin(), buff0.end());
     }
+}
+
+inline void split_segment(
+    const MotorcycleGraph *mg,
+    const Msgmt &s0, // segment to be split (might be reference of copy)
+    const Msgmt &s1, // segment crashing
+    const double r   // ratio for s0
+    ) {
+    Mcurv* c0 = s0.curv;
+    Mcurv* c1 = s1.curv;
+    auto it = rg::find(c0->sgmts, s0);
+    const bool ccw = cross(s1.diff(), s0.diff()) > 0;
+    const auto &fr = s0.fr;
+    const auto &to = s0.to;
+    const auto uv2 = lerp(fr.uv, to.uv, r);
+    const auto vfr = Mvert(mg, uv2, std::nullopt, c1, ccw ? HitL : HitR);
+    const auto vto = Mvert(mg, to.uv, to.half, to.crash, to.type);
+    it->to = Mvert(mg, uv2, std::nullopt, c1, ccw ? HitR : HitL);
+    c0->sgmts.insert(it + 1, Msgmt(mg, c0, s0.face, vfr, vto));
 }
 
 inline void Mcurv::add_segment(
@@ -267,7 +299,7 @@ inline void Mcurv::add_segment(
     for (auto &sg: sgs) {
         double ab = 0;
         double cd = 0;
-        if (find_strict_intersection(uv0, uv3, sg.fr.uv, sg.to.uv, ab, cd, 0.))
+        if (find_strict_intersection(uv0, uv3, sg.fr.uv, sg.to.uv, ab, cd))
             candidates.emplace_back(ab, cd, sg);
     }
 
@@ -277,12 +309,12 @@ inline void Mcurv::add_segment(
         sgmts.emplace_back(mg, this, f, v1, v2);
         cache = Cache(h1, r_cd, dir);
     } else {
-        auto [ab, cd, sg] = rg::min(candidates, [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
+        auto [ab, cd, sg_copy] = rg::min(candidates, [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
         auto v1 = Mvert(mg, uv0, h0);
-        auto v2 = Mvert(mg, lerp(uv0, uv3, ab), std::nullopt, sg.curv, HitB);
+        auto v2 = Mvert(mg, lerp(uv0, uv3, ab), std::nullopt, sg_copy.curv, HitB);
         sgmts.emplace_back(mg, this, f, v1, v2);
         cache = Cache(h1, r_cd, dir, true);
-        sg.curv->split_segment(sg, sgmts.back(), cd);
+        split_segment(mg, sg_copy, sgmts.back(), cd);
     }
 }
 }
