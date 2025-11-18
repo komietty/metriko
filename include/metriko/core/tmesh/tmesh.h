@@ -44,8 +44,8 @@ public:
 
 class Thalf : public Telem {
 public:
-    int teid; //
-    int twid; //
+    int teid;  //
+    int twid;  //
     bool cano; // canonical flag
 
     Thalf(
@@ -269,7 +269,7 @@ inline std::pair<Thalf, bool> Tquad::choose_next_thalf(
                 if (ms.face.id == te.seg_to.face.id) {
                     auto uv2 = te.seg_to.to.uv;
                     auto dif = te.seg_to.diff();
-                    if (equal(ms.fr.uv, uv2) && cross(dif, ms.diff()) > 0) return {find_th(ms, true), true};
+                    if (equal(ms.fr.uv, uv2) && cross(dif,  ms.diff()) > 0) return {find_th(ms,  true), true};
                     if (equal(ms.to.uv, uv2) && cross(dif, -ms.diff()) > 0) return {find_th(ms, false), true};
                 }
             }

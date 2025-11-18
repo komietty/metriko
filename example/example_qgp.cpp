@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
     {
         const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
         const auto prms = surf->addParameterizationQuantity("params", uv1);
-        surf->setEnabled(false);
+        surf->setEnabled(true);
         surf->addFaceVectorQuantity("cmb field", extf);
         prms->setStyle(polyscope::ParamVizStyle::GRID);
         prms->setCheckerSize(1);
@@ -80,6 +80,8 @@ int main(int argc, char **argv) {
 
     // gen mport, medge
     auto graph = MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);
+
+    /*
     auto tmesh = Tmesh(graph.mcurvs);
     VecXd R = VecXd::Zero(tmesh.nTE);
     for (int i = 0; i < tmesh.nTE; i++) {
@@ -120,6 +122,7 @@ int main(int argc, char **argv) {
         surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
         surf->setEdgeWidth(1.);
     }
+    */
     polyscope::show();
     return 0;
 }
