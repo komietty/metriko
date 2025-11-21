@@ -15,7 +15,7 @@ namespace metriko {
 
         EmbeddedTEdge(
             const Hmesh &mesh,
-            int teid,
+            const int teid,
             const std::vector<int> &vids
         ): teid(teid), vids(vids) {
             vals.resize(vids.size(), 0);
@@ -29,11 +29,11 @@ namespace metriko {
             }
         }
 
-        bool contains(Half h) const {
+        bool contains(const Half h) const {
             return rg::find(halfs, h) != halfs.end();
         }
 
-        bool contains(Edge e) const {
+        bool contains(const Edge e) const {
             return rg::find(halfs, e.half()) != halfs.end() ||
                    rg::find(halfs, e.half().twin()) != halfs.end();
         }

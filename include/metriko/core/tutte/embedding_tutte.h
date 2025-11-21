@@ -29,7 +29,7 @@ namespace metriko {
         MatXd embeded_uv = MatXd::Zero(hmesh.nV, 2);
         for (int thid: tq.thids) {
             const auto &th = tmesh.thalfs[thid];
-            tq_etes.emplace_back(etes[th.edge().id], th.cannonical);
+            tq_etes.emplace_back(etes[th.edge().id], th.cano);
         }
 
         std::vector<glm::vec3> ps_;
@@ -45,7 +45,7 @@ namespace metriko {
                 const auto &ete = etes[te.id];
                 for (int j = 0; j < ete.vids.size(); j++) {
                     int vid = ete.vids[j];
-                    double val = th.cannonical ? ete.vals[j] : X[te.id] - ete.vals[j];
+                    double val = th.cano ? ete.vals[j] : X[te.id] - ete.vals[j];
                     Row3d pos = hmesh.pos.row(vid);
                     ps_.emplace_back(pos.x(), pos.y(), pos.z());
                     embeded_uv(vid, 0) = val * dir.real() + sum.real();
@@ -133,8 +133,8 @@ namespace metriko {
 
         // here tutte's parameterization
         auto m = std::make_unique<Hmesh>(V, F);
-        SprsD L  = cotan_laplacian(*m);
-        SprsD M  = mass_matrix(*m);
+        //SprsD L  = cotan_laplacian(*m);
+        //SprsD M  = mass_matrix(*m);
         SprsD BL = boundary_snap_laplacian(*m);
         MatXd uv(m->nV, 2);
         { Eigen::SparseLU<SprsD> lu; lu.compute(BL); VecXd res = lu.solve(UV.col(0)); uv.col(0) = res; }
