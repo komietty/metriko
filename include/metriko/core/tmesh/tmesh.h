@@ -30,10 +30,11 @@ public:
     ): Telem(tm, id), seg_fr(fr), seg_to(to) {
     }
 
-    complex uv_fr() const { return seg_fr.fr.uv; }
-    complex uv_to() const { return seg_to.to.uv; }
-    MvertType type_fr() const { return seg_fr.fr.type; }
-    MvertType type_to() const { return seg_to.to.type; }
+    [[nodiscard]] int n_segments() const { return seg_to.id - seg_fr.id + 1; }
+    [[nodiscard]] complex uv_fr() const { return seg_fr.fr.uv; }
+    [[nodiscard]] complex uv_to() const { return seg_to.to.uv; }
+    [[nodiscard]] MvertType type_fr() const { return seg_fr.fr.type; }
+    [[nodiscard]] MvertType type_to() const { return seg_to.to.type; }
 
     auto segments() const {
         return seg_fr.curv->sgmts | vw::filter([&](auto &s) {

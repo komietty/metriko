@@ -11,7 +11,8 @@
 #include "../include/metriko/core/tutte/visualize_tedge_ebd.h"
 #include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
-#include "metriko/core/tutte/embedding_cutting.h"
+#include "metriko/core/tutte/tutte_cutting.h"
+#include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/tutte/embedding_tutte.h"
 
 using namespace metriko;

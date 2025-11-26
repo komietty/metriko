@@ -6,7 +6,6 @@
 #define METRIKO_CONVEX_CONBINATIN_MAP_H
 
 namespace metriko {
-
     inline SprsD cotan_laplacian(const Hmesh &mesh) {
         SprsD S(mesh.nV, mesh.nV);
         std::vector<TripD> T;

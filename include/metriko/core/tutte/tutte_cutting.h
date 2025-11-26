@@ -2,8 +2,8 @@
 // Created by saki on 2025/11/17.
 //
 
-#ifndef METRIKO_EXAMPLE_EMBEDDING_CUTTING_H
-#define METRIKO_EXAMPLE_EMBEDDING_CUTTING_H
+#ifndef METRIKO_TUTTE_CUTTING_H
+#define METRIKO_TUTTE_CUTTING_H
 #include <set>
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/tmesh/tmesh.h"
@@ -47,6 +47,8 @@ inline Mat2x3d GetAxisAlignedProjection(const Row3d& normal) {
 struct AuxSgmtData {
     Msgmt sg;
     Thalf th;
+    int o0;   // order cano
+    int o1;   // order non cano
     Row2d v0; // val cano
     Row2d v1; // val non cano
 };
@@ -57,6 +59,7 @@ struct AuxHalfData {
 
 struct MidHalfData {
     int thid;
+    int order;
     double v0;
     double v1;
 };
@@ -121,7 +124,7 @@ inline void face_cutting(
         }
     }
 
-    for (const auto& [sg, th, v0, v1]: sgs) {
+    for (const auto& [sg, th, o0, o1, v0, v1]: sgs) {
         std::pair<const Mvert*, int> mvs[2] = {
             std::pair(&sg.fr, -1),
             std::pair(&sg.to, -1)
@@ -154,8 +157,8 @@ inline void face_cutting(
             }
         }
 
-        halfs.emplace_back(ResHalfData{mvs[0].second, mvs[1].second, MidHalfData{th.id  , v0.x(), v0.y()}});
-        halfs.emplace_back(ResHalfData{mvs[1].second, mvs[0].second, MidHalfData{th.twid, v1.x(), v1.y()}});
+        halfs.emplace_back(ResHalfData{mvs[0].second, mvs[1].second, MidHalfData{th.id  , o0, v0.x(), v0.y()}});
+        halfs.emplace_back(ResHalfData{mvs[1].second, mvs[0].second, MidHalfData{th.twid, o1, v1.x(), v1.y()}});
     }
 
     // 2: assign edge halfs
@@ -262,11 +265,13 @@ inline void compute_embedding_cut_hmesh(
         const Tedge& te = th.edge();
         const double r = R[te.id];
         double sum = 0;
+        int order = 0;
         for (const auto& s: te.segments()) {
             auto len = abs(s.diff());
             auto v0 = sum / r; sum += len;
             auto v1 = sum / r;
-            auto aux = AuxSgmtData{s, th, {v0, v1}, {1 - v1, 1 - v0}};
+            auto aux = AuxSgmtData{s, th, order, te.n_segments() - order, {v0, v1}, {1 - v1, 1 - v0}};
+            order++;
             cuts[s.face.id].emplace_back(aux);
         }
     }
