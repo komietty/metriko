@@ -2,11 +2,9 @@
 #define METRIKO_TUTTE_PARAM_H
 #include <queue>
 #include <stack>
+#include "tutte_cutting.h"
 
 namespace metriko::tutte {
-
-template <class T>
-using vec = std::vector<T>;
 
 inline Mat2d compute_rotation(int i) {
     Mat2d r0, r1, r2, r3;
@@ -17,15 +15,6 @@ inline Mat2d compute_rotation(int i) {
     auto r = std::vector{r2, r1, r0, r3}; // need fix
     return r[i];
 }
-
-struct HalfData {
-    Half half;
-    double val0;
-    double val1;
-    int thid;
-    int tqid;
-    int order;
-};
 
 inline MatXd embedding_tutte_for_tquad(
     const int tqid,
@@ -50,7 +39,7 @@ inline MatXd embedding_tutte_for_tquad(
             // 2: assign values
             double x = X[tm.thalfs[thid].edge().id];
             for (const HalfData& d: data2) {
-                auto val = x * d.val0;
+                auto val = x * d.v0;
                 auto vid = d.half.tail().id;
                 embedded_uv(vid, 0) = val * dir.real() + sum.real();
                 embedded_uv(vid, 1) = val * dir.imag() + sum.imag();

@@ -4,6 +4,7 @@
 
 #ifndef METRIKO_QUANTIZATION_VALIDATION_H
 #define METRIKO_QUANTIZATION_VALIDATION_H
+#include <queue>
 #include "metriko/core/tmesh/tmesh.h"
 
 namespace metriko {

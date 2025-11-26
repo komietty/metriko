@@ -12,8 +12,7 @@
 #include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
-#include "metriko/core/tutte/tutte_params.h"
-#include "metriko/core/tutte/embedding_tutte.h"
+//#include "metriko/core/tutte/tutte_params.h"
 
 using namespace metriko;
 int N = 4;
@@ -130,7 +129,37 @@ int main(int argc, char** argv) {
     validate_quantization(tmesh, X);
     visualizer::visualize_tedge(tmesh, uv2, &X, &R);
 
-    compute_embedding_cut_hmesh(*mesh, tmesh, uv2, R);
+    std::vector<tutte::HalfData> half_data;
+    Hmesh hm_cut = tutte::compute_embedding_cut_hmesh(*mesh, tmesh, uv2, R, half_data);
+    //tutte::compute_altered_seam();
+
+    {
+        const auto surf_cut = polyscope::registerSurfaceMesh("new mesh", hm_cut.pos, hm_cut.idx);
+        surf_cut->setEdgeWidth(1);
+
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> val;
+        size_t count = 0;
+
+        for (const auto& hd: half_data) {
+            if (hd.tqid != 0) continue;
+            Row3d p1 = hd.half.tail().pos();
+            Row3d p2 = hd.half.head().pos();
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            val.emplace_back(hd.v0);
+            val.emplace_back(hd.v1);
+            es.emplace_back(std::array{count, count + 1});
+            count += 2;
+        }
+        auto c = polyscope::registerCurveNetwork("cut half data", ns, es);
+        auto v = c->addNodeScalarQuantity("val", val);
+        c->setEnabled(true);
+        v->setEnabled(true);
+        c->resetTransform();
+        c->setRadius(0.002);
+    }
 
     /*
     std::vector<std::vector<visualizer::SplitVert> > split_verts(tmesh.nTE);

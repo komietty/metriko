@@ -6,6 +6,8 @@
 #define METRIKO_TYPEDEF_H
 #include <Eigen/Geometry>
 #include <Eigen/Sparse>
+#include <queue>
+#include <stack>
 #include <ranges>
 #include <__ranges/views.h>
 
