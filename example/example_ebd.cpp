@@ -12,7 +12,7 @@
 #include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
-//#include "metriko/core/tutte/tutte_params.h"
+#include "metriko/core/tutte/tutte_params.h"
 
 using namespace metriko;
 int N = 4;
@@ -130,13 +130,24 @@ int main(int argc, char** argv) {
     visualizer::visualize_tedge(tmesh, uv2, &X, &R);
 
     std::vector<tutte::HalfData> half_data;
-    Hmesh hm_cut = tutte::compute_embedding_cut_hmesh(*mesh, tmesh, uv2, R, half_data);
-    //tutte::compute_altered_seam();
+    std::vector<bool> seam_cut;
+    Hmesh hm_cut = tutte::compute_embedding_cut_hmesh(*mesh, tmesh, uv2, R, seam, seam_cut, half_data);
+    auto hm_cut_cut = compute_cut_mesh(hm_cut, seam_cut);
+    MatXd uv = tutte::compute_tutte_parameterization(hm_cut, tmesh, seam_cut, half_data, X);
+
+    ///--- visualize cut mesh ---///
+    const auto surf_cut = polyscope::registerSurfaceMesh("cut_1", hm_cut.pos, hm_cut.idx);
+    surf_cut->setEdgeWidth(1);
 
     {
-        const auto surf_cut = polyscope::registerSurfaceMesh("new mesh", hm_cut.pos, hm_cut.idx);
-        surf_cut->setEdgeWidth(1);
+        auto prms1 = surf_cut->addParameterizationQuantity("params_1", uv);
+        prms1->setEnabled(true);
+        prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+        prms1->setCheckerSize(1);
 
+    }
+
+    {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> val;
@@ -160,6 +171,28 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.002);
     }
+
+    ///--- visuailize seam of cut mesh ---///
+    {
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        size_t counter = 0;
+        for (auto e: hm_cut.edges) {
+            if (seam_cut[e.id]) {
+                Row3d p1 = e.half().tail().pos();
+                Row3d p2 = e.half().head().pos();
+                ns.emplace_back(p1.x(), p1.y(), p1.z());
+                ns.emplace_back(p2.x(), p2.y(), p2.z());
+                es.emplace_back(std::array{counter, counter + 1});
+                counter += 2;
+            }
+        }
+        auto c = polyscope::registerCurveNetwork("seam_cut", ns, es);
+        c->setEnabled(true);
+        c->resetTransform();
+        c->setRadius(0.001);
+    }
+
 
     /*
     std::vector<std::vector<visualizer::SplitVert> > split_verts(tmesh.nTE);
@@ -187,12 +220,13 @@ int main(int argc, char** argv) {
     prms1->setEnabled(true);
     prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
     prms1->setCheckerSize(1);
+    */
 
 
     std::vector<int> b_;
     std::vector<Row2d> bc_;
 
-    for (auto v: cutm->verts) {
+    for (auto v: hm_cut_cut->verts) {
         if (v.isBoundary()) {
             Row2d val = uv.row(v.half().next().crnr().id);
             b_.push_back(v.id);
@@ -208,21 +242,21 @@ int main(int argc, char** argv) {
     bc.resize(bc_.size(), 2);
     for (int i = 0; i < static_cast<int>(bc_.size()); ++i) { bc.row(i) = bc_[i]; }
     double soft_const_p = 1e10;
-    Eigen::MatrixXd uv_init(cutm->nV, 2);
-    for (auto v: cutm->verts) {
+    Eigen::MatrixXd uv_init(hm_cut_cut->nV, 2);
+    for (auto v: hm_cut_cut->verts) {
         uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
     }
     igl::SLIMData sData;
     sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
 
-    slim_precompute(cutm->pos, cutm->idx, uv_init, sData, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, bc, soft_const_p);
-    slim_solve(sData, 10);
+    slim_precompute(hm_cut_cut->pos, hm_cut_cut->idx, uv_init, sData, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, bc, soft_const_p);
+    slim_solve(sData, 20);
 
-    auto prms2 = surf->addVertexParameterizationQuantity("params_2", sData.V_o);
+    const auto surf_cut_cut = polyscope::registerSurfaceMesh("cut_2", hm_cut_cut->pos, hm_cut_cut->idx);
+    auto prms2 = surf_cut_cut->addVertexParameterizationQuantity("params_2", sData.V_o);
     prms2->setEnabled(true);
     prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
     prms2->setCheckerSize(1);
-     */
 
     polyscope::show();
     return 0;

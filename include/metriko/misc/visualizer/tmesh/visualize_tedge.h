@@ -15,7 +15,8 @@ namespace metriko::visualizer {
         const VecXd* X = nullptr,
         const VecXd* R = nullptr,
         const std::vector<int> &selector = std::vector<int>(),
-        const std::string& prefix = std::string("")
+        const std::string& prefix = std::string(""),
+        const bool show = true
     ) {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -60,13 +61,13 @@ namespace metriko::visualizer {
         c->addEdgeScalarQuantity("difx", difx);
         c->addEdgeScalarQuantity("dify", dify);
         c->addEdgeScalarQuantity("random", randoms);
-        c->setEnabled(false);
+        c->setEnabled(show);
         c->resetTransform();
-        c->setRadius(0.0005);
+        c->setRadius(0.0002);
         c->setMaterial("flat");
     }
 
-    /*
+/*
     inline void visualize_next_thalfs_on_joint(
         const Tmesh& tm,
         const VecXc &cfn,
@@ -92,8 +93,8 @@ namespace metriko::visualizer {
                 Row3d p2 = conversion_2d_3d(seg.face, cfn, seg.to.uv);
                 Row3d nor = seg.face.normal();
                 Row3d bnr = nor.cross(p2 - p1).normalized();
-                Row3d p1o = p1 + bnr * 0.002 * (th.cannonical ? 1 : -1);
-                Row3d p2o = p2 + bnr * 0.002 * (th.cannonical ? 1 : -1);
+                Row3d p1o = p1 + bnr * 0.002 * (th.cano ? 1 : -1);
+                Row3d p2o = p2 + bnr * 0.002 * (th.cano ? 1 : -1);
                 ns.emplace_back(p1o.x(), p1o.y(), p1o.z());
                 ns.emplace_back(p2o.x(), p2o.y(), p2o.z());
                 es.emplace_back(std::array{counter, counter + 1});
@@ -113,6 +114,7 @@ namespace metriko::visualizer {
         c->setRadius(0.001);
         c->setMaterial("flat");
     }
+
     */
 }
 

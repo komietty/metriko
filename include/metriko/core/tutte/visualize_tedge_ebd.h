@@ -11,7 +11,8 @@ namespace metriko::visualizer {
     inline void visualize_embedding(
         const Hmesh& hmesh,
         const std::vector<EmbeddedTEdge>& embedded_t_edges,
-        const VecXd& X
+        const VecXd& X,
+        const bool show = true
     ) {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -32,25 +33,15 @@ namespace metriko::visualizer {
                 x_sum.emplace_back(X[ete.teid]);
                 teids.emplace_back(ete.teid);
             }
-            //for(Half h: ete.halfs) {
-            //    Row3d p0 = h.tail().pos();
-            //    Row3d p1 = h.head().pos();
-            //    ns.emplace_back(p0.x(), p0.y(), p0.z());
-            //    ns.emplace_back(p1.x(), p1.y(), p1.z());
-            //    es.emplace_back(std::array{ns.size() - 2, ns.size() - 1});
-            //    //x.emplace_back(ete.vals[i + 1]);
-            //    x_sum.emplace_back(X[ete.teid]);
-            //    teids.emplace_back(ete.teid);
-            //}
         }
 
         auto c = polyscope::registerCurveNetwork("embeddings", ns, es);
         c->addEdgeScalarQuantity("x", x)->setEnabled(true);
         c->addEdgeScalarQuantity("x_sum", x_sum)->setEnabled(false);
         c->addEdgeScalarQuantity("teid", teids)->setEnabled(false);
-        c->setEnabled(true);
+        c->setEnabled(show);
         c->resetTransform();
-        c->setRadius(0.0005);
+        c->setRadius(0.001);
         c->setMaterial("flat");
     }
 }

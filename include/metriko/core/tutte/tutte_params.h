@@ -29,6 +29,11 @@ inline MatXd embedding_tutte_for_tquad(
 
     auto dir = complex(1, 0);
     auto sum = complex(0, 0);
+
+    std::vector<glm::vec3> temp;
+    vec<double> tempU;
+    vec<double> tempV;
+
     for (int i = 0; i < 4; i++) {
         for (int thid: tq.thids_by_side(i)) {
             // 1: filter from the original container by thid and sort it by segment order
@@ -43,11 +48,19 @@ inline MatXd embedding_tutte_for_tquad(
                 auto vid = d.half.tail().id;
                 embedded_uv(vid, 0) = val * dir.real() + sum.real();
                 embedded_uv(vid, 1) = val * dir.imag() + sum.imag();
+                temp.emplace_back(glm::vec3(d.half.tail().pos().x(), d.half.tail().pos().y(), d.half.tail().pos().z()));
+                tempU.emplace_back(val * dir.real() + sum.real());
+                tempV.emplace_back(val * dir.imag() + sum.imag());
             }
             sum += x * dir;
         }
         dir *= complex(0, 1);
     }
+    auto vis = polyscope::registerPointCloud("temp-" + std::to_string(tqid), temp);
+    vis->setEnabled(false);
+    vis->setPointRadius(0.005);
+    vis->addScalarQuantity("tempU", tempU);
+    vis->addScalarQuantity("tempV", tempV);
 
     // find all faces
     std::queue<int> queue;
@@ -207,7 +220,7 @@ inline MatXd compute_tutte_parameterization(
         auto b = data | vw::filter([&i](auto& d) { return d.tqid == i; })
                       | rg::to<std::vector>();
         auto o = sequential_mapping(uv_per_tquad[i], h, b, seam, c_flag, uv);
-        for (auto nh: o) queue.push(nh);
+        for (auto nh: o) queue.emplace(nh);
     }
 
     // 2: other tquads
@@ -224,8 +237,10 @@ inline MatXd compute_tutte_parameterization(
         auto b = data | vw::filter([&](auto& d) { return d.tqid == curr->tqid; })
                       | rg::to<std::vector>();
         auto o = sequential_mapping(uv_curr, h, b, seam, c_flag, uv);
-        for (auto nh: o) queue.push(nh);
+        for (auto nh: o) queue.emplace(nh);
     }
+    /*
+    */
 
     return uv;
 }

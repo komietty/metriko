@@ -69,6 +69,7 @@ struct AuxSgmt {
 struct AuxHalf2 {
     int i0;
     int i1;
+    std::optional<Half> original;
     std::optional<HalfData> data;
 };
 
@@ -98,9 +99,9 @@ inline void face_cutting(
         Half h1 = f.half().next();
         Half h2 = f.half().prev();
         f_auxs.emplace_back(std::array{
-            AuxHalf2{h0.tail().id, h0.head().id},
-            AuxHalf2{h1.tail().id, h1.head().id},
-            AuxHalf2{h2.tail().id, h2.head().id}
+            AuxHalf2{h0.tail().id, h0.head().id, h0},
+            AuxHalf2{h1.tail().id, h1.head().id, h1},
+            AuxHalf2{h2.tail().id, h2.head().id, h2}
         });
         return;
     }
@@ -149,23 +150,24 @@ inline void face_cutting(
             }
         }
 
-        halfs.emplace_back(AuxHalf2{mvs[0].second, mvs[1].second, HalfData{Half(), v0.x(), v0.y(), th.id  , find_tqid(tm, th.id)  , o0 }});
-        halfs.emplace_back(AuxHalf2{mvs[1].second, mvs[0].second, HalfData{Half(), v1.x(), v1.y(), th.twid, find_tqid(tm, th.twid), o1 }});
+        halfs.emplace_back(AuxHalf2{mvs[0].second, mvs[1].second, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , find_tqid(tm, th.id)  , o0 }});
+        halfs.emplace_back(AuxHalf2{mvs[1].second, mvs[0].second, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, find_tqid(tm, th.twid), o1 }});
     }
 
     // 2: assign edge halfs
     for (Half h: f.adjHalfs()) {
-        const auto& idcs = h_auxs[h.id];
-        if (!idcs.empty()) {
-            halfs.emplace_back(idcs.begin()->second, h.head().id);
-            auto prev = idcs.begin();
-            auto curr = std::next(idcs.begin());
-            for (; curr != idcs.end(); ++curr, ++prev) {
-                halfs.emplace_back(curr->second, prev->second);
+        const auto& idcs_ = h_auxs[h.id];
+        if (idcs_.empty()) { halfs.emplace_back(h.tail().id, h.head().id, h); }
+        else {
+            halfs.emplace_back(idcs_.begin()->second, h.head().id, h);
+
+            auto prev = idcs_.begin();
+            auto curr = std::next(idcs_.begin());
+            for (; curr != idcs_.end(); ++curr, ++prev) {
+                halfs.emplace_back(curr->second, prev->second, h);
             }
-            halfs.emplace_back(h.tail().id, idcs.rbegin()->second);
+            halfs.emplace_back(h.tail().id, idcs_.rbegin()->second, h);
         }
-        else { halfs.emplace_back(h.tail().id, h.head().id); }
     }
 
     while (!halfs.empty()) {
@@ -245,7 +247,9 @@ inline Hmesh compute_embedding_cut_hmesh(
     const Tmesh& tm, // input tmesh
     const VecXc& cf, // input corner function of naive parameterization
     const VecXd& R,  //
-    vec<HalfData>& h_data
+    const vec<bool>& seam0, //
+          vec<bool>& seam1, //
+    vec<HalfData>& h_data   //
 ) {
     std::map<int, vec<AuxSgmt>> cuts; // face id & aux segment data
 
@@ -292,13 +296,24 @@ inline Hmesh compute_embedding_cut_hmesh(
         }
     }
 
-    Hmesh hm_cut = Hmesh(vert_info, face_info);
+    auto hm_cut = Hmesh(vert_info, face_info);
     h_data.clear();
+    seam1 = std::vector(hm_cut.nE, false);
 
     for (const auto& fd_: f_aux) {
     for (const auto& hd_: fd_) {
     for (int i = 0; i < 3; i++) {
         const auto& d = hd_[i];
+
+        if (d.original.has_value()) {
+            Half h = d.original.value();
+            bool v = seam0[h.edge().id];
+            if (v) {
+                auto it = rg::find_if(hm_cut.halfs, [&d](const Half& h_) { return h_.tail().id == d.i0 && h_.head().id == d.i1; });
+                seam1[it->edge().id] = true;
+            }
+        }
+
         if (d.data.has_value()) {
             auto v = d.data.value();
             auto it = rg::find_if(hm_cut.halfs, [&d](const Half& h) { return h.tail().id == d.i0 && h.head().id == d.i1; });
@@ -308,15 +323,6 @@ inline Hmesh compute_embedding_cut_hmesh(
     }}}
 
     return hm_cut;
-}
-
-inline void compute_altered_seam(
-    const Hmesh& hm0,       // original mesh
-    const Hmesh& hm1,       // cut mesh
-    const vec<bool>& seam0, // seam original
-          vec<bool>& seam1  // seam cut
-) {
-
 }
 }
 #endif

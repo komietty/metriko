@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
     int N = 4;
     igl::readOBJ(argv[1], V, F);
     auto mesh = std::make_unique<Hmesh>(V, F);
-    auto rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
+    auto rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
@@ -121,7 +121,8 @@ int main(int argc, char **argv) {
         surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
         surf->setEdgeWidth(1.);
     }
-    /* */
+    /*
+    */
     polyscope::show();
     return 0;
 }

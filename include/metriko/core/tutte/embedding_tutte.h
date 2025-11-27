@@ -4,9 +4,11 @@
 
 #ifndef METRIKO_EMBEDDING_TUTTE_H
 #define METRIKO_EMBEDDING_TUTTE_H
+#include <queue>
+#include <stack>
 #include "embedding.h"
 
-namespace metriko {
+namespace metriko::deplicate {
     inline Mat2d compute_rotation(int i) {
         Mat2d r0, r1, r2, r3;
         r0 << 1, 0, 0, 1;
@@ -169,7 +171,7 @@ namespace metriko {
         visit.emplace(half_in.edge());
         if (flag[half_in.crnr().id]) return nextH;
 
-        while (queue.size() > 0) {
+        while (!queue.empty()) {
             Half hfr = queue.front();
             Face f = hfr.face();
             Crnr c0 = f.half().crnr();
@@ -234,48 +236,15 @@ namespace metriko {
         throw new std::runtime_error("no corresponding rotation found");
     }
 
-    inline void apply_transition_test(
-        const Half h, // the halfedge of unfixed side
-        const MatXd &mat0, // the fixed uv information
-        MatXd &mat1 // the unfixed adjacent uv information
-    ) {
-        Half h0 = h.twin();
-        Half h1 = h;
-        Row2d uv0  = mat0.row(h0.next().crnr().id);
-        Row2d uv1  = mat1.row(h1.prev().crnr().id);
-        Row2d uv0a = mat0.row(h0.prev().crnr().id);
-        Row2d uv1a = mat1.row(h1.next().crnr().id);
-        std::cout << "corner id a: " << h0.next().crnr().id << std::endl;
-        std::cout << "corner id b: " << h0.prev().crnr().id << std::endl;
-        std::cout << "uv0: " << uv0 << std::endl;
-        std::cout << "uv1: " << uv1 << std::endl;
-        std::cout << "uv0a: " << uv0a << std::endl;
-        std::cout << "uv1a: " << uv1a << std::endl;
-
-        //for (int i = 0; i < 4; i++) {
-        //    Mat2d rot = compute_rotation(i);
-        //    Row2d res = rot * (uv1a - uv1).transpose() + uv0.transpose();
-        //    if ((res - uv0a).norm() < 1e-6) {
-        //        for (int j = 0; j < mat1.rows(); j++) {
-        //            mat1.row(j) = rot * (mat1.row(j) - uv1).transpose() + uv0.transpose();
-        //        }
-        //        return;
-        //    }
-        //}
-        //throw new std::runtime_error("no corresponding rotation found");
-    }
-
     inline std::pair<int, int> find_tqid_and_thid_from_half(
         const Tmesh &tmesh,
         const std::vector<EmbeddedTHalf> &eths,
         const Half &h
     ) {
-        for (auto tq: tmesh.tquads) {
-            for (int thid: tq.thids) {
-                if (eths[thid].contains(h)) return std::pair(tq.id, thid);
-            }
-        }
-        throw new std::runtime_error("half not found in any tquad");
+        for (auto& tq: tmesh.tquads)
+            for (int thid: tq.thids)
+                if (eths[thid].contains(h)) return {tq.id, thid};
+        throw std::runtime_error("half not found in any tquad");
     }
 
     inline MatXd compute_tutte_parameterization(
@@ -328,30 +297,11 @@ namespace metriko {
             auto tqid_curr = find_tqid_and_thid_from_half(tmesh, eths, h).first;
             auto tqid_prev = find_tqid_and_thid_from_half(tmesh, eths, h.twin()).first;
 
-            if (count == 519) {
-                std::cout << "tail: " << h.tail().pos() << ", head: " << h.head().pos() << std::endl;
-                std::cout << "face id: " << h.twin().face().id << std::endl;
-                std::cout << "crnr id: " << h.twin().crnr().id << std::endl;
-
-                for (auto tq: tmesh.tquads) {
-                    for (int thid: tq.thids) {
-                        if (eths[thid].contains(h)) std::cout << "thid: " << thid << std::endl;
-                    }
-                }
-                std::cout << "count: " << count << std::endl;
-
-                apply_transition_test(
-                    h,
-                    uv_per_tquad[tqid_prev],
-                    uv_per_tquad[tqid_curr]
-                );
-            } else {
-                apply_transition(
-                    h,
-                    uv_per_tquad[tqid_prev],
-                    uv_per_tquad[tqid_curr]
-                );
-            }
+            apply_transition(
+                h,
+                uv_per_tquad[tqid_prev],
+                uv_per_tquad[tqid_curr]
+            );
 
             auto boundaries = std::vector<Half>{};
             for (int thid: tmesh.tquads[tqid_curr].thids)
@@ -410,22 +360,6 @@ namespace metriko {
         }
         */
 
-
-        //std::vector<glm::vec3> ns;
-        //std::vector<std::array<size_t, 2> > es;
-        //size_t counter = 0;
-        //for (auto hh: halfs_out) {
-        //    Row3d p1 = hh.tail().pos();
-        //    Row3d p2 = hh.head().pos();
-        //    ns.emplace_back(p1.x(), p1.y(), p1.z());
-        //    ns.emplace_back(p2.x(), p2.y(), p2.z());
-        //    es.emplace_back(std::array{counter, counter + 1});
-        //    counter += 2;
-        //}
-        //auto c = polyscope::registerCurveNetwork("halfs out", ns, es);
-        //c->setEnabled(true);
-        //c->resetTransform();
-        //c->setRadius(0.0015);
         return uv_all;
     }
 
