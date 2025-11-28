@@ -18,57 +18,41 @@ inline Mat2d compute_rotation(int i) {
 
 inline MatXd embedding_tutte_for_tquad(
     const int tqid,
-    const vec<HalfData>& data,
+    const std::set<HalfData>& data,
     const Hmesh& hm, // the cut mesh
     const Tmesh& tm, // the tmesh of original hmesh
     const VecXd& X
 ) {
-    const Tquad& tq = tm.tquads[tqid];
-    auto data0 = vw::filter(data, [&tqid](const HalfData& d) { return d.tqid == tqid; });
     MatXd embedded_uv = MatXd::Zero(hm.nV, 2);
+    auto [tq_bgn, tq_end] = rg::equal_range(data, tqid, {}, &HalfData::tqid);
 
     auto dir = complex(1, 0);
     auto sum = complex(0, 0);
 
-    std::vector<glm::vec3> temp;
-    vec<double> tempU;
-    vec<double> tempV;
-
     for (int i = 0; i < 4; i++) {
-        for (int thid: tq.thids_by_side(i)) {
-            // 1: filter from the original container by thid and sort it by segment order
-            auto data1 = vw::filter(data0, [&thid](const HalfData& d) { return d.thid == thid; });
-            vec data2(rg::begin(data1), rg::end(data1));
-            rg::sort(data2, {}, &HalfData::order);
-
-            // 2: assign values
-            double x = X[tm.thalfs[thid].edge().id];
-            for (const HalfData& d: data2) {
-                auto val = x * d.v0;
-                auto vid = d.half.tail().id;
+        for (int thid: tm.tquads[tqid].thids_by_side(i)) {
+            auto [th_bgn, th_end] = rg::equal_range(tq_bgn, tq_end, thid, {}, &HalfData::thid);
+            auto x = X[tm.thalfs[thid].edge().id];
+            for (auto it = th_bgn; it != th_end; ++it) {
+                auto val = x * it->v0;
+                auto vid = it->half.tail().id;
                 embedded_uv(vid, 0) = val * dir.real() + sum.real();
                 embedded_uv(vid, 1) = val * dir.imag() + sum.imag();
-                temp.emplace_back(glm::vec3(d.half.tail().pos().x(), d.half.tail().pos().y(), d.half.tail().pos().z()));
-                tempU.emplace_back(val * dir.real() + sum.real());
-                tempV.emplace_back(val * dir.imag() + sum.imag());
             }
             sum += x * dir;
         }
         dir *= complex(0, 1);
     }
-    auto vis = polyscope::registerPointCloud("temp-" + std::to_string(tqid), temp);
-    vis->setEnabled(false);
-    vis->setPointRadius(0.005);
-    vis->addScalarQuantity("tempU", tempU);
-    vis->addScalarQuantity("tempV", tempV);
 
     // find all faces
     std::queue<int> queue;
-    std::set<int> visit; // unordered_set seems too wild...
+    auto visit = std::vector(hm.nF, false);
+    auto verts = std::vector(hm.nV, false);
 
-    for (const HalfData& d: data0) {
-        queue.emplace(d.half.face().id);
-        visit.emplace(d.half.face().id);
+    for (auto it = tq_bgn; it != tq_end; ++it){
+        int fid = it->half.face().id;
+        queue.emplace(fid);
+        visit[fid] = true;
     }
 
     while (!queue.empty()) {
@@ -76,24 +60,24 @@ inline MatXd embedding_tutte_for_tquad(
         queue.pop();
         for (Half h0: f0.adjHalfs()) {
             Face f1 = h0.twin().face();
-            if (visit.contains(f1.id) || rg::any_of(data0, [&](auto& d) { return d.half == h0; })) continue;
+            if (visit[f1.id] || rg::any_of(tq_bgn, tq_end, [&](auto& d) { return d.half == h0; })) continue;
             queue.emplace(f1.id);
-            visit.emplace(f1.id);
+            visit[f1.id] = true;
         }
     }
 
-    std::set<int> verts;
-    for (int fid: visit) {
-        for (Half h: hm.faces[fid].adjHalfs()) verts.emplace(h.tail().id);
+    for (Face f: hm.faces) {
+        if (!visit[f.id]) continue;
+        for (Half h: f.adjHalfs()) verts[h.tail().id] = true;
     }
 
-    MatXi face_table = MatXi::Zero((int)visit.size(), hm.nF);
-    MatXd vert_table = MatXd::Zero((int)verts.size(), hm.nV);
+    MatXi face_table = MatXi::Zero(rg::count(visit, true), hm.nF);
+    MatXd vert_table = MatXd::Zero(rg::count(verts, true), hm.nV);
     std::unordered_map<int, int> idcs_table;
 
     int c0 = 0, c1 = 0;
-    for (int vid: verts) { vert_table(c0, vid) = 1; idcs_table[vid] = c0; c0++; }
-    for (int fid: visit) { face_table(c1, fid) = 1; c1++; }
+    for (Vert v: hm.verts) { if (verts[v.id]) { vert_table(c0, v.id) = 1; idcs_table[v.id] = c0; c0++; } }
+    for (Face f: hm.faces) { if (visit[f.id]) { face_table(c1, f.id) = 1; c1++; } }
 
     MatXd V  = vert_table * hm.pos;
     MatXi F  = face_table * hm.idx;
@@ -104,16 +88,15 @@ inline MatXd embedding_tutte_for_tquad(
         F(i, j) = idcs_table[F(i, j)];
 
     // here tutte's parameterization
-    auto m   = std::make_unique<Hmesh>(V, F);
-    SprsD BL = boundary_snap_laplacian(*m);
-    MatXd uv(m->nV, 2);
-    { Eigen::SparseLU<SprsD> lu; lu.compute(BL); VecXd res = lu.solve(UV.col(0)); uv.col(0) = res; }
-    { Eigen::SparseLU<SprsD> lu; lu.compute(BL); VecXd res = lu.solve(UV.col(1)); uv.col(1) = res; }
+    Eigen::SparseLU<SprsD> lu;
+    lu.compute(boundary_snap_laplacian(Hmesh(V, F)));
+    MatXd uv = lu.solve(UV);
 
     MatXd uv_all = MatXd::Zero(hm.nC, 2);
     MatXd uv_vrt = vert_table.transpose() * uv;
-    for (int fid: visit) {
-        for (Half h: hm.faces[fid].adjHalfs())
+    for (Face f: hm.faces) {
+        if (!visit[f.id]) continue;
+        for (Half h: f.adjHalfs())
             uv_all.row(h.crnr().id) = uv_vrt.row(h.next().head().id);
     }
 
@@ -129,9 +112,9 @@ struct HalfHash { std::size_t operator()(const Half& h) const noexcept { return 
 inline std::unordered_set<Half, HalfHash> sequential_mapping(
     const MatXd& uv_in,
     const Half half_in,
-    const vec<HalfData>& boundary, // boundary of the tquad
-    const vec<bool>& seam,         // need to be altered for new cut hmesh
-          vec<bool>& flag,         // the flag to check a corner is already checked or not
+    const std::unordered_set<Half, HalfHash>& boundary, // boundary of the tquad
+    const vec<bool>& seam,                              // need to be altered for new cut hmesh
+          vec<bool>& flag,                              // the flag to check a face is already marked
     MatXd& uv_all
 ) {
     std::queue<Half> queue;
@@ -139,7 +122,7 @@ inline std::unordered_set<Half, HalfHash> sequential_mapping(
     std::unordered_set<Half, HalfHash> nextH; // the halfedges to the other tquad
     queue.push(half_in);
     visit.emplace(half_in.edge());
-    if (flag[half_in.crnr().id]) return nextH;
+    if (flag[half_in.face().id]) return nextH;
 
     while (!queue.empty()) {
         auto f  = queue.front().face();
@@ -149,9 +132,7 @@ inline std::unordered_set<Half, HalfHash> sequential_mapping(
         uv_all.row(c0.id) = uv_in.row(c0.id);
         uv_all.row(c1.id) = uv_in.row(c1.id);
         uv_all.row(c2.id) = uv_in.row(c2.id);
-        flag[c0.id] = true;
-        flag[c1.id] = true;
-        flag[c2.id] = true;
+        flag[f.id] = true;
         queue.pop();
 
         for (Half h: f.adjHalfs()) {
@@ -160,7 +141,7 @@ inline std::unordered_set<Half, HalfHash> sequential_mapping(
             // 2: if hit the visited edge, just stops
             if (visit.contains(h.edge())) continue;
             // 3: if hit boundary, puts it as a bridge to the next tquad
-            if (rg::any_of(boundary, [&h](const HalfData& d){return d.half == h; })) { nextH.insert(h.twin()); continue; }
+            if (boundary.contains(h)) { nextH.insert(h.twin()); continue; }
             // 4: inside tquad. add it to the queue
             visit.emplace(h.edge());
             queue.push(h.twin());
@@ -187,9 +168,8 @@ inline void apply_transition(
         Mat2d rot = compute_rotation(i);
         Row2d res = rot * (uv1a - uv1).transpose() + uv0.transpose();
         if ((res - uv0a).norm() < 1e-6) {
-            for (int j = 0; j < mat1.rows(); j++) {
-                mat1.row(j) = rot * (mat1.row(j) - uv1).transpose() + uv0.transpose();
-            }
+            mat1 = (mat1.rowwise() - uv1) * rot.transpose();
+            mat1.rowwise() += uv0;
             return;
         }
     }
@@ -197,48 +177,62 @@ inline void apply_transition(
 }
 
 inline MatXd compute_tutte_parameterization(
-    const Hmesh& hm,           // hmesh after tutte cutting
-    const Tmesh& tm,           // tmesh original
-    const vec<bool>& seam,     // seam adapted to tutte cutting
-    const vec<HalfData>& data, //
-    const VecXd& X             //
+    const Hmesh& hm,                // hmesh after tutte cutting
+    const Tmesh& tm,                // tmesh original
+    const vec<bool>& seam,          // seam adapted to tutte cutting
+    const std::set<HalfData>& data, //
+    const VecXd& X                  //
 ) {
     // compute uv per tquad first...
     vec<MatXd> uv_per_tquad;
+    double t0 = omp_get_wtime();
     for (auto& tq: tm.tquads) {
         MatXd uv = embedding_tutte_for_tquad(tq.id, data,  hm, tm, X);
         uv_per_tquad.emplace_back(uv);
     }
+    double t1 = omp_get_wtime();
+    std::cout << "[time] prepare all tquad uv: " << (t1 - t0) << " s" << std::endl;
 
     MatXd uv = MatXd::Zero(hm.nC, 2);
-    auto c_flag = std::vector(hm.nC, false);
+    auto flag = std::vector(hm.nF, false);
     std::stack<Half> queue; // todo: when using queue, it does not work in count 519...
 
+    std::unordered_map<Half, const HalfData*, HalfHash> data_by_half;
+    data_by_half.reserve(data.size() * 2);
+    for (auto& d : data) { data_by_half.emplace(d.half, &d); }
+
+    double t2 = omp_get_wtime();
     { // 1: process the first tquad
-        auto h = data.front().half;
-        auto i = data.front().tqid;
-        auto b = data | vw::filter([&i](auto& d) { return d.tqid == i; })
-                      | rg::to<std::vector>();
-        auto o = sequential_mapping(uv_per_tquad[i], h, b, seam, c_flag, uv);
+        auto h = data.begin()->half;
+        auto i = data.begin()->tqid;
+        std::unordered_set<Half, HalfHash> b;
+        for (auto&d : data) { if (d.tqid == i) b.insert(d.half); }
+        auto o = sequential_mapping(uv_per_tquad[i], h, b, seam, flag, uv);
         for (auto nh: o) queue.emplace(nh);
     }
 
     // 2: other tquads
-    while (rg::any_of(c_flag, [&](auto f) { return !f; })) {
+    while (rg::any_of(flag, [&](auto f) { return !f; })) {
         auto h = queue.top();
         queue.pop();
 
-        auto curr = rg::find_if(data, [&h](auto& d) { return d.half == h; });
-        auto prev = rg::find_if(data, [&h](auto& d) { return d.half == h.twin(); });
+        if (flag[h.face().id]) continue;
+
+        auto curr = data_by_half.at(h);
+        auto prev = data_by_half.at(h.twin());
         MatXd& uv_curr = uv_per_tquad[curr->tqid];
         MatXd& uv_prev = uv_per_tquad[prev->tqid];
 
         apply_transition(h, uv_prev, uv_curr);
-        auto b = data | vw::filter([&](auto& d) { return d.tqid == curr->tqid; })
-                      | rg::to<std::vector>();
-        auto o = sequential_mapping(uv_curr, h, b, seam, c_flag, uv);
+
+        std::unordered_set<Half, HalfHash> b;
+        for (auto&d : data) { if (d.tqid == curr->tqid) b.insert(d.half); }
+        auto o = sequential_mapping(uv_curr, h, b, seam, flag, uv);
         for (auto nh: o) queue.emplace(nh);
     }
+    double t3 = omp_get_wtime();
+    std::cout << "[time] assign them to locally injective uv: " << (t3 - t2) << " s" << std::endl;
+
     return uv;
 }
 }

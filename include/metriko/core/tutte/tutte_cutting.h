@@ -55,6 +55,10 @@ struct HalfData {
     int thid;
     int tqid;
     int order;
+
+    bool operator<(const HalfData& rhs) const noexcept {
+        return std::tie(tqid, thid, order) < std::tie(rhs.tqid, rhs.thid, rhs.order);
+    }
 };
 
 struct AuxSgmt {
@@ -249,7 +253,7 @@ inline Hmesh compute_embedding_cut_hmesh(
     const VecXd& R,  //
     const vec<bool>& seam0, //
           vec<bool>& seam1, //
-    vec<HalfData>& h_data   //
+    std::set<HalfData>& h_data   //
 ) {
     std::map<int, vec<AuxSgmt>> cuts; // face id & aux segment data
 
@@ -318,7 +322,7 @@ inline Hmesh compute_embedding_cut_hmesh(
             auto v = d.data.value();
             auto it = rg::find_if(hm_cut.halfs, [&d](const Half& h) { return h.tail().id == d.i0 && h.head().id == d.i1; });
             assert(it != hm_cut.halfs.end());
-            h_data.emplace_back(HalfData{*it, v.v0, v.v1, v.thid, v.tqid, v.order});
+            h_data.emplace(HalfData{*it, v.v0, v.v1, v.thid, v.tqid, v.order});
         }
     }}}
 

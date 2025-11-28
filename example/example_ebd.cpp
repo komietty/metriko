@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     //igl::upsample(V, F, 1);
 
     mesh = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::CurvatureAligned);
+    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
@@ -149,7 +149,6 @@ int main(int argc, char** argv) {
         for (const Msgmt& seg: te.seg_fr.curv->sgmts) {
             if (seg == te.seg_fr) bgn = true;
             if (bgn) {
-                //R[i] += std::abs(seg.to.uv - seg.fr.uv);
                 R[i] += std::abs(seg.diff());
                 if (seg == te.seg_to) break;
             }
@@ -160,11 +159,21 @@ int main(int argc, char** argv) {
     validate_quantization(tmesh, X);
     visualizer::visualize_tedge(tmesh, uv2, &X, &R);
 
-    std::vector<tutte::HalfData> half_data;
+
+
+
+    std::set<tutte::HalfData> half_data;
     std::vector<bool> seam_cut;
+
+    double t_cut0 = omp_get_wtime();
     Hmesh hm_cut = tutte::compute_embedding_cut_hmesh(*mesh, tmesh, uv2, R, seam, seam_cut, half_data);
-    auto hm_cut_cut = compute_cut_mesh(hm_cut, seam_cut);
+    double t_cut1 = omp_get_wtime();
+    std::cout << "[time] compute_embedding_cut_hmesh: " << (t_cut1 - t_cut0) << " s" << std::endl;
+
+    double t_tutte0 = omp_get_wtime();
     MatXd uv = tutte::compute_tutte_parameterization(hm_cut, tmesh, seam_cut, half_data, X);
+    double t_tutte1 = omp_get_wtime();
+    std::cout << "[time] compute_tutte_parameterization: " << (t_tutte1 - t_tutte0) << " s" << std::endl;
 
     ///--- visualize cut mesh ---///
     const auto surf_cut = polyscope::registerSurfaceMesh("cut_1", hm_cut.pos, hm_cut.idx);
@@ -178,6 +187,7 @@ int main(int argc, char** argv) {
 
     }
 
+    /*
     {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -202,8 +212,11 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.002);
     }
+    */
 
     ///--- visuailize seam of cut mesh ---///
+    ///auto hm_cut_cut = compute_cut_mesh(hm_cut, seam_cut);
+    /*
     {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -223,7 +236,7 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.001);
     }
-
+    */
 
     /*
     std::vector<std::vector<visualizer::SplitVert> > split_verts(tmesh.nTE);
@@ -253,7 +266,7 @@ int main(int argc, char** argv) {
     prms1->setCheckerSize(1);
     */
 
-
+    /*
     std::vector<int> b_;
     std::vector<Row2d> bc_;
 
@@ -264,7 +277,6 @@ int main(int argc, char** argv) {
             bc_.push_back(val);
         }
     }
-
 
     Eigen::VectorXi b;
     Eigen::MatrixXd bc;
@@ -288,6 +300,7 @@ int main(int argc, char** argv) {
     prms2->setEnabled(true);
     prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
     prms2->setCheckerSize(1);
+    */
 
     polyscope::show();
     return 0;
