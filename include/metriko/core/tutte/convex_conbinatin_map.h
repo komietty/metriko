@@ -4,6 +4,7 @@
 
 #ifndef METRIKO_CONVEX_CONBINATIN_MAP_H
 #define METRIKO_CONVEX_CONBINATIN_MAP_H
+#include "metriko/core/hmesh/hmesh.h"
 
 namespace metriko {
     inline SprsD cotan_laplacian(const Hmesh &mesh) {
@@ -43,7 +44,7 @@ namespace metriko {
             else {
                 double sum = 0.;
                 for (Half h: v.adjHalfs()) {
-                    const double c = 1.;
+                    const double c = h.edge().cot() / v.baryArea();
                     sum += c;
                     T.emplace_back(v.id, h.head().id, c);
                 }

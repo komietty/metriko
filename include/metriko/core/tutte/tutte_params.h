@@ -204,7 +204,7 @@ inline MatXd compute_tutte_parameterization(
     const VecXd& X             //
 ) {
     // compute uv per tquad first...
-    std::vector<MatXd> uv_per_tquad;
+    vec<MatXd> uv_per_tquad;
     for (auto& tq: tm.tquads) {
         MatXd uv = embedding_tutte_for_tquad(tq.id, data,  hm, tm, X);
         uv_per_tquad.emplace_back(uv);
@@ -239,9 +239,6 @@ inline MatXd compute_tutte_parameterization(
         auto o = sequential_mapping(uv_curr, h, b, seam, c_flag, uv);
         for (auto nh: o) queue.emplace(nh);
     }
-    /*
-    */
-
     return uv;
 }
 }

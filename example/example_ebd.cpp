@@ -14,6 +14,10 @@
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/tutte_params.h"
 
+// 1: computing speed up
+// 2: tmesh collapsing
+// 3: update vector field
+
 using namespace metriko;
 int N = 4;
 MatXd flatV;
@@ -29,12 +33,39 @@ MatXd V;
 MatXi F;
 
 int main(int argc, char** argv) {
+
+    {
+        std::cout << "OMP num threads = " << omp_get_max_threads() << std::endl;
+        const int N_bench = 10'000'000;
+        std::vector<double> tmp(N_bench);
+
+        // シリアル版
+        double t0 = omp_get_wtime();
+        for (int i = 0; i < N_bench; ++i) {
+            tmp[i] = i;
+        }
+        double t1 = omp_get_wtime();
+
+        // 並列版
+        double t2 = omp_get_wtime();
+        #pragma omp parallel for
+        for (int i = 0; i < N_bench; ++i) {
+            tmp[i] = i;
+        }
+        double t3 = omp_get_wtime();
+
+        std::cout << "[bench] serial:  " << (t1 - t0) << " s\n";
+        std::cout << "[bench] parallel:" << (t3 - t2) << " s\n";
+        std::cout << "[bench] speedup:  " << (t1 - t0) / (t3 - t2) << " x\n";
+    }
+
+    std::cout << "Available :SIMD Instructions: "<< Eigen::SimdInstructionSetsInUse() << std::endl;
     igl::readOBJ(argv[1], V, F);
 
     //igl::upsample(V, F, 1);
 
     mesh = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
+    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
@@ -250,7 +281,7 @@ int main(int argc, char** argv) {
     sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
 
     slim_precompute(hm_cut_cut->pos, hm_cut_cut->idx, uv_init, sData, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, bc, soft_const_p);
-    slim_solve(sData, 20);
+    slim_solve(sData, 50);
 
     const auto surf_cut_cut = polyscope::registerSurfaceMesh("cut_2", hm_cut_cut->pos, hm_cut_cut->idx);
     auto prms2 = surf_cut_cut->addVertexParameterizationQuantity("params_2", sData.V_o);

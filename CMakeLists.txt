@@ -3,6 +3,8 @@ project(metriko)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+option(ENABLE_OPENMP "Enable OpenMP support" ON)
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(UpdateCacheVariable)
 include(libigl)
@@ -30,7 +32,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     add_definitions (-D_USE_MATH_DEFINES)  # match unix behavior of constants in cmath
 endif()
 
-# ===  Try to find suitesparse === #
+#============================== Try finding Suitesparse ==============================
 option(SUITESPARSE "Enable SuiteSparse." ON)
 if (SUITESPARSE)
     message("-- Searching for SuiteSparse.")
@@ -47,8 +49,7 @@ endif (SUITESPARSE)
 
 # HACK BY NICK
 # The SuiteSparse logic above doesn't look for UMFpack, but we need it.
-# This code attempts to find if by assuming that it will be in the same place
-# as cholmod
+# This code attempts to find if by assuming that it will be in the same place as cholmod
 if(SUITESPARSE AND SUITESPARSE_FOUND)
     string(REGEX REPLACE "cholmod" "umfpack" UMFPACK_LIBRARY ${CHOLMOD_LIBRARY})
     message("-- Guesstimated umfpack location as: ${UMFPACK_LIBRARY}")
@@ -70,17 +71,26 @@ else()
     SET(GC_HAVE_SUITESPARSE FALSE PARENT_SCOPE)
 endif()
 
-# ===  done finding Suitesparse === #
+#========= Done finding Suitesparse ====================================================================================
+
+#========= Try finding OpenMp ==========================================================================================
+
+if (ENABLE_OPENMP)
+    find_package(OpenMP)
+    SET(METRIKO_HAVE_OPENMP TRUE)
+    if (OpenMP_CXX_FOUND)
+        message(STATUS "OpenMP found. CXX flags: ${OpenMP_CXX_FLAGS}")
+    else()
+        message(WARNING "OpenMP not found, building without OpenMP support.")
+    endif()
+endif()
+#========== Done finding OpenMp ========================================================================================
 
 add_library(${PROJECT_NAME} INTERFACE
         include/metriko/core/tutte/tutte_cutting.h
         include/metriko/core/common/predicates.h)
 
-target_compile_definitions(${PROJECT_NAME} INTERFACE
-        NOMINMAX
-        _USE_MATH_DEFINES
-        METRIKO_DEBUG
-)
+target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
 
 target_link_libraries(${PROJECT_NAME} INTERFACE igl::core)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
@@ -89,4 +99,8 @@ if(GC_HAVE_SUITESPARSE)
     target_compile_definitions(${PROJECT_NAME} INTERFACE GC_HAVE_SUITESPARSE)
     target_include_directories(${PROJECT_NAME} INTERFACE ${SUITESPARSE_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} INTERFACE ${SUITESPARSE_LIBRARIES})
+endif()
+
+if(METRIKO_HAVE_OPENMP)
+    target_link_libraries(${PROJECT_NAME} INTERFACE OpenMP::OpenMP_CXX)
 endif()

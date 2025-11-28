@@ -63,7 +63,7 @@ namespace metriko {
         std::vector<TripD> vT, cT;
         // forming the constraints and the singularity positions
         int currConstraint = 0;
-        // this loop set up the transtions (vector field matching) across the cuts
+        // this loop set up the transitions (vector field matching) across the cuts
         for (Vert v: raw.verts) {
             // 1: The initial corner gets the identity without any transition
             std::vector<MatXi> permMats;
@@ -72,7 +72,7 @@ namespace metriko {
             permIdcs.emplace_back(v.id);
             int iVcut = -1;
 
-            // remenber uv = Rot * val + Transition
+            // remember uv = Rot * val + Transition
             for (Half h: v.adjHalfs(v.isBoundary() ? find_first_bndr_he(v) : find_first_seam_he(v))) {
                 if (h.isBoundary()) break; /// last boundary
                 Face f = h.face();
