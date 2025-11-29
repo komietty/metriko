@@ -80,14 +80,6 @@ struct AuxHalf2 {
 using AuxHalf1 = std::set<std::pair<double, int>>; // the list of index and ratio in the Half
 using AuxFace  = vec<std::array<AuxHalf2, 3>>;     // per original face, this contains halfedge data of a divided triangle
 
-inline int find_tqid( const Tmesh& tmesh, const int thid_ ) {
-    for (auto& tq: tmesh.tquads)
-    for (int thid: tq.thids)
-        if (thid == thid_) return tq.id;
-    throw std::runtime_error("half not found in any tquad");
-}
-
-
 // Beware epsilon validity must be solved beforehand
 inline void face_cutting(
     const Tmesh& tm,         //
@@ -154,8 +146,8 @@ inline void face_cutting(
             }
         }
 
-        halfs.emplace_back(AuxHalf2{mvs[0].second, mvs[1].second, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , find_tqid(tm, th.id)  , o0 }});
-        halfs.emplace_back(AuxHalf2{mvs[1].second, mvs[0].second, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, find_tqid(tm, th.twid), o1 }});
+        halfs.emplace_back(AuxHalf2{mvs[0].second, mvs[1].second, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , tm.th2quad(th.id)  , o0 }});
+        halfs.emplace_back(AuxHalf2{mvs[1].second, mvs[0].second, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), o1 }});
     }
 
     // 2: assign edge halfs
@@ -292,11 +284,10 @@ inline Hmesh compute_embedding_cut_hmesh(
     for (int i = 0; i < vpos.size(); i++) { vert_info.row(i) = vpos[i]; }
 
     int count2 = 0;
-    for (const auto& halfs: f_aux) {
-        for (auto& hs: halfs) {
-            face_info.row(count2) = Row3i{hs[0].i0, hs[1].i0, hs[2].i0};
+    for (const auto& fd1: f_aux) {
+        for (auto& fd2: fd1) {
+            face_info.row(count2) << fd2[0].i0, fd2[1].i0, fd2[2].i0;
             count2++;
-
         }
     }
 
@@ -304,25 +295,36 @@ inline Hmesh compute_embedding_cut_hmesh(
     h_data.clear();
     seam1 = std::vector(hm_cut.nE, false);
 
-    for (const auto& fd_: f_aux) {
-    for (const auto& hd_: fd_) {
-    for (int i = 0; i < 3; i++) {
-        const auto& d = hd_[i];
+    struct EdgeKey {
+        int tail;
+        int head;
+        bool operator==(const EdgeKey& o) const noexcept { return tail == o.tail && head == o.head; }
+    };
 
-        if (d.original.has_value()) {
-            Half h = d.original.value();
-            bool v = seam0[h.edge().id];
-            if (v) {
-                auto it = rg::find_if(hm_cut.halfs, [&d](const Half& h_) { return h_.tail().id == d.i0 && h_.head().id == d.i1; });
-                seam1[it->edge().id] = true;
-            }
+    struct EdgeKeyHash {
+        std::size_t operator()(const EdgeKey& k) const noexcept {
+            return (static_cast<std::size_t>(k.tail) << 32) ^ static_cast<std::size_t>(k.head);
         }
+    };
 
-        if (d.data.has_value()) {
-            auto v = d.data.value();
-            auto it = rg::find_if(hm_cut.halfs, [&d](const Half& h) { return h.tail().id == d.i0 && h.head().id == d.i1; });
-            assert(it != hm_cut.halfs.end());
-            h_data.emplace(HalfData{*it, v.v0, v.v1, v.thid, v.tqid, v.order});
+    std::unordered_map<EdgeKey, Half, EdgeKeyHash> half_by_verts;
+    half_by_verts.reserve(hm_cut.nH * 2);
+
+    for (Half h: hm_cut.halfs) {
+        half_by_verts.insert({EdgeKey{h.tail().id, h.head().id}, h});
+    }
+
+    for (const auto& fd1: f_aux) {
+    for (const auto& fd2: fd1) {
+    for (int i = 0; i < 3; i++) {
+        const auto& [i0, i1, original, data] = fd2[i];
+        auto it = half_by_verts.find({i0, i1});
+
+        if (original.has_value() && seam0[original.value().edge().id]) { seam1[it->second.edge().id] = true; }
+
+        if (data.has_value()) {
+            const auto& v = data.value();
+            h_data.emplace(HalfData{it->second, v.v0, v.v1, v.thid, v.tqid, v.order});
         }
     }}}
 

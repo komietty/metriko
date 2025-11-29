@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
         std::cout << "[bench] speedup:  " << (t1 - t0) / (t3 - t2) << " x\n";
     }
 
-    std::cout << "Available :SIMD Instructions: "<< Eigen::SimdInstructionSetsInUse() << std::endl;
+    //std::cout << "Available :SIMD Instructions: "<< Eigen::SimdInstructionSetsInUse() << std::endl;
     igl::readOBJ(argv[1], V, F);
 
     //igl::upsample(V, F, 1);
@@ -84,12 +84,15 @@ int main(int argc, char** argv) {
         cmbExtRosy.block(f.id, 9, 1, 3) = (c3.real() * f.basisX() + c3.imag() * f.basisY()).normalized();
     }
 
+    double t_integ0 = omp_get_wtime();
     RosyParameterization rp(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
     rp.seamless = false;
     rp.localInjectivity = true;
     rp.verbose = false;
     rp.setup();
     rp.integ();
+    double t_integ1 = omp_get_wtime();
+    std::cout << "[time] compute_integration: " << (t_integ1 - t_integ0) << " s" << std::endl;
 
     uv1.resize(mesh->nF * 3, 2);
     uv2.resize(mesh->nF * 3);
@@ -154,9 +157,14 @@ int main(int argc, char** argv) {
             }
         }
     }
+    double t_quantize0 = omp_get_wtime();
 
     VecXd X = compute_quantization(tmesh, R);
     validate_quantization(tmesh, X);
+
+    double t_quantize1 = omp_get_wtime();
+    std::cout << "[time] compute_quantization: " << (t_quantize1 - t_quantize0) << " s" << std::endl;
+
     visualizer::visualize_tedge(tmesh, uv2, &X, &R);
 
 

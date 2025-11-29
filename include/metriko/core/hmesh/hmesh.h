@@ -143,7 +143,7 @@ struct Hmesh {
     VecXd dihedralArg;
     VecXd heArgOnVert;
     VecXd heArgOnFace;
-    Hmesh(const MatXd& V, const MatXi& F);
+    Hmesh(const MatXd& V, const MatXi& F, bool only_topology = false);
 };
 
 struct AdjBase {
@@ -313,7 +313,8 @@ inline void dcel(
 
 inline Hmesh::Hmesh(
     const MatXd &V,
-    const MatXi &F
+    const MatXi &F,
+    bool only_topology
 ) {
     igl::edge_topology(V, F, edge2vert, face2edge, edge2face);
     pos = V;
