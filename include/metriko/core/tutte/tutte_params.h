@@ -164,21 +164,48 @@ inline vec<int> sequential_mapping(
 // try to multiply rotation until halfedge coner values corresponds
 // need to consider: is there any possibility of flip?
 inline void apply_transition(
+    const bool flag,
     const Half h,    // the halfedge of unfixed side
     const SprsD& m0, // the fixed uv information
           SprsD& m1  // the unfixed adjacent uv information
 ) {
+
     Half h0 = h.twin();
     Half h1 = h;
     Vec2d uv0  = m0.row(h0.next().crnr().id).transpose();
-    Vec2d uv1  = m1.row(h1.prev().crnr().id).transpose();
     Vec2d uv0a = m0.row(h0.prev().crnr().id).transpose();
+    Vec2d uv1  = m1.row(h1.prev().crnr().id).transpose();
     Vec2d uv1a = m1.row(h1.next().crnr().id).transpose();
+
+    if (flag) {
+        std::cout << "h0 tail: " << h0.tail().id << std::endl;
+        std::cout << "h0 head: " << h0.head().id << std::endl;
+        std::cout << "h1 tail: " << h1.tail().id << std::endl;
+        std::cout << "h1 head: " << h1.head().id << std::endl;
+        std::cout << "cid: " << h0.prev().crnr().id << std::endl;
+        //uv0a = Vec2d(-8, -8.21001);
+    }
+
+
+    if (flag) {
+        std::cout << "uv0 : " <<  uv0.transpose()  << std::endl;
+        std::cout << "uv0a: " <<  uv0a.transpose() << std::endl;
+        std::cout << "uv1 : " <<  uv1.transpose()  << std::endl;
+        std::cout << "uv1a: " <<  uv1a.transpose() << std::endl;
+    }
 
     for (int i = 0; i < 4; i++) {
         Mat2d rot = compute_rotation(i);
-        Vec2d res = rot * (uv1a - uv1) + uv0;
-        if ((res - uv0a).norm() < 1e-6) {
+        Vec2d v1 = rot * (uv1a - uv1);
+        Vec2d v2 = uv0a - uv0;
+
+        if ((v1 - v2).norm() < 1e-9) {
+
+            if (flag) {
+                std::cout << "rot : " <<  rot  << std::endl;
+                std::cout << "v1: " <<  v1.transpose() << std::endl;
+                std::cout << "v2: " <<  v2.transpose()  << std::endl;
+            }
             for (SprsD::InnerIterator it(m1, 0); it; ++it) {
                 int ir = it.row();
                 Vec2d p(it.value(), m1.coeff(ir, 1));
@@ -230,14 +257,11 @@ inline MatXd compute_tutte_parameterization(
     while (rg::any_of(flag, [&](auto f) { return !f; })) {
         auto h = hm.halfs[stack.top()];
         stack.pop();
-
         if (flag[h.face().id]) continue;
 
         auto curr = data_by_half.at(h);
-        auto prev = data_by_half.at(h.twin());
         SprsD& uv_curr = uv_tq[curr->tqid];
-        SprsD& uv_prev = uv_tq[prev->tqid];
-        apply_transition(h, uv_prev, uv_curr);
+        apply_transition(false, h, uv.sparseView(), uv_curr);
 
         vec b(hm.nH, false);
         for (auto& d: data) { if (d.tqid == curr->tqid) b[d.half.id] = true; }

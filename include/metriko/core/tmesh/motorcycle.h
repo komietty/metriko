@@ -9,7 +9,11 @@
 #include "../hmesh/hmesh.h"
 #include "../hmesh/utilities.h"
 
-namespace metriko {
+namespace metriko::mc {
+template <class T> using vec = std::vector<T>;
+template <class T> using set = std::set<T>;
+template <class T> using opt = std::optional<T>;
+
 class MotorcycleGraph;
 class Mcurv;
 
@@ -39,19 +43,19 @@ public:
     explicit Melem(const MotorcycleGraph *mg) : mg(mg) { }
 };
 
-enum MvertType { None, HitL, HitR, HitB };
+enum MvertType { None, First, HitL, HitR, HitB };
 
 class Mvert : Melem {
 public:
     complex uv;
     Mcurv *crash = nullptr;
     MvertType type = None;
-    std::optional<std::pair<Half, double>> cut; // part of the halfedge flag
+    opt<std::pair<Half, double>> cut; // part of the halfedge flag
 
     Mvert(
         const MotorcycleGraph *g,
         const complex uv,
-        const std::optional<std::pair<Half, double>>& cut = std::nullopt,
+        const opt<std::pair<Half, double>>& cut = std::nullopt,
         Mcurv *crash = nullptr,
         const MvertType side = None
     ) : Melem(g), uv(uv), crash(crash), type(side), cut(cut) { }
@@ -63,6 +67,7 @@ public:
     Mvert fr;
     Mvert to;
     Face face;
+    complex dir;
     int id = -1;
     int prev_id = -1;
     int next_id = -1;
@@ -72,9 +77,9 @@ public:
         Mcurv *curv,
         const Face &face,
         const Mvert &fr,
-        const Mvert &to
-    ) : Melem(g), curv(curv), face(face), fr(fr), to(to) {
-    }
+        const Mvert &to,
+        const complex dir
+    ) : Melem(g), curv(curv), fr(fr), to(to), face(face), dir(dir) { }
 
     bool operator==(const Msgmt &rhs) const {
         return face  == rhs.face  &&
@@ -87,24 +92,16 @@ public:
     const Msgmt &prev() const;
 };
 
-class Cache {
-public:
-    Half half;
-    double ratio;
-    complex dir;
-    bool intersected = false;
-};
-
 class Mcurv : Melem {
 public:
     const Mport &port;
-    std::vector<Msgmt> sgmts;
-    Cache cache;
+    vec<Msgmt> sgmts;
+    bool intersected = false;
 
-    explicit Mcurv(const MotorcycleGraph *g, const Mport &p) : Melem(g), port(p), cache() { }
+    explicit Mcurv(const MotorcycleGraph *g, const Mport &p) : Melem(g), port(p) { }
     int id() const { return port.id; }
     bool operator==(const Mcurv &rhs) const { return port.id == rhs.port.id; }
-    void add_segment(complex dir, complex uv0, double r0, Half h0, Half h1);
+    void add_segment(complex dir, complex uv0, double r0, Half h0, Half h1, bool first);
 
     void post_process() {
         for (int i = 0; i < sgmts.size(); ++i) sgmts[i].id = i;
@@ -119,8 +116,8 @@ class MotorcycleGraph {
 public:
     const Hmesh &hm;
     const VecXc &cf;
-    std::vector<Mport> mports;
-    std::vector<Mcurv> mcurvs;
+    vec<Mport> mports;
+    vec<Mcurv> mcurvs;
 
     MotorcycleGraph(
         const Hmesh &hm,
@@ -133,8 +130,8 @@ public:
 
         // Add the first segment for each curve
         for (auto &c: mcurvs) {
-            std::optional<Half> h0;
-            std::optional<Half> h1;
+            opt<Half> h0;
+            opt<Half> h1;
             const auto &pr = c.port;
             const auto &vt = pr.vert;
             for (auto h: pr.face.adjHalfs()) {
@@ -142,22 +139,24 @@ public:
                 else if (h.head() != vt) h1 = h;
             }
             assert(h0.value().face() == h1.value().face());
-            c.add_segment(pr.dir, pr.uv, 1, h0.value(), h1.value()); //todo ratio = 1 not 0 does not make sense. Need check.
+            c.add_segment(pr.dir, pr.uv, 1, h0.value(), h1.value(), true); //todo ratio = 1 not 0 does not make sense. Need check.
         }
 
         // Add further segments until every curve crash to another curve
         // Need to consider parallel intersection (e.g., bumpy-cube case)
-        while (rg::any_of(mcurvs, [](auto &e) { return !e.cache.intersected; })) {
+        while (rg::any_of(mcurvs, [](auto &e) { return !e.intersected; })) {
             for (auto &c: mcurvs) {
-                auto [h_, r_, d_, i_] = c.cache;
-                if (i_) continue;
+                if (c.intersected) continue;
+                auto h_ = c.sgmts.back().to.cut.value().first;
+                auto r_ = c.sgmts.back().to.cut.value().second;
+                auto d_ = c.sgmts.back().dir;
                 auto h0 = h_.twin();
                 auto r0 = 1. - r_;
                 auto uv = lerp(cf(h0.prev().crnr().id), cf(h0.next().crnr().id), r0);
                 auto m  = (h0.isCanonical() ? -1 : 1) * matching[h0.edge().id];
                 auto d  = std::polar(1., PI / 2 * m) * d_;
                 auto h1 = get_opposite_half(h0, cf, uv, d);
-                c.add_segment(d, uv, r0, h0, h1);
+                c.add_segment(d, uv, r0, h0, h1, false);
             }
         }
 
@@ -207,15 +206,15 @@ public:
 };
 }
 
-namespace metriko {
+namespace metriko::mc {
 inline const Msgmt &Msgmt::next() const { return curv->sgmts[next_id]; }
 inline const Msgmt &Msgmt::prev() const { return curv->sgmts[prev_id]; }
 
 inline void MotorcycleGraph::gen_ports(const VecXi &singular) {
     for (Vert v: hm.verts) {
         if (singular[v.id] == 0) continue;
-        std::vector<Mport> buff0 {}; // the outer scope buffer to assign next/prev
-        std::vector<Mport> buff1 {}; // the inner scope buffer
+        vec<Mport> buff0 {}; // the outer scope buffer to assign next/prev
+        vec<Mport> buff1 {}; // the inner scope buffer
 
         for (Half h: v.adjHalfs()) {
             buff1.clear();
@@ -261,7 +260,7 @@ inline void split_segment(
     const Msgmt &s0, // segment to be split (might be reference of copy)
     const Msgmt &s1, // segment crashing
     const double r   // ratio for s0
-    ) {
+) {
     Mcurv* c0 = s0.curv;
     Mcurv* c1 = s1.curv;
     auto it = rg::find(c0->sgmts, s0);
@@ -272,7 +271,7 @@ inline void split_segment(
     const auto vfr = Mvert(mg, uv2, std::nullopt, c1, ccw ? HitL : HitR);
     const auto vto = Mvert(mg, to.uv, to.cut, to.crash, to.type);
     it->to = Mvert(mg, uv2, std::nullopt, c1, ccw ? HitR : HitL);
-    c0->sgmts.insert(it + 1, Msgmt(mg, c0, s0.face, vfr, vto));
+    c0->sgmts.insert(it + 1, Msgmt(mg, c0, s0.face, vfr, vto, s0.dir));
 }
 
 inline void Mcurv::add_segment(
@@ -280,7 +279,8 @@ inline void Mcurv::add_segment(
     const complex uv0, // origin in fr size
     const double r0,   // ratio of fr side
     const Half h0,     // halfedge fr in the face
-    const Half h1      // halfedge to in the face
+    const Half h1,     // halfedge to in the face
+    const bool first   // the first segment or not
 ) {
     complex uv1 = mg->cf(h1.prev().crnr().id);
     complex uv2 = mg->cf(h1.next().crnr().id);
@@ -291,7 +291,7 @@ inline void Mcurv::add_segment(
     auto uv3 = lerp(uv1, uv2, r1);
     auto f = h1.face();
 
-    std::vector<std::tuple<double, double, Msgmt>> candidates;
+    vec<std::tuple<double, double, Msgmt>> candidates;
 
     auto sgs = vw::all(mg->mcurvs) |
                vw::filter([&](auto &e) { return e != *this; }) |
@@ -307,17 +307,16 @@ inline void Mcurv::add_segment(
     }
 
     if (candidates.empty()) {
-        auto v1 = Mvert(mg, uv0, std::pair(h0, r0));
+        auto v1 = Mvert(mg, uv0, std::pair(h0, r0), this, first ? First : None);
         auto v2 = Mvert(mg, uv3, std::pair(h1, r1));
-        sgmts.emplace_back(mg, this, f, v1, v2);
-        cache = Cache(h1, r1, dir);
+        sgmts.emplace_back(mg, this, f, v1, v2, dir);
     } else {
         auto [ab, cd, sg_copy] = rg::min(candidates, [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
-        auto v1 = Mvert(mg, uv0, std::pair(h0, r0));
+        auto v1 = Mvert(mg, uv0, std::pair(h0, r0), this, first ? First : None);
         auto v2 = Mvert(mg, lerp(uv0, uv3, ab), std::nullopt, sg_copy.curv, HitB);
-        sgmts.emplace_back(mg, this, f, v1, v2);
-        cache = Cache(h1, r1, dir, true);
+        sgmts.emplace_back(mg, this, f, v1, v2, dir);
         split_segment(mg, sg_copy, sgmts.back(), cd);
+        intersected = true;
     }
 }
 }

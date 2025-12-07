@@ -8,6 +8,7 @@
 #include "metriko/core/tmesh/tmesh.h"
 
 namespace metriko::visualizer {
+    using namespace metriko::mc;
 
     struct SplitVert {
         Msgmt segment;

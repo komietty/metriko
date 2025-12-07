@@ -12,11 +12,16 @@
 #include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
+#include "metriko/core/tutte/tutte_cutting_upsample.h"
 #include "metriko/core/tutte/tutte_params.h"
+#include "metriko/core/tutte/tutte_collapse.h"
 
 // 1: computing speed up
 // 2: tmesh collapsing
 // 3: update vector field
+/// Need to think why smoothing is not working???
+/// Rough embedding is required?? But why??
+/// How to handle with collapse connection? Need Dijkstra algorithm somehow??
 
 using namespace metriko;
 int N = 4;
@@ -33,35 +38,7 @@ MatXd V;
 MatXi F;
 
 int main(int argc, char** argv) {
-
-    {
-        std::cout << "OMP num threads = " << omp_get_max_threads() << std::endl;
-        const int N_bench = 10'000'000;
-        std::vector<double> tmp(N_bench);
-
-        // シリアル版
-        double t0 = omp_get_wtime();
-        for (int i = 0; i < N_bench; ++i) {
-            tmp[i] = i;
-        }
-        double t1 = omp_get_wtime();
-
-        // 並列版
-        double t2 = omp_get_wtime();
-        #pragma omp parallel for
-        for (int i = 0; i < N_bench; ++i) {
-            tmp[i] = i;
-        }
-        double t3 = omp_get_wtime();
-
-        std::cout << "[bench] serial:  " << (t1 - t0) << " s\n";
-        std::cout << "[bench] parallel:" << (t3 - t2) << " s\n";
-        std::cout << "[bench] speedup:  " << (t1 - t0) / (t3 - t2) << " x\n";
-    }
-
-    //std::cout << "Available :SIMD Instructions: "<< Eigen::SimdInstructionSetsInUse() << std::endl;
     igl::readOBJ(argv[1], V, F);
-
     //igl::upsample(V, F, 1);
 
     mesh = std::make_unique<Hmesh>(V, F);
@@ -143,13 +120,13 @@ int main(int argc, char** argv) {
     }
 
     ///--- gen mport, medge ---///
-    auto graph = MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);
+    auto graph = mc::MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);
     auto tmesh = Tmesh(graph.mcurvs);
     VecXd R = VecXd::Zero(tmesh.nTE);
     for (int i = 0; i < tmesh.nTE; i++) {
         bool bgn = false;
         const auto& te = tmesh.tedges[i];
-        for (const Msgmt& seg: te.seg_fr.curv->sgmts) {
+        for (const mc::Msgmt& seg: te.seg_fr.curv->sgmts) {
             if (seg == te.seg_fr) bgn = true;
             if (bgn) {
                 R[i] += std::abs(seg.diff());
@@ -173,6 +150,8 @@ int main(int argc, char** argv) {
     std::set<tutte::HalfData> half_data;
     std::vector<bool> seam_cut;
 
+    //tutte::compute_embedded_halfs(*mesh, tmesh, uv2, half_data);
+
     double t_cut0 = omp_get_wtime();
     Hmesh hm_cut = tutte::compute_embedding_cut_hmesh(*mesh, tmesh, uv2, R, seam, seam_cut, half_data);
     double t_cut1 = omp_get_wtime();
@@ -192,39 +171,9 @@ int main(int argc, char** argv) {
         prms1->setEnabled(true);
         prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
         prms1->setCheckerSize(1);
-
     }
 
-    /*
-    {
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2>> es;
-        std::vector<double> val;
-        size_t count = 0;
-
-        for (const auto& hd: half_data) {
-            if (hd.tqid != 0) continue;
-            Row3d p1 = hd.half.tail().pos();
-            Row3d p2 = hd.half.head().pos();
-            ns.emplace_back(p1.x(), p1.y(), p1.z());
-            ns.emplace_back(p2.x(), p2.y(), p2.z());
-            val.emplace_back(hd.v0);
-            val.emplace_back(hd.v1);
-            es.emplace_back(std::array{count, count + 1});
-            count += 2;
-        }
-        auto c = polyscope::registerCurveNetwork("cut half data", ns, es);
-        auto v = c->addNodeScalarQuantity("val", val);
-        c->setEnabled(true);
-        v->setEnabled(true);
-        c->resetTransform();
-        c->setRadius(0.002);
-    }
-    */
-
-    ///--- visuailize seam of cut mesh ---///
-    ///auto hm_cut_cut = compute_cut_mesh(hm_cut, seam_cut);
-    /*
+    ///--- visuailize seam of cut mesh ---
     {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -239,12 +188,128 @@ int main(int argc, char** argv) {
                 counter += 2;
             }
         }
-        auto c = polyscope::registerCurveNetwork("seam_cut", ns, es);
+        auto c = polyscope::registerCurveNetwork("seam of cut mesh", ns, es);
         c->setEnabled(true);
         c->resetTransform();
-        c->setRadius(0.001);
+        c->setRadius(0.002);
     }
+    /*
     */
+
+    tutte::extract_polyline_from_tquad(hm_cut, tmesh, tmesh.tquads[3], half_data, R, X);
+
+    { // cut half data 1
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> val1; //
+        std::vector<double> val2; // first, or crash information
+        std::vector<double> val3; // tqid
+        size_t count = 0;
+
+        for (const auto& hd: half_data) {
+            if (!tmesh.thalfs[hd.thid].cano) continue;
+            //if (hd.tqid != 3) continue;
+            Row3d p1 = hd.half.tail().pos();
+            Row3d p2 = hd.half.head().pos();
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            val1.emplace_back(hd.v0);
+            val1.emplace_back(hd.v1);
+            val2.emplace_back(hd.first ? 1 : 0);
+            val2.emplace_back(hd.crash ? 1 : 0);
+            val3.emplace_back(hd.tqid);
+            es.emplace_back(std::array{count, count + 1});
+            count += 2;
+        }
+        auto c = polyscope::registerCurveNetwork("cut half data 1", ns, es);
+        auto v1 = c->addNodeScalarQuantity("val1", val1);
+        auto v2 = c->addNodeScalarQuantity("val2", val2);
+        c->addEdgeScalarQuantity("tqid", val3);
+        c->setEnabled(false);
+        v2->setEnabled(true);
+        c->resetTransform();
+        c->setRadius(0.002);
+    }
+    { // cut half data 2
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> val1; //
+        std::vector<double> val2; // first, or crash information
+        std::vector<double> val3; // tqid
+        size_t count = 0;
+
+        for (const auto& hd: half_data) {
+            if (tmesh.thalfs[hd.thid].cano) continue;
+            //if (hd.tqid != 3) continue;
+            Row3d p1 = hd.half.tail().pos();
+            Row3d p2 = hd.half.head().pos();
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            val1.emplace_back(hd.v0);
+            val1.emplace_back(hd.v1);
+            val2.emplace_back(hd.first ? 1 : 0);
+            val2.emplace_back(hd.crash ? 1 : 0);
+            val3.emplace_back(hd.tqid);
+            es.emplace_back(std::array{count, count + 1});
+            count += 2;
+        }
+        auto c = polyscope::registerCurveNetwork("cut half data 2", ns, es);
+        auto v1 = c->addNodeScalarQuantity("val1", val1);
+        auto v2 = c->addNodeScalarQuantity("val2", val2);
+        c->addEdgeScalarQuantity("tqid", val3);
+        c->setEnabled(false);
+        v2->setEnabled(true);
+        c->resetTransform();
+        c->setRadius(0.002);
+    }
+
+    /*
+    ///--- visuailize seam of cut mesh ---///
+    auto hm_cut_cut = compute_cut_mesh(hm_cut, seam_cut);
+    // todo: need to assert locally injective here...
+
+    std::vector<int> b_;
+    std::vector<Row2d> bc_;
+
+    for (auto v: hm_cut_cut->verts) {
+        if (v.isBoundary()) {
+            Row2d val = uv.row(v.half().next().crnr().id);
+            b_.push_back(v.id);
+            bc_.push_back(val);
+        }
+    }
+
+    Eigen::VectorXi b;
+    Eigen::MatrixXd bc;
+
+    b = Eigen::Map<VecXi>(b_.data(), b_.size());
+    bc.resize(bc_.size(), 2);
+
+
+    for (int i = 0; i < static_cast<int>(bc_.size()); ++i) { bc.row(i) = bc_[i]; }
+    double soft_const_p = 0;
+    Eigen::MatrixXd uv_init(hm_cut_cut->nV, 2);
+    for (auto v: hm_cut_cut->verts) {
+        uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
+    }
+    igl::SLIMData sData;
+    sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
+
+    slim_precompute(hm_cut_cut->pos, hm_cut_cut->idx, uv_init, sData, sData.slim_energy, b, bc, soft_const_p);
+    slim_solve(sData, 100);
+
+    std::cout << "slim result: " << (sData.V_o - uv_init).norm() << std::endl;
+
+    const auto surf_cut_cut = polyscope::registerSurfaceMesh("cut_2", hm_cut_cut->pos, hm_cut_cut->idx);
+    auto prms2 = surf_cut_cut->addVertexParameterizationQuantity("params_2", sData.V_o);
+    prms2->setEnabled(true);
+    prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+    prms2->setCheckerSize(1);
+     *
+     */
+
+    polyscope::show();
+    return 0;
 
     /*
     std::vector<std::vector<visualizer::SplitVert> > split_verts(tmesh.nTE);
@@ -273,43 +338,4 @@ int main(int argc, char** argv) {
     prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
     prms1->setCheckerSize(1);
     */
-
-    /*
-    std::vector<int> b_;
-    std::vector<Row2d> bc_;
-
-    for (auto v: hm_cut_cut->verts) {
-        if (v.isBoundary()) {
-            Row2d val = uv.row(v.half().next().crnr().id);
-            b_.push_back(v.id);
-            bc_.push_back(val);
-        }
-    }
-
-    Eigen::VectorXi b;
-    Eigen::MatrixXd bc;
-
-    b = Eigen::Map<VecXi>(b_.data(), b_.size());
-    bc.resize(bc_.size(), 2);
-    for (int i = 0; i < static_cast<int>(bc_.size()); ++i) { bc.row(i) = bc_[i]; }
-    double soft_const_p = 1e10;
-    Eigen::MatrixXd uv_init(hm_cut_cut->nV, 2);
-    for (auto v: hm_cut_cut->verts) {
-        uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
-    }
-    igl::SLIMData sData;
-    sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
-
-    slim_precompute(hm_cut_cut->pos, hm_cut_cut->idx, uv_init, sData, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, bc, soft_const_p);
-    slim_solve(sData, 50);
-
-    const auto surf_cut_cut = polyscope::registerSurfaceMesh("cut_2", hm_cut_cut->pos, hm_cut_cut->idx);
-    auto prms2 = surf_cut_cut->addVertexParameterizationQuantity("params_2", sData.V_o);
-    prms2->setEnabled(true);
-    prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-    prms2->setCheckerSize(1);
-    */
-
-    polyscope::show();
-    return 0;
 }

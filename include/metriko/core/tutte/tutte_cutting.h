@@ -9,9 +9,9 @@
 #include "metriko/core/tmesh/tmesh.h"
 
 namespace metriko::tutte {
-template <class T>
-using vec = std::vector<T>;
 
+template <class T> using vec = std::vector<T>;
+template <class T> using set = std::set<T>;
 
 namespace impl_eb {
 constexpr double EPS = 1e-10;
@@ -55,6 +55,8 @@ struct HalfData {
     int thid;
     int tqid;
     int order;
+    bool first = false;
+    bool crash = false;
 
     bool operator<(const HalfData& rhs) const noexcept {
         return std::tie(tqid, thid, order) < std::tie(rhs.tqid, rhs.thid, rhs.order);
@@ -62,7 +64,7 @@ struct HalfData {
 };
 
 struct AuxSgmt {
-    Msgmt sg;
+    mc::Msgmt sg;
     Thalf th;
     int ord0; // order cano
     int ord1; // order non cano
@@ -114,7 +116,7 @@ inline void face_cutting(
     }
 
     for (const auto& [sg, th, o0, o1, v0, v1]: sgs) {
-        std::pair<const Mvert*, int> mvs[2] = {
+        std::pair<const mc::Mvert*, int> mvs[2] = {
             std::pair(&sg.fr, -1),
             std::pair(&sg.to, -1)
         };
@@ -146,8 +148,14 @@ inline void face_cutting(
             }
         }
 
-        halfs.emplace_back(AuxHalf2{mvs[0].second, mvs[1].second, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , tm.th2quad(th.id)  , o0 }});
-        halfs.emplace_back(AuxHalf2{mvs[1].second, mvs[0].second, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), o1 }});
+        auto [mv0, i0] = mvs[0];
+        auto [mv1, i1] = mvs[1];
+        bool f0 = mv0->type == mc::MvertType::First;
+        bool f1 = mv1->type == mc::MvertType::First;
+        bool b0 = mv0->type == mc::MvertType::HitB;
+        bool b1 = mv1->type == mc::MvertType::HitB;
+        halfs.emplace_back(AuxHalf2{i0, i1, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , tm.th2quad(th.id)  , o0, f0, b1 }});
+        halfs.emplace_back(AuxHalf2{i1, i0, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), o1, f1, b0 }});
     }
 
     // 2: assign edge halfs
@@ -239,13 +247,13 @@ inline void face_cutting(
 // positions of each tedges are consistent as the whole graph.
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
 inline Hmesh compute_embedding_cut_hmesh(
-    const Hmesh& hm, // input hmesh
-    const Tmesh& tm, // input tmesh
-    const VecXc& cf, // input corner function of naive parameterization
-    const VecXd& R,  //
-    const vec<bool>& seam0, //
-          vec<bool>& seam1, //
-    std::set<HalfData>& h_data   //
+    const Hmesh& hm,           // input hmesh
+    const Tmesh& tm,           // input tmesh
+    const VecXc& cf,           // input corner function of naive parameterization
+    const VecXd& R,            //
+    const vec<bool>& seam0,    //
+          vec<bool>& seam1,    //
+    std::set<HalfData>& h_data //
 ) {
     std::map<int, vec<AuxSgmt>> cuts; // face id & aux segment data
 
@@ -324,7 +332,7 @@ inline Hmesh compute_embedding_cut_hmesh(
 
         if (data.has_value()) {
             const auto& v = data.value();
-            h_data.emplace(HalfData{it->second, v.v0, v.v1, v.thid, v.tqid, v.order});
+            h_data.emplace(HalfData{it->second, v.v0, v.v1, v.thid, v.tqid, v.order, v.first, v.crash});
         }
     }}}
 
