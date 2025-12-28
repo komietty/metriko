@@ -4,6 +4,8 @@
 
 #ifndef METRIKO_MOTORCYCLE_H
 #define METRIKO_MOTORCYCLE_H
+#include <utility>
+
 #include "../common/utilities.h"
 #include "../common/predicates.h"
 #include "../hmesh/hmesh.h"
@@ -69,17 +71,23 @@ public:
     Face face;
     complex dir;
     int id = -1;
+    int curv_id = -1;
     int prev_id = -1;
     int next_id = -1;
 
     Msgmt(
         const MotorcycleGraph *g,
         Mcurv *curv,
-        const Face &face,
-        const Mvert &fr,
-        const Mvert &to,
+        Face face,
+        Mvert fr,
+        Mvert to,
         const complex dir
-    ) : Melem(g), curv(curv), fr(fr), to(to), face(face), dir(dir) { }
+    ) : Melem(g),
+        curv(curv),
+        fr(std::move(fr)),
+        to(std::move(to)),
+        face(face),
+        dir(dir) {}
 
     bool operator==(const Msgmt &rhs) const {
         return face  == rhs.face  &&
@@ -104,7 +112,10 @@ public:
     void add_segment(complex dir, complex uv0, double r0, Half h0, Half h1, bool first);
 
     void post_process() {
-        for (int i = 0; i < sgmts.size(); ++i) sgmts[i].id = i;
+        for (int i = 0; i < sgmts.size(); ++i) {
+            sgmts[i].curv_id = id();
+            sgmts[i].id = i;
+        }
         for (int i = 0; i < sgmts.size() - 1; ++i) {
             sgmts[i].next_id = i + 1;
             sgmts[i + 1].prev_id = i;

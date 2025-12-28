@@ -39,8 +39,8 @@ namespace metriko::visualizer {
 
 
     inline void gen_split_table(
-        const Tmesh& tmesh,
-        const Tquad& tquad,
+        const tm::Tmesh& tmesh,
+        const tm::Tquad& tquad,
         const std::vector<std::vector<SplitVert>>& sverts_per_tedge,
         std::vector<std::vector<SplitElem>>& sverts_per_tquad
     ) {

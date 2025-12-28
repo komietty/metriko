@@ -126,7 +126,7 @@ namespace metriko {
     inline EmbeddedTEdge gen_embedded_tedge(
         const Hmesh &hmesh,
         const VecXc &cfn,
-        const Tedge &tedge,
+        const tm::Tedge &tedge,
         std::vector<bool> &passthroughs
     ) {
         const int fr_vid = find_closest_point(cfn, tedge.uv_fr(), tedge.seg_fr.face);
@@ -174,7 +174,7 @@ namespace metriko {
     inline std::optional<EmbeddedTEdge> gen_embedded_tedge_easy(
         const Hmesh &hmesh,
         const VecXc &cfn,
-        const Tedge &tedge,
+        const tm::Tedge &tedge,
         std::vector<bool> &passthroughs
     ) {
         std::vector<int> vids;

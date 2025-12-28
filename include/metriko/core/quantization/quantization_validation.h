@@ -9,7 +9,7 @@
 
 namespace metriko {
     inline bool compute_validation(
-        const Tmesh &tm,
+        const tm::Tmesh &tm,
         const VecXd &X,
         const int thid
     ) {
@@ -38,7 +38,7 @@ namespace metriko {
     }
 
     inline bool compute_validation(
-        const Tmesh &tm,
+        const tm::Tmesh &tm,
         const VecXd &X
     ) {
         return (X.array() > 0).all() &&

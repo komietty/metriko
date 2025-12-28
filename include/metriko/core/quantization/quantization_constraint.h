@@ -7,7 +7,7 @@
 #include "metriko/core/tmesh/tmesh.h"
 
 namespace metriko {
-    inline MatXd compute_constraint(const Tmesh &tmesh) {
+    inline MatXd compute_constraint(const tm::Tmesh &tmesh) {
         MatXd M = MatXd::Zero(tmesh.nTQ * 2, tmesh.nTE);
         for (int iq = 0; iq < tmesh.nTQ; iq++) {
             const auto &tq = tmesh.tquads[iq];

@@ -28,8 +28,8 @@ namespace metriko::visualizer {
     }
 
     inline SplitTable gen_intersection_table(
-        const Tmesh &tmesh,
-        const Tquad &tquad,
+        const tm::Tmesh &tmesh,
+        const tm::Tquad &tquad,
         const std::vector<SplitArc> &arcs1,
         const std::vector<SplitArc> &arcs2,
         const VecXc& cfn
@@ -42,7 +42,7 @@ namespace metriko::visualizer {
 
         for (int i = 0; i < 4; i++) {
             int thid = tquad.find_first_thid(i);
-            Thalf th = tmesh.thalfs[thid];
+            tm::Thalf th = tmesh.thalfs[thid];
             complex uv = th.uv_fr();
             Row3d p = conversion_2d_3d(th.sg_fr().face, cfn, uv);
             pos.push_back(p);

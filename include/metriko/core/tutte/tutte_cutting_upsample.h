@@ -9,17 +9,17 @@
 namespace metriko::tutte {
 inline void compute_embedded_halfs(
     const Hmesh& hm,      // input hmesh
-    const Tmesh& tm,      // input tmesh
+    const tm::Tmesh& tm,      // input tmesh
     const VecXc& cf,      // input corner function of naive parameterization
     set<HalfData>& h_data //
 ) {
     vec<bool> visit = vec(hm.nV, false);
 
     int temp = 0;
-    for (const Thalf& th: tm.thalfs) {
+    for (const auto& th: tm.thalfs) {
         if (!th.cano) continue;
         if (++temp > 15) {}
-        const Tedge& te = th.edge();
+        const auto& te = th.edge();
         vec<int> vids0;
         vec<int> vids1;
         vec<Half> hs;

@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
 
     ///--- gen mport, medge ---///
     auto graph = mc::MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);
-    auto tmesh = Tmesh(graph.mcurvs);
+    auto tmesh = metriko::tm::Tmesh(graph.mcurvs);
     VecXd R = VecXd::Zero(tmesh.nTE);
     for (int i = 0; i < tmesh.nTE; i++) {
         bool bgn = false;
@@ -196,7 +196,16 @@ int main(int argc, char** argv) {
     /*
     */
 
-    tutte::extract_polyline_from_tquad(hm_cut, tmesh, tmesh.tquads[3], half_data, R, X);
+    for (auto thid: tmesh.tquads[7].thids) {
+        int teid = tmesh.thalfs[thid].teid;
+        std::cout << "teid: " << teid << std::endl;
+    }
+
+    for (auto tq: tmesh.tquads) {
+        //if (tq.id != 8) continue;
+        //if (tq.id == 8) continue;
+        tutte::extract_polyline_from_tquad(hm_cut, tmesh, tq, half_data, R, X);
+    }
 
     { // cut half data 1
         std::vector<glm::vec3> ns;

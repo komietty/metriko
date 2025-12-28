@@ -23,12 +23,12 @@ namespace metriko {
 
     template<typename Func>
     std::vector<int> gen_basis_loop(
-        const std::vector<Tquad>& tquads,
-        const std::vector<Thalf>& thalfs,
+        const std::vector<tm::Tquad>& tquads,
+        const std::vector<tm::Thalf>& thalfs,
         const VecXi& thalf_tquad_table,
         const VecXi& thalf_sides_table,
         const VecXd& R,
-        const Thalf& bgn,
+        const tm::Thalf& bgn,
         Func compare
     ) {
         std::priority_queue<Comparator, std::vector<Comparator>, decltype(compare)> q(compare);
@@ -41,7 +41,7 @@ namespace metriko {
 
         do {
             int len = q.top().length;
-            Thalf prev = thalfs[q.top().thid];
+            tm::Thalf prev = thalfs[q.top().thid];
             q.pop();
 
             int tquad_idx = thalf_tquad_table[prev.id];

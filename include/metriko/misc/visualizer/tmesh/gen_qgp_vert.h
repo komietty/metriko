@@ -22,7 +22,7 @@ namespace metriko::visualizer {
     };
 
     inline std::vector<SplitVert> construct_verts_on_tedge(
-        const Tmesh& tm,
+        const tm::Tmesh& tm,
         const VecXd& X,
         const VecXd& R,
         const int teid

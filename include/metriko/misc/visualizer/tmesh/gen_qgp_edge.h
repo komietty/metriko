@@ -19,8 +19,8 @@ namespace metriko::visualizer {
     };
 
     inline void compute_numeric_offsets(
-        const Tmesh& tm,
-        const Tquad& tq,
+        const tm::Tmesh& tm,
+        const tm::Tquad& tq,
         const VecXd& R,
         const int bgnSide,
         const SplitElem& split_v_fr,
@@ -46,8 +46,8 @@ namespace metriko::visualizer {
     }
 
     inline SplitArc gen_split_arc(
-        const Tmesh& tm,
-        const Tquad& tq,
+        const tm::Tmesh& tm,
+        const tm::Tquad& tq,
         const VecXd& R,
         const VecXc& cfn_C,
         const VecXi& cmbf_matching,

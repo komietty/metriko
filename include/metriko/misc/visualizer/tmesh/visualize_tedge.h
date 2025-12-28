@@ -10,7 +10,7 @@
 
 namespace metriko::visualizer {
     inline void visualize_tedge(
-        const Tmesh& tm,
+        const tm::Tmesh& tm,
         const VecXc& uv,
         const VecXd* X = nullptr,
         const VecXd* R = nullptr,

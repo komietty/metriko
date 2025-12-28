@@ -54,7 +54,7 @@ struct HalfData {
     double v1;
     int thid;
     int tqid;
-    int order;
+    int order; // order inside thalf
     bool first = false;
     bool crash = false;
 
@@ -65,7 +65,7 @@ struct HalfData {
 
 struct AuxSgmt {
     mc::Msgmt sg;
-    Thalf th;
+    tm::Thalf th;
     int ord0; // order cano
     int ord1; // order non cano
     Row2d v0; // val cano
@@ -84,7 +84,7 @@ using AuxFace  = vec<std::array<AuxHalf2, 3>>;     // per original face, this co
 
 // Beware epsilon validity must be solved beforehand
 inline void face_cutting(
-    const Tmesh& tm,         //
+    const tm::Tmesh& tm,     //
     const Face& f,           // face to be cut
     const VecXc& cf,         // corner function of original mesh
     const vec<AuxSgmt>& sgs, // segments inside the face
@@ -248,7 +248,7 @@ inline void face_cutting(
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
 inline Hmesh compute_embedding_cut_hmesh(
     const Hmesh& hm,           // input hmesh
-    const Tmesh& tm,           // input tmesh
+    const tm::Tmesh& tm,           // input tmesh
     const VecXc& cf,           // input corner function of naive parameterization
     const VecXd& R,            //
     const vec<bool>& seam0,    //
@@ -257,9 +257,9 @@ inline Hmesh compute_embedding_cut_hmesh(
 ) {
     std::map<int, vec<AuxSgmt>> cuts; // face id & aux segment data
 
-    for (const Thalf& th: tm.thalfs) {
+    for (const auto& th: tm.thalfs) {
         if (!th.cano) continue;
-        const Tedge& te = th.edge();
+        const auto& te = th.edge();
         const double r = R[te.id];
         double sum = 0;
         int order = 0;

@@ -11,8 +11,8 @@
 #include "quantization_validation.h"
 
 namespace metriko {
-    inline void validate_quantization(const Tmesh &tmesh, const VecXd &X) {
-        for (const Tquad &tquad: tmesh.tquads) {
+    inline void validate_quantization(const tm::Tmesh &tmesh, const VecXd &X) {
+        for (const tm::Tquad &tquad: tmesh.tquads) {
             for (int i = 0; i < 2; i++) {
                 auto thidsA = tquad.thids_by_side(i);
                 auto thidsB = tquad.thids_by_side(i + 2);
@@ -26,7 +26,7 @@ namespace metriko {
     }
 
    inline VecXd compute_quantization(
-       const Tmesh& tmesh,
+       const tm::Tmesh& tmesh,
        const VecXd& R
    ) {
        VecXd X = VecXd::Zero(tmesh.tedges.size());
