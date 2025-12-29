@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
 
 
 
-    std::set<tutte::HalfData> half_data;
+    std::vector<tutte::HalfData> half_data;
     std::vector<bool> seam_cut;
 
     //tutte::compute_embedded_halfs(*mesh, tmesh, uv2, half_data);
@@ -196,14 +196,8 @@ int main(int argc, char** argv) {
     /*
     */
 
-    for (auto thid: tmesh.tquads[7].thids) {
-        int teid = tmesh.thalfs[thid].teid;
-        std::cout << "teid: " << teid << std::endl;
-    }
-
     for (auto tq: tmesh.tquads) {
-        //if (tq.id != 8) continue;
-        //if (tq.id == 8) continue;
+        //if (tq.id != 16) continue;
         tutte::extract_polyline_from_tquad(hm_cut, tmesh, tq, half_data, R, X);
     }
 

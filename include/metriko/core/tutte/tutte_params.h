@@ -18,7 +18,7 @@ inline Mat2d compute_rotation(int i) {
 
 inline SprsD embedding_tutte_for_tquad(
     const int tqid,
-    const std::set<HalfData>& data,
+    const std::vector<HalfData>& data,
     const Hmesh& hm, // the cut mesh
     const tm::Tmesh& tm, // the tmesh of original hmesh
     const VecXd& X
@@ -223,9 +223,9 @@ struct HalfHash { std::size_t operator()(const Half& h) const noexcept { return 
 
 inline MatXd compute_tutte_parameterization(
     const Hmesh& hm,                // hmesh after tutte cutting
-    const tm::Tmesh& tm,                // tmesh original
+    const tm::Tmesh& tm,            // tmesh original
     const vec<bool>& seam,          // seam adapted to tutte cutting
-    const std::set<HalfData>& data, //
+    const std::vector<HalfData>& data, //
     const VecXd& X                  //
 ) {
     // compute uv per tquad first...

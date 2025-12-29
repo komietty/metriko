@@ -54,6 +54,7 @@ struct HalfData {
     double v1;
     int thid;
     int tqid;
+    int twin;
     int order; // order inside thalf
     bool first = false;
     bool crash = false;
@@ -154,8 +155,8 @@ inline void face_cutting(
         bool f1 = mv1->type == mc::MvertType::First;
         bool b0 = mv0->type == mc::MvertType::HitB;
         bool b1 = mv1->type == mc::MvertType::HitB;
-        halfs.emplace_back(AuxHalf2{i0, i1, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , tm.th2quad(th.id)  , o0, f0, b1 }});
-        halfs.emplace_back(AuxHalf2{i1, i0, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), o1, f1, b0 }});
+        halfs.emplace_back(AuxHalf2{i0, i1, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , tm.th2quad(th.id)  , -1, o0, f0, b1 }});
+        halfs.emplace_back(AuxHalf2{i1, i0, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), -1, o1, f1, b0 }});
     }
 
     // 2: assign edge halfs
@@ -248,12 +249,12 @@ inline void face_cutting(
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
 inline Hmesh compute_embedding_cut_hmesh(
     const Hmesh& hm,           // input hmesh
-    const tm::Tmesh& tm,           // input tmesh
+    const tm::Tmesh& tm,       // input tmesh
     const VecXc& cf,           // input corner function of naive parameterization
     const VecXd& R,            //
     const vec<bool>& seam0,    //
           vec<bool>& seam1,    //
-    std::set<HalfData>& h_data //
+    std::vector<HalfData>& h_data_vec //
 ) {
     std::map<int, vec<AuxSgmt>> cuts; // face id & aux segment data
 
@@ -300,7 +301,7 @@ inline Hmesh compute_embedding_cut_hmesh(
     }
 
     auto hm_cut = Hmesh(vert_info, face_info);
-    h_data.clear();
+    auto h_data = std::set<HalfData>();
     seam1 = std::vector(hm_cut.nE, false);
 
     struct EdgeKey {
@@ -332,9 +333,16 @@ inline Hmesh compute_embedding_cut_hmesh(
 
         if (data.has_value()) {
             const auto& v = data.value();
-            h_data.emplace(HalfData{it->second, v.v0, v.v1, v.thid, v.tqid, v.order, v.first, v.crash});
+            h_data.emplace(HalfData{it->second, v.v0, v.v1, v.thid, v.tqid, -1, v.order, v.first, v.crash});
         }
     }}}
+
+    h_data_vec = std::vector(h_data.begin(), h_data.end());
+
+    for (auto& hd0: h_data_vec) {
+        for (int i = 0; i < h_data_vec.size(); i++)
+            if (hd0.half.twin() == h_data_vec[i].half) { hd0.twin = i; }
+    }
 
     return hm_cut;
 }

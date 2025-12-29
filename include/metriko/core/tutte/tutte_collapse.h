@@ -22,145 +22,99 @@ inline void extract_polyline_from_tquad(
     Hmesh& hm,
     tm::Tmesh& tm,
     tm::Tquad& tq,
-    set<HalfData>& data,
+    const std::vector<HalfData>& data,
     VecXd& R,
     VecXd& X
 ) {
 
     int side = -1; // if 0 or 1, collapse
     for (int i = 0; i < 2; i++) {
-        int sum = rg::fold_left(tq.thids_by_side(i), 0,
-                                [&](int acc, int thid) { return acc + (int)X[tm.thalfs[thid].edge().id]; });
+        int sum = rg::fold_left(tq.thids_by_side(i), 0, [&](int acc, int thid) { return acc + (int)X[tm.thalfs[thid].edge().id]; });
         if (sum == 1) side = i; // todo: right now not 0 but 1
     }
 
     if (side == -1) return;
-
     int bgn = -1;
     int end = -1;
-    int bgn_ord = -1;
-    int end_ord = -1;
+    int bgn_flg = false;
+    int end_flg = false;
     set<AuxDijkData> aux;
 
     int remain_side_a = side == 0 ? 1 : 2;
     int remain_side_b = side == 0 ? 3 : 0;
     auto thids_p = tq.thids_by_side(side == 0 ? 0 : 1); // collapse side p
     auto thids_q = tq.thids_by_side(side == 0 ? 2 : 3); // collapse side q
-    auto thids_a = tq.thids_by_side(remain_side_a); // remain side a
-    auto thids_b = tq.thids_by_side(remain_side_b); // remain side b
+    auto thids_a = tq.thids_by_side(remain_side_a);     // remain side a
+    auto thids_b = tq.thids_by_side(remain_side_b);     // remain side b
 
     auto hdata_tq = rg::equal_range(data, tq.id, {}, &HalfData::tqid);
-    auto hdata_th_p = hdata_tq | vw::filter([&](const HalfData& hd) { return rg::contains(thids_p, hd.thid); });
-    auto hdata_th_q = hdata_tq | vw::filter([&](const HalfData& hd) { return rg::contains(thids_q, hd.thid); });
+    auto hdata_th_p = hdata_tq | vw::filter([&](const auto& hd) { return rg::contains(thids_p, hd.thid); });
+    auto hdata_th_q = hdata_tq | vw::filter([&](const auto& hd) { return rg::contains(thids_q, hd.thid); });
 
-    for (auto hd: hdata_th_p) {
-        std::cout << "hid in p: " << hd.half.tail().pos() << std::endl;
-        std::cout << "hid in p: " << hd.half.head().pos() << std::endl;
-        if (hd.first) { bgn = hd.half.tail().id; bgn_ord = hd.order; break; }
-        Half h = hd.half.twin();
-        for (const HalfData& hd_ : data) {
-            if (hd_.half == h && hd_.first) {
-                bgn = hd_.half.tail().id;
-                bgn_ord = 1; // todo: just wanted to represent not 0
-                break;
-            }
-        }
-    }
-    if (bgn == -1) {
-        for (auto hd: hdata_th_p) {
-            if (hd.crash) {
-                bgn = hd.half.tail().id; // todo: head??
-                bgn_ord = hd.order;
-                break;
-            }
-        }
+    // for collapse side p, from singular it is prior
+    for (const auto& hd0: hdata_th_p) {
+        auto hd1 = data[hd0.twin];
+        if (hd0.first) { bgn = hd0.half.tail().id; bgn_flg = true; break; }
+        if (hd1.first) { bgn = hd1.half.tail().id; break; }
     }
 
-    // if not find
+    // for collapse side q, from singular it is prior
+    for (const auto& hd0: hdata_th_q) {
+        auto hd1 = data[hd0.twin];
+        if (hd0.first) { end = hd0.half.tail().id; end_flg = true; break; }
+        if (hd1.first) { end = hd1.half.tail().id; break; }
+    }
+
     if (bgn == -1) {
-        for (auto hd: hdata_th_p) {
-            Half h = hd.half.twin();
-            for (const HalfData& hd_ : data) {
-                if (hd_.half == h && hd_.crash) {
-                    bgn = hd_.half.head().id;
-                    bgn_ord = hd.order;
-                    break;
-                }
-            }
+        for (const auto& hd0: hdata_th_p) {
+            auto hd1 = data[hd0.twin];
+            if (hd0.crash) { std::cout << "bgn_crash 0" << std::endl; bgn = hd0.half.head().id; break; }
+            if (hd1.crash) { std::cout << "bgn_crash 1" << std::endl; bgn = hd1.half.head().id; break; }
+        }
+    }
+
+    if (end == -1) {
+        for (const auto& hd0: hdata_th_q) {
+            auto hd1 = data[hd0.twin];
+            if (hd0.crash) { std::cout << "end crash 0" << std::endl; end = hd0.half.head().id; break; }
+            if (hd1.crash) { std::cout << "end crash 1" << std::endl; end = hd1.half.head().id; end_flg = hd0.order == 1; break; }
         }
     }
 
     double sum = 0;
-
     for (int thid_: thids_a) {
         const auto& th = tm.thalfs[thid_];
         const auto& te = tm.tedges[th.teid];
         sum += X[te.id];
-
-        auto hds = hdata_tq | vw::filter([&](const HalfData& hd) { return hd.thid == thid_; });
-        auto last = rg::rbegin(hds);
-        aux.emplace(AuxDijkData{ last->half.head(), tm.th2side(thid_), sum });
     }
 
-    for (auto hd: hdata_th_q) {
-        if (hd.first) { end = hd.half.tail().id; break; }
-
-        Half h = hd.half.twin();
-        for (const HalfData& hd_ : data) {
-            if (hd_.half == h && hd_.first) {
-                end = hd_.half.tail().id;
-                end_ord = 1; // todo: just wanted to represent not 0
-                break;
-            }
-        }
-    }
-
-    if (end == -1) {
-        for (auto hd: hdata_th_q) {
-            if (hd.crash) {
-                end = hd.half.tail().id;
-                break;
-            }
-        }
-    }
-
-    // if not find
-    if (end == -1) {
-        for (auto hd: hdata_th_q) {
-            Half h = hd.half.twin();
-            for (const HalfData& hd_ : data) {
-                if (hd_.half == h && hd_.crash) {
-                    end = hd_.half.head().id;
-                    end_ord = hd.order;
-                    break;
-                }
-            }
-        }
-    }
-
-    int side_bgn = bgn_ord == 0 ? remain_side_b : remain_side_a;
-    int side_end = end_ord == 0 ? remain_side_a : remain_side_b;
+    int side_bgn = bgn_flg ? remain_side_b : remain_side_a;
+    int side_end = end_flg ? remain_side_a : remain_side_b;
     aux.emplace(AuxDijkData{hm.verts[bgn], side_bgn, 0.});
     aux.emplace(AuxDijkData{hm.verts[end], side_end, sum});
 
-    for (int thid_: thids_b) {
-        const auto& th = tm.thalfs[thid_];
-        const auto& te = tm.tedges[th.teid];
-        sum -= X[te.id];
-
-        auto hds = hdata_tq | vw::filter([&](const HalfData& hd) { return hd.thid == thid_; });
+    sum = 0;
+    for (int thid_: thids_a) {
+        sum += X[tm.tedges[tm.thalfs[thid_].teid].id];
+        auto hds  = hdata_tq | vw::filter([&](const auto& hd) { return hd.thid == thid_; });
         auto last = rg::rbegin(hds);
         aux.emplace(AuxDijkData{ last->half.head(), tm.th2side(thid_), sum });
     }
 
-    if (aux.size() == 0) return;
+    for (int thid_: thids_b) {
+        sum -= X[tm.tedges[tm.thalfs[thid_].teid].id];
+        auto hds  = hdata_tq | vw::filter([&](const auto& hd) { return hd.thid == thid_; });
+        auto last = rg::rbegin(hds);
+        aux.emplace(AuxDijkData{ last->half.head(), tm.th2side(thid_), sum });
+    }
+
+    if (aux.empty()) return;
 
 
     assert(sum == 0);
-    //assert(bgn != -1);
-    //assert(end != -1);
-    std::cout << "bgn: " << bgn << std::endl;
-    std::cout << "end: " << end << std::endl;
+    assert(bgn != -1);
+    assert(end != -1);
+
     std::vector<int> full_path;
     auto visit = std::vector(hm.nH, false);
 
@@ -185,8 +139,6 @@ inline void extract_polyline_from_tquad(
             full_path.insert(full_path.end(), path.begin(), path.end());
         }
     }
-    /*
-    */
 
     // debug polyline
     {
@@ -194,9 +146,7 @@ inline void extract_polyline_from_tquad(
         std::vector<double> val;
         std::vector<double> side;
 
-        std::cout << "aux size: " << aux.size() << std::endl;
-
-        for (auto& ad: aux) {
+        for (const auto& ad: aux) {
             Vert v = ad.vert;
             pts.emplace_back(v.pos().x(), v.pos().y(), v.pos().z());
             val.emplace_back(ad.value);
@@ -211,7 +161,6 @@ inline void extract_polyline_from_tquad(
         p->resetTransform();
     }
     {
-
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> val1; //
@@ -231,9 +180,7 @@ inline void extract_polyline_from_tquad(
         c->resetTransform();
         c->setRadius(0.002);
     }
-    /*
-     */
 }
 }
 
-#endif //TMESH_H_TUTTE_COLLAPSE_H
+#endif
