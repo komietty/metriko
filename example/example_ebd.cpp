@@ -12,6 +12,7 @@
 #include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
+#include "metriko/core/tutte/emesh.h"
 #include "metriko/core/tutte/tutte_cutting_upsample.h"
 #include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/tutte/tutte_collapse.h"
@@ -126,7 +127,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < tmesh.nTE; i++) {
         bool bgn = false;
         const auto& te = tmesh.tedges[i];
-        for (const mc::Msgmt& seg: te.seg_fr.curv->sgmts) {
+        for (const mc::Msgmt& seg: te.seg_fr.value().curv->sgmts) {
             if (seg == te.seg_fr) bgn = true;
             if (bgn) {
                 R[i] += std::abs(seg.diff());
@@ -157,21 +158,21 @@ int main(int argc, char** argv) {
     double t_cut1 = omp_get_wtime();
     std::cout << "[time] compute_embedding_cut_hmesh: " << (t_cut1 - t_cut0) << " s" << std::endl;
 
-    double t_tutte0 = omp_get_wtime();
-    MatXd uv = tutte::compute_tutte_parameterization(hm_cut, tmesh, seam_cut, half_data, X);
-    double t_tutte1 = omp_get_wtime();
-    std::cout << "[time] compute_tutte_parameterization: " << (t_tutte1 - t_tutte0) << " s" << std::endl;
+    //double t_tutte0 = omp_get_wtime();
+    //MatXd uv = tutte::compute_tutte_parameterization(hm_cut, tmesh, seam_cut, half_data, X);
+    //double t_tutte1 = omp_get_wtime();
+    //std::cout << "[time] compute_tutte_parameterization: " << (t_tutte1 - t_tutte0) << " s" << std::endl;
 
     ///--- visualize cut mesh ---///
     const auto surf_cut = polyscope::registerSurfaceMesh("cut_1", hm_cut.pos, hm_cut.idx);
     surf_cut->setEdgeWidth(1);
 
-    {
-        auto prms1 = surf_cut->addParameterizationQuantity("params_1", uv);
-        prms1->setEnabled(true);
-        prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-        prms1->setCheckerSize(1);
-    }
+    //{
+    //    auto prms1 = surf_cut->addParameterizationQuantity("params_1", uv);
+    //    prms1->setEnabled(true);
+    //    prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+    //    prms1->setCheckerSize(1);
+    //}
 
     ///--- visuailize seam of cut mesh ---
     {

@@ -129,8 +129,8 @@ namespace metriko {
         const tm::Tedge &tedge,
         std::vector<bool> &passthroughs
     ) {
-        const int fr_vid = find_closest_point(cfn, tedge.uv_fr(), tedge.seg_fr.face);
-        const int to_vid = find_closest_point(cfn, tedge.uv_to(), tedge.seg_to.face);
+        const int fr_vid = find_closest_point(cfn, tedge.uv_fr(), tedge.seg_fr.value().face);
+        const int to_vid = find_closest_point(cfn, tedge.uv_to(), tedge.seg_to.value().face);
 
         if (fr_vid == to_vid) { return EmbeddedTEdge(hmesh, tedge.id, {fr_vid}); }
 

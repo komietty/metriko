@@ -1,10 +1,7 @@
-//
-// Created by saki on 2025/11/17.
-//
-
 #ifndef METRIKO_TUTTE_CUTTING_H
 #define METRIKO_TUTTE_CUTTING_H
 #include <set>
+
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/tmesh/tmesh.h"
 

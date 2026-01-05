@@ -36,13 +36,13 @@ namespace metriko::visualizer {
 
 
         { // add first vert
-            auto sg = tm.tedges[teid].seg_fr;
+            auto sg = tm.tedges[teid].seg_fr.value();
             auto uv = sg.fr.uv;
             verts.emplace_back(SplitVert{sg, uv});
         }
 
         if (num > 1) {
-            Msgmt sg = tm.tedges[teid].seg_fr;
+            Msgmt sg = tm.tedges[teid].seg_fr.value();
             complex uv = sg.fr.uv;
             double accum = 1e-3; // todo: fix
             double total = 0.;
@@ -68,7 +68,7 @@ namespace metriko::visualizer {
             assert(count == num);
         }
         if (num > 0) { // add last vert
-            auto sg = tm.tedges[teid].seg_to;
+            auto sg = tm.tedges[teid].seg_to.value();
             auto uv = sg.to.uv;
             verts.emplace_back(SplitVert{sg, uv});
         }

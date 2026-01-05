@@ -116,19 +116,10 @@ inline void extract_polyline_from_tquad(
     assert(end != -1);
 
     std::vector<int> full_path;
+    //tes.reserve(aux.size() - 1);
     auto visit = std::vector(hm.nH, false);
 
     std::vector aux_sorted(aux.begin(), aux.end());
-
-    for (int i = 0; i < aux_sorted.size() - 1; i++) {
-        auto& a0 = aux_sorted[i];
-        auto& a1 = aux_sorted[i + 1];
-        if (a0.side == a1.side) {
-            auto path = compute_dijkstra(hm, visit, a0.vert, a1.vert);
-            for (int hid: path) { visit[hid] = true; }
-            full_path.insert(full_path.end(), path.begin(), path.end());
-        }
-    }
 
     for (int i = 0; i < aux_sorted.size() - 1; i++) {
         auto& a0 = aux_sorted[i];

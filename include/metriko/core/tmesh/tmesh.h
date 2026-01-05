@@ -23,17 +23,17 @@ public:
 
 class Tsgmt : public Telem {
 public:
-    Tsgmt(const Tmesh* tm, const int id, const mc::Msgmt& msgmt): Telem(tm, id) {}
-    Tsgmt(const Tmesh* tm, const int id): Telem(tm, id) {} // another constructor
+
+    Tsgmt(const Tmesh* tm, const int id): Telem(tm, id) {}
 };
 
 class TempTedge : public Telem {};
 
 class Tedge : public Telem {
 public:
-    const mc::Msgmt seg_fr;
-    const mc::Msgmt seg_to;
-    //std::vector<Tsgmt> tsgmts; // todo should be like this
+    const std::optional<mc::Msgmt> seg_fr;
+    const std::optional<mc::Msgmt> seg_to;
+    const vec<Tsgmt> segs;
 
     Tedge(
         const Tmesh* tm,
@@ -42,15 +42,21 @@ public:
         const mc::Msgmt& to
     ): Telem(tm, id), seg_fr(fr), seg_to(to) {}
 
-    [[nodiscard]] int n_segments() const { return seg_to.id - seg_fr.id + 1; }
-    [[nodiscard]] complex uv_fr() const { return seg_fr.fr.uv; }
-    [[nodiscard]] complex uv_to() const { return seg_to.to.uv; }
-    [[nodiscard]] mc::MvertType type_fr() const { return seg_fr.fr.type; }
-    [[nodiscard]] mc::MvertType type_to() const { return seg_to.to.type; }
+    Tedge(
+        const Tmesh* tm,
+        const int id,
+        const vec<Tsgmt>& segs
+    ): Telem(tm, id), seg_fr(std::nullopt), seg_to(std::nullopt), segs(segs) {}
 
-    auto segments() const {
-        return seg_fr.curv->sgmts | vw::filter([&](auto& s) {
-            return s.id >= seg_fr.id && s.id <= seg_to.id;
+    [[nodiscard]] int n_segments() const { return seg_to.value().id - seg_fr.value().id + 1; }
+    [[nodiscard]] complex uv_fr() const { return seg_fr.value().fr.uv; }
+    [[nodiscard]] complex uv_to() const { return seg_to.value().to.uv; }
+    [[nodiscard]] mc::MvertType type_fr() const { return seg_fr.value().fr.type; }
+    [[nodiscard]] mc::MvertType type_to() const { return seg_to.value().to.type; }
+
+    [[nodiscard]] auto segments() const {
+        return seg_fr.value().curv->sgmts | vw::filter([&](auto& s) {
+            return s.id >= seg_fr.value().id && s.id <= seg_to.value().id;
         });
     }
 };
@@ -244,8 +250,8 @@ inline complex Thalf::uv_to() const { return cano ? edge().uv_to() : edge().uv_f
 inline mc::MvertType Thalf::type_fr() const { return cano ? edge().type_fr() : edge().type_to(); }
 inline mc::MvertType Thalf::type_to() const { return cano ? edge().type_to() : edge().type_fr(); }
 
-inline mc::Msgmt Thalf::sg_fr() const { return cano ? edge().seg_fr : edge().seg_to; }
-inline mc::Msgmt Thalf::sg_to() const { return cano ? edge().seg_to : edge().seg_fr; }
+inline mc::Msgmt Thalf::sg_fr() const { return cano ? edge().seg_fr.value() : edge().seg_to.value(); }
+inline mc::Msgmt Thalf::sg_to() const { return cano ? edge().seg_to.value() : edge().seg_fr.value(); }
 
 inline std::vector<Thalf> Thalf::adj_thalfs() const {
     std::vector<Thalf> res;
@@ -286,10 +292,10 @@ inline std::pair<Thalf, bool> Tquad::choose_next_thalf(
     if (curr.cano) {
         switch (te.type_to()) {
         case mc::HitB: {
-            for (const auto& ms: te.seg_to.to.crash->sgmts) {
-                if (ms.face.id == te.seg_to.face.id) {
-                    auto uv2 = te.seg_to.to.uv;
-                    auto dif = te.seg_to.diff();
+            for (const auto& ms: te.seg_to.value().to.crash->sgmts) {
+                if (ms.face.id == te.seg_to.value().face.id) {
+                    auto uv2 = te.seg_to.value().to.uv;
+                    auto dif = te.seg_to.value().diff();
                     if (equal(ms.fr.uv, uv2) && cross(dif, ms.diff()) > 0)  return {find_th(ms, true) , true};
                     if (equal(ms.to.uv, uv2) && cross(dif, -ms.diff()) > 0) return {find_th(ms, false), true};
                 }
@@ -297,7 +303,7 @@ inline std::pair<Thalf, bool> Tquad::choose_next_thalf(
             throw std::runtime_error("thalf not found");
         }
         case mc::HitR: {
-            const mc::Mcurv* c = te.seg_to.to.crash;
+            const mc::Mcurv* c = te.seg_to.value().to.crash;
             return {find_th(c->sgmts.back(), false), true};
         }
         default: return {thalfs[curr.id + 2], false};
@@ -305,12 +311,12 @@ inline std::pair<Thalf, bool> Tquad::choose_next_thalf(
     }
 
     //--- not cannonical --- //
-    if (te.seg_fr == te.seg_fr.curv->sgmts.front()) {
-        const mc::Mcurv& c = mcurvs[te.seg_fr.curv->port.prev];
+    if (te.seg_fr == te.seg_fr.value().curv->sgmts.front()) {
+        const mc::Mcurv& c = mcurvs[te.seg_fr.value().curv->port.prev];
         return {find_th(c.sgmts.front(), true), true};
     }
     if (te.type_fr() == mc::HitR) {
-        const mc::Mcurv* c = te.seg_fr.fr.crash;
+        const mc::Mcurv* c = te.seg_fr.value().fr.crash;
         return {find_th(c->sgmts.back(), false), true};
     }
     return {thalfs[curr.id - 2], false};
