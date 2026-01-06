@@ -2,13 +2,11 @@
 #define METRIKO_TUTTE_CUTTING_H
 #include <set>
 
+#include "emesh.h"
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/tmesh/tmesh.h"
 
 namespace metriko::tutte {
-
-template <class T> using vec = std::vector<T>;
-template <class T> using set = std::set<T>;
 
 namespace impl_eb {
 constexpr double EPS = 1e-10;
@@ -44,22 +42,6 @@ inline Mat2x3d GetAxisAlignedProjection(const Row3d& normal) {
     return P.transpose(); // mat3x2 -> mat2x3
 }
 }
-
-struct HalfData {
-    Half half;
-    double v0;
-    double v1;
-    int thid;
-    int tqid;
-    int twin;
-    int order; // order inside thalf
-    bool first = false;
-    bool crash = false;
-
-    bool operator<(const HalfData& rhs) const noexcept {
-        return std::tie(tqid, thid, order) < std::tie(rhs.tqid, rhs.thid, rhs.order);
-    }
-};
 
 struct AuxSgmt {
     mc::Msgmt sg;
@@ -245,12 +227,15 @@ inline void face_cutting(
 // positions of each tedges are consistent as the whole graph.
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
 inline Hmesh compute_embedding_cut_hmesh(
+//inline Hmesh compute_embedding_cut_hmesh(
     const Hmesh& hm,           // input hmesh
     const tm::Tmesh& tm,       // input tmesh
     const VecXc& cf,           // input corner function of naive parameterization
+    const VecXd& X,            //
     const VecXd& R,            //
     const vec<bool>& seam0,    //
           vec<bool>& seam1,    //
+    std::set<HalfData>& h_data_set,   //
     std::vector<HalfData>& h_data_vec //
 ) {
     std::map<int, vec<AuxSgmt>> cuts; // face id & aux segment data
@@ -335,6 +320,7 @@ inline Hmesh compute_embedding_cut_hmesh(
     }}}
 
     h_data_vec = std::vector(h_data.begin(), h_data.end());
+    h_data_set = h_data;
 
     for (auto& hd0: h_data_vec) {
         for (int i = 0; i < h_data_vec.size(); i++)

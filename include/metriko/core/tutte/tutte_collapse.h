@@ -4,29 +4,18 @@
 
 #ifndef TMESH_H_TUTTE_COLLAPSE_H
 #define TMESH_H_TUTTE_COLLAPSE_H
-#include "compute_dijkstra.h"
 
 namespace metriko::tutte {
 
-struct AuxDijkData {
-    Vert vert;
-    int side;
-    double value;
-
-    bool operator<(const AuxDijkData& rhs) const noexcept {
-        return value < rhs.value;
-    }
-};
-
 inline void extract_polyline_from_tquad(
     Hmesh& hm,
+    Emesh& em,
     tm::Tmesh& tm,
     tm::Tquad& tq,
     const std::vector<HalfData>& data,
     VecXd& R,
     VecXd& X
 ) {
-
     int side = -1; // if 0 or 1, collapse
     for (int i = 0; i < 2; i++) {
         int sum = rg::fold_left(tq.thids_by_side(i), 0, [&](int acc, int thid) { return acc + (int)X[tm.thalfs[thid].edge().id]; });

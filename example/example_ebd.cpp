@@ -12,7 +12,6 @@
 #include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
-#include "metriko/core/tutte/emesh.h"
 #include "metriko/core/tutte/tutte_cutting_upsample.h"
 #include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/tutte/tutte_collapse.h"
@@ -149,12 +148,13 @@ int main(int argc, char** argv) {
 
 
     std::vector<tutte::HalfData> half_data;
+    std::set<tutte::HalfData> half_set;
     std::vector<bool> seam_cut;
 
     //tutte::compute_embedded_halfs(*mesh, tmesh, uv2, half_data);
 
     double t_cut0 = omp_get_wtime();
-    Hmesh hm_cut = tutte::compute_embedding_cut_hmesh(*mesh, tmesh, uv2, R, seam, seam_cut, half_data);
+    auto hm_cut = tutte::compute_embedding_cut_hmesh(*mesh, tmesh, uv2, X, R, seam, seam_cut, half_set, half_data);
     double t_cut1 = omp_get_wtime();
     std::cout << "[time] compute_embedding_cut_hmesh: " << (t_cut1 - t_cut0) << " s" << std::endl;
 
@@ -197,9 +197,10 @@ int main(int argc, char** argv) {
     /*
     */
 
+    auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X, R);
     for (auto tq: tmesh.tquads) {
         //if (tq.id != 16) continue;
-        tutte::extract_polyline_from_tquad(hm_cut, tmesh, tq, half_data, R, X);
+        tutte::extract_polyline_from_tquad(hm_cut, emesh, tmesh, tq, half_data, R, X);
     }
 
     { // cut half data 1
