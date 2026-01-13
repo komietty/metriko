@@ -60,26 +60,7 @@ struct Ehalf {
 
     const Ehalf& twin() const;
 
-    void draw_ehalf() const {
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2>> es;
-        std::vector<double> val1; //
-        size_t count = 0;
-
-        for (const Half h: halfs) {
-            Row3d p1 = h.tail().pos();
-            Row3d p2 = h.head().pos();
-            ns.emplace_back(p1.x(), p1.y(), p1.z());
-            ns.emplace_back(p2.x(), p2.y(), p2.z());
-            es.emplace_back(std::array{count, count + 1});
-            val1.emplace_back(count / 2);
-            count += 2;
-        }
-        auto c = polyscope::registerCurveNetwork("ehalf " + std::to_string(id), ns, es);
-        c->addEdgeScalarQuantity("order", val1);
-        c->resetTransform();
-        c->setRadius(0.002);
-    }
+    void debug_draw() const;
 };
 
 struct Equad {
@@ -105,9 +86,33 @@ struct Equad {
         return res;
     }
 
-    void replace_side() {
-
+    void replace_ehalf(
+        int ehid,
+        const vec<int>& ext0,
+        const vec<int>& reps,
+        const vec<int>& ext1
+        ) {
+        auto it = rg::find(ehids, ehid);
+        if (it == ehids.end()) throw std::runtime_error("side not found");
+        int idx  = (int)std::distance(ehids.begin(), it);
+        int side = sides[idx];
+        std::cout << "ehid: " << ehid << std::endl;
+        std::cout << "idx: " << idx << std::endl;
+        std::cout << "side: " << side << std::endl;
+        std::cout << "reps: ";
+        for (int rep: reps) { std::cout << rep << ", " << std::endl; }
+        std::cout << std::endl;
+        ehids.erase(ehids.begin() + idx);
+        sides.erase(sides.begin() + idx);
+        for (int rep: reps) {
+            ehids.emplace_back(rep);
+            sides.emplace_back(side);
+        }
     }
+
+    void extend_ehalf() {}
+
+    void debug_draw() const;
 };
 
 struct Emesh {
@@ -215,10 +220,27 @@ struct Emesh {
         std::cout << "bgn: " << bgn << " end: " << end << std::endl;
         std::cout << "side a: " << remain_side_a << ", side b: " << remain_side_b << std::endl;
 
-        std::vector<int> full_path;
+        vec<int> path_fr;
+        vec<int> path_to;
+        vec<int> path_md;
+
+        { // find path_fr (ehids)
+            Vert v0 = ehalfs[ehids_p.front()].halfs.front().tail();
+            Vert v1 = ehalfs[ehids_p.back()].halfs.back().head();
+            if (v1.id == bgn) { for (int ehid: ehids_p) path_fr.emplace_back(ehid); }
+            if (v0.id == bgn) { for (int ehid: ehids_p) path_fr.emplace_back(ehalfs[ehid].twid); }
+        }
+
+        { // find path_to (ehids)
+            Vert v0 = ehalfs[ehids_q.front()].halfs.front().tail();
+            Vert v1 = ehalfs[ehids_q.back()].halfs.back().head();
+            if (v0.id == bgn) { for (int ehid: ehids_q) path_to.emplace_back(ehid); }
+            if (v1.id == bgn) { for (int ehid: ehids_q) path_to.emplace_back(ehalfs[ehid].twid); }
+        }
+
         auto visit = std::vector(hm.nH, false);
-        std::vector aux_sorted(aux.begin(), aux.end());
-        std::vector aux_visited(aux.size(), false);
+        vec aux_sorted(aux.begin(), aux.end());
+        vec aux_visited(aux.size(), false);
 
         for (int i = 0; i < aux_sorted.size() - 1; i++) {
             const auto& a0 = aux_sorted[i];
@@ -233,8 +255,8 @@ struct Emesh {
                     Ehalf& eh1 = ehalfs[eh0.twid];
                     Vert va = eh0.halfs.front().tail();
                     Vert vb = eh0.halfs.back().head();
-                    if (va.id == v0.id && vb.id  == v1.id) { aux_visited[i] = true; full_path.emplace_back(eh0.id); for (Half h: eh0.halfs) visit[h.id] = true; }
-                    if (vb.id == v0.id && va.id  == v1.id) { aux_visited[i] = true; full_path.emplace_back(eh1.id); for (Half h: eh1.halfs) visit[h.id] = true; }
+                    if (va.id == v0.id && vb.id  == v1.id) { aux_visited[i] = true; path_md.emplace_back(eh0.id); for (Half h: eh0.halfs) visit[h.id] = true; }
+                    if (vb.id == v0.id && va.id  == v1.id) { aux_visited[i] = true; path_md.emplace_back(eh1.id); for (Half h: eh1.halfs) visit[h.id] = true; }
                 }
             }
         }
@@ -259,13 +281,13 @@ struct Emesh {
             rg::reverse(path1);
 
             int n = ehalfs.size();
-            full_path.emplace_back(n);
+            path_md.emplace_back(n);
             ehalfs.emplace_back(Ehalf(this, path0, n, n + 1, -1, d));
             ehalfs.emplace_back(Ehalf(this, path1, n + 1, n, -1, d));
         }
 
-        for (int ehid: full_path) {
-            ehalfs[ehid].draw_ehalf();
+        for (int ehid: path_md) {
+            ehalfs[ehid].debug_draw();
         }
 
         // iterate over the remain side a tquads
@@ -273,19 +295,24 @@ struct Emesh {
             Ehalf& eh0 = ehalfs[ehid];
             Ehalf& eh1 = ehalfs[eh0.twid];
             Equad& eq  = equads[eh1.eqid];
+
             // if the ehalf still alive, that is okay
             bool f0 = false;
-            for (int ehid1: full_path)  if (ehid1 == eh0.id) { f0 = true; break; }
+            for (int ehid1: path_md)  if (ehid1 == eh0.id) { f0 = true; break; }
             if (f0) continue;
 
             //if not, iterate over full path from the right most vert, until finding left most vert
             bool f1 = false;
             vec<int> rep = {};
-            for (int ehid1: full_path) {
+            // todo: if the vert equals to path_fr's tail, f1 is true
+            for (int ehid1: path_md) {
                 if (eh0.halfs.front().tail() == ehalfs[ehid1].halfs.front().tail()) f1 = true;
                 if (f1) rep.emplace_back(ehid1);
-                if (eh0.halfs.back().head() == ehalfs[ehid1].halfs.back().head()) {eq.replace_side(); break;}
+                if (eh0.halfs.back().head() == ehalfs[ehid1].halfs.back().head()) break;
             }
+
+            eq.replace_ehalf(eh1.id, {}, rep, {});
+            eq.debug_draw();
         }
 
         // iterate over the remain side b tquads
@@ -295,16 +322,16 @@ struct Emesh {
             Equad& eq  = equads[eh1.eqid];
             // if the ehalf still alive, that is okay
             bool f0 = false;
-            for (int ehid1: full_path)  if (ehid1 == eh0.id) {f0 = true; break;}
+            for (int ehid1: path_md)  if (ehid1 == eh0.id) {f0 = true; break;}
             if (f0) continue;
 
             //if not, iterate over full path from the right most vert, until finding left most vert
             bool f1 = false;
             vec<int> rep = {};
-            for (int ehid1: full_path) {
+            for (int ehid1: path_md) {
                 if (eh0.halfs.front().tail() == ehalfs[ehid1].halfs.front().tail()) f1 = true;
                 if (f1) rep.emplace_back(ehid1);
-                if (eh0.halfs.back().head() == ehalfs[ehid1].halfs.back().head()) { eq.replace_side(); break;}
+                if (eh0.halfs.back().head() == ehalfs[ehid1].halfs.back().head()) break;
             }
         }
     }
@@ -312,6 +339,56 @@ struct Emesh {
 };
 
 inline const Ehalf& Ehalf::twin() const { return em->ehalfs[twid]; }
+
+inline void Ehalf::debug_draw() const {
+    std::vector<glm::vec3> ns;
+    std::vector<std::array<size_t, 2>> es;
+    std::vector<double> val1; //
+    size_t count = 0;
+
+    for (const Half h: halfs) {
+        Row3d p1 = h.tail().pos();
+        Row3d p2 = h.head().pos();
+        ns.emplace_back(p1.x(), p1.y(), p1.z());
+        ns.emplace_back(p2.x(), p2.y(), p2.z());
+        es.emplace_back(std::array{count, count + 1});
+        val1.emplace_back(count / 2);
+        count += 2;
+    }
+    auto c = polyscope::registerCurveNetwork("ehalf " + std::to_string(id), ns, es);
+    c->addEdgeScalarQuantity("order", val1);
+    c->resetTransform();
+    c->setRadius(0.002);
+}
+
+inline void Equad::debug_draw() const {
+    std::vector<glm::vec3> ns;
+    std::vector<std::array<size_t, 2>> es;
+    std::vector<double> val1;
+    std::vector<double> val2;
+    size_t count = 0;
+
+    for (int i = 0; i < ehids.size(); i++) {
+        const Ehalf& eh = em->ehalfs[ehids[i]];
+        const int side = sides[i];
+        for (const Half h: eh.halfs) {
+            Row3d p1 = h.tail().pos();
+            Row3d p2 = h.head().pos();
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            es.emplace_back(std::array{count, count + 1});
+            val1.emplace_back(side);
+            val2.emplace_back(eh.id);
+            count += 2;
+        }
+    }
+
+    auto c = polyscope::registerCurveNetwork("equad " + std::to_string(id), ns, es);
+    c->addEdgeScalarQuantity("order", val1);
+    c->addEdgeScalarQuantity("ehids", val2);
+    c->resetTransform();
+    c->setRadius(0.002);
+}
 }
 
 #endif
