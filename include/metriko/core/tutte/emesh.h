@@ -59,6 +59,27 @@ struct Ehalf {
     ): em(em), halfs(halfs), id(id), twid(twin), eqid(eqid), bgn(bgn), end(end), x(x) {}
 
     const Ehalf& twin() const;
+
+    void draw_ehalf() const {
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> val1; //
+        size_t count = 0;
+
+        for (const Half h: halfs) {
+            Row3d p1 = h.tail().pos();
+            Row3d p2 = h.head().pos();
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            es.emplace_back(std::array{count, count + 1});
+            val1.emplace_back(count / 2);
+            count += 2;
+        }
+        auto c = polyscope::registerCurveNetwork("ehalf " + std::to_string(id), ns, es);
+        c->addEdgeScalarQuantity("order", val1);
+        c->resetTransform();
+        c->setRadius(0.002);
+    }
 };
 
 struct Equad {
@@ -84,7 +105,9 @@ struct Equad {
         return res;
     }
 
-    void replace_side() { }
+    void replace_side() {
+
+    }
 };
 
 struct Emesh {
@@ -116,15 +139,16 @@ struct Emesh {
         }
     }
 
-    void collapse_quad(const int qid, const double r) {
+    void collapse_quad(const int qid) {
         int side = -1; // if 0 or 1, collapse
         const auto& eq = equads[qid];
         for (int i = 0; i < 2; i++) {
-            int sum = rg::fold_left(eq.ehids_by_side(i), 0, [&](int acc, int ehid) { return acc + ehalfs[ehid].x; });
+            int sum = (int)rg::fold_left(eq.ehids_by_side(i), 0, [&](int acc, int ehid) { return acc + ehalfs[ehid].x; });
             if (sum == 1) side = i; // right now not 0 but 1
         }
 
         if (side == -1) return;
+        std::cout << qid << std::endl;
         int bgn = -1;
         int end = -1;
         int bgn_flg = false;
@@ -188,82 +212,103 @@ struct Emesh {
         assert(sum == 0);
         assert(bgn != -1);
         assert(end != -1);
+        std::cout << "bgn: " << bgn << " end: " << end << std::endl;
+        std::cout << "side a: " << remain_side_a << ", side b: " << remain_side_b << std::endl;
 
         std::vector<int> full_path;
         auto visit = std::vector(hm.nH, false);
         std::vector aux_sorted(aux.begin(), aux.end());
+        std::vector aux_visited(aux.size(), false);
 
         for (int i = 0; i < aux_sorted.size() - 1; i++) {
             const auto& a0 = aux_sorted[i];
             const auto& a1 = aux_sorted[i + 1];
-            const double d = std::abs(a0.value - a1.value);
+            const Vert v0 = a0.vert;
+            const Vert v1 = a1.vert;
 
-            if (a0.side == remain_side_a && a1.side == remain_side_a) {
-                for (int ehid: eq.ehids_by_side(remain_side_a)) {
-                    Ehalf& eh = ehalfs[ehid];
-                    if (eh.halfs.front().tail().id == a0.vert.id &&
-                        eh.halfs.back().head().id  == a1.vert.id)
-                        full_path.emplace_back(ehid);
+            for (int si: {remain_side_a, remain_side_b}) {
+                if (a0.side != si || a1.side != si) continue;
+                for (int ehid: eq.ehids_by_side(si)) {
+                    Ehalf& eh0 = ehalfs[ehid];
+                    Ehalf& eh1 = ehalfs[eh0.twid];
+                    Vert va = eh0.halfs.front().tail();
+                    Vert vb = eh0.halfs.back().head();
+                    if (va.id == v0.id && vb.id  == v1.id) { aux_visited[i] = true; full_path.emplace_back(eh0.id); for (Half h: eh0.halfs) visit[h.id] = true; }
+                    if (vb.id == v0.id && va.id  == v1.id) { aux_visited[i] = true; full_path.emplace_back(eh1.id); for (Half h: eh1.halfs) visit[h.id] = true; }
                 }
-            } else if (a0.side == remain_side_b && a1.side == remain_side_b) {
-                for (int ehid: eq.ehids_by_side(remain_side_b)) {
-                    Ehalf& eh = ehalfs[ehid];
-                    if (eh.halfs.back().tail().id == a0.vert.id &&
-                        eh.halfs.front().head().id  == a1.vert.id) // should be rev. must be okay...
-                        full_path.emplace_back(ehid);
-                }
-            } else {
-                auto path = compute_dijkstra(hm, visit, a0.vert, a1.vert);
-                vec<Half> path0;
-                vec<Half> path1;
-                for (int hid: path) {
-                    visit[hid] = true;
-                    path0.emplace_back(hm.halfs[hid]);
-                    path1.emplace_back(hm.halfs[hid].twin());
-                }
-
-                rg::reverse(path1);
-
-                int n = ehalfs.size();
-                full_path.emplace_back(n);
-                ehalfs.emplace_back(Ehalf(this, path0, n, n + 1, -1, d));
-                ehalfs.emplace_back(Ehalf(this, path1, n + 1, n, -1, d));
             }
         }
 
-        // find adjacent equads
+        for (int i = 0; i < aux_sorted.size() - 1; i++) {
+            if (aux_visited[i]) continue;
+            const auto& a0 = aux_sorted[i];
+            const auto& a1 = aux_sorted[i + 1];
+            const Vert v0 = a0.vert;
+            const Vert v1 = a1.vert;
+            const double d = std::abs(a0.value - a1.value);
+
+            auto path = compute_dijkstra(hm, visit, v0, v1);
+            vec<Half> path0;
+            vec<Half> path1;
+            for (int hid: path) {
+                visit[hid] = true;
+                path0.emplace_back(hm.halfs[hid]);
+                path1.emplace_back(hm.halfs[hid].twin());
+            }
+
+            rg::reverse(path1);
+
+            int n = ehalfs.size();
+            full_path.emplace_back(n);
+            ehalfs.emplace_back(Ehalf(this, path0, n, n + 1, -1, d));
+            ehalfs.emplace_back(Ehalf(this, path1, n + 1, n, -1, d));
+        }
+
+        for (int ehid: full_path) {
+            ehalfs[ehid].draw_ehalf();
+        }
+
+        // iterate over the remain side a tquads
         for (int ehid: eq.ehids_by_side(remain_side_a)) {
             Ehalf& eh0 = ehalfs[ehid];
             Ehalf& eh1 = ehalfs[eh0.twid];
             Equad& eq  = equads[eh1.eqid];
             // if the ehalf still alive, that is okay
-            for (int ehid1: full_path) { if (ehid1 == eh0.id) break; }
+            bool f0 = false;
+            for (int ehid1: full_path)  if (ehid1 == eh0.id) { f0 = true; break; }
+            if (f0) continue;
 
             //if not, iterate over full path from the right most vert, until finding left most vert
-            bool f = false;
+            bool f1 = false;
+            vec<int> rep = {};
             for (int ehid1: full_path) {
-                if (eh0.halfs.front().tail() == ehalfs[ehid1].halfs.front().tail()) f = true;
-                if (f) eq.replace_side();
-                if (eh0.halfs.back().head() == ehalfs[ehid1].halfs.back().head()) break;
+                if (eh0.halfs.front().tail() == ehalfs[ehid1].halfs.front().tail()) f1 = true;
+                if (f1) rep.emplace_back(ehid1);
+                if (eh0.halfs.back().head() == ehalfs[ehid1].halfs.back().head()) {eq.replace_side(); break;}
             }
         }
 
+        // iterate over the remain side b tquads
         for (int ehid: eq.ehids_by_side(remain_side_b)) {
             Ehalf& eh0 = ehalfs[ehid];
             Ehalf& eh1 = ehalfs[eh0.twid];
             Equad& eq  = equads[eh1.eqid];
             // if the ehalf still alive, that is okay
-            for (int ehid1: full_path) { if (ehid1 == eh0.id) break; }
+            bool f0 = false;
+            for (int ehid1: full_path)  if (ehid1 == eh0.id) {f0 = true; break;}
+            if (f0) continue;
 
             //if not, iterate over full path from the right most vert, until finding left most vert
-            bool f = false;
+            bool f1 = false;
+            vec<int> rep = {};
             for (int ehid1: full_path) {
-                if (eh0.halfs.front().tail() == ehalfs[ehid1].halfs.front().tail()) f = true;
-                if (f) eq.replace_side();
-                if (eh0.halfs.back().head() == ehalfs[ehid1].halfs.back().head()) break;
+                if (eh0.halfs.front().tail() == ehalfs[ehid1].halfs.front().tail()) f1 = true;
+                if (f1) rep.emplace_back(ehid1);
+                if (eh0.halfs.back().head() == ehalfs[ehid1].halfs.back().head()) { eq.replace_side(); break;}
             }
         }
     }
+
 };
 
 inline const Ehalf& Ehalf::twin() const { return em->ehalfs[twid]; }

@@ -145,8 +145,6 @@ int main(int argc, char** argv) {
     visualizer::visualize_tedge(tmesh, uv2, &X, &R);
 
 
-
-
     std::vector<tutte::HalfData> half_data;
     std::set<tutte::HalfData> half_set;
     std::vector<bool> seam_cut;
@@ -198,11 +196,14 @@ int main(int argc, char** argv) {
     */
 
     auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X, R);
-    for (auto tq: tmesh.tquads) {
-        //if (tq.id != 16) continue;
-        tutte::extract_polyline_from_tquad(hm_cut, emesh, tmesh, tq, half_data, R, X);
+    for (auto eq: emesh.equads) {
+        if (eq.id != 3) continue;
+        emesh.collapse_quad(eq.id);
     }
 
+    //for (auto tq: tmesh.tquads) { tutte::extract_polyline_from_tquad(hm_cut, emesh, tmesh, tq, half_data, R, X); }
+
+    /*
     { // cut half data 1
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -267,6 +268,7 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.002);
     }
+    */
 
     /*
     ///--- visuailize seam of cut mesh ---///
