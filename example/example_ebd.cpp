@@ -188,7 +188,7 @@ int main(int argc, char** argv) {
             }
         }
         auto c = polyscope::registerCurveNetwork("seam of cut mesh", ns, es);
-        c->setEnabled(true);
+        c->setEnabled(false);
         c->resetTransform();
         c->setRadius(0.002);
     }
