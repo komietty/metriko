@@ -91,8 +91,8 @@ struct Equad {
 
     void replace_ehalf(
         int ehid,
-        const vec<int>& ext0,
         const vec<int>& reps,
+        const vec<int>& ext0,
         const vec<int>& ext1
         ) {
         int side;
@@ -104,7 +104,7 @@ struct Equad {
             side = sides[idx];
 
             std::cout << "ehid: " << ehid << std::endl;
-            std::cout << "idx:  " << idx << std::endl;
+            std::cout << "idx:  " << idx  << std::endl;
             std::cout << "side: " << side << std::endl;
             std::cout << "reps: ";
             for (int rep: reps) { std::cout << rep << ", "; }
@@ -159,7 +159,7 @@ struct Emesh {
                 auto rg_th = rg_tq | vw::filter([&](auto& hd) { return thid == hd.thid; }) | rg::to<vec<HalfData>>();
                 auto rg_he = rg_th | vw::transform([](auto& hd) { return hd.half; }) | rg::to<vec<Half>>();
                 bool bgn = rg_th.front().first;
-                bool end = rg_th.front().crash;
+                bool end = rg_th.back().crash;
                 ehalfs[thid] = Ehalf(this, rg_he, thid, tm.thalfs[thid].twid, tq.id, X[teid], bgn, end);
             }
         }
@@ -307,14 +307,14 @@ struct Emesh {
             Equad& eq1 = equads[eh1.eqid];
 
             bool f0 = false;
-            for (int ehid1: path_mb)  if (ehid1 == eh0.id) { f0 = true; break; }
-            if (f0) continue;
-
             bool f1 = false;
             bool f2 = false;
             bool f3 = false;
             bool f4 = false;
             vec<int> rep = {};
+
+            for (int ehid1: path_mb) if (ehid1 == eh0.id) { f0 = true; break; }
+            if (f0) continue;
 
             if (eh0.tail() == ehalfs[ehids_p.back()].head())  f1 = true;
             if (eh0.head() == ehalfs[ehids_q.front()].tail()) f3 = true;
@@ -327,9 +327,8 @@ struct Emesh {
 
             auto rev = rep | vw::reverse | vw::transform([&](int ehid1) { return ehalfs[ehid1].twid; }) | rg::to<vec<int>>();
             eq1.replace_ehalf(
-                eh1.id,
+                eh1.id, rev,
                 f1 && !f2 ? ehids_p : vec<int>{},
-                rev,
                 f3 && !f4 ? ehids_q : vec<int>{}
             );
             eq1.debug_draw();
@@ -342,14 +341,14 @@ struct Emesh {
             Equad& eq1 = equads[eh1.eqid];
 
             bool f0 = false;
-            for (int ehid1: path_mb)  if (ehid1 == eh1.id) { f0 = true; break; }
-            if (f0) continue;
-
             bool f1 = false;
             bool f2 = false;
             bool f3 = false;
             bool f4 = false;
             vec<int> rep = {};
+
+            for (int ehid1: path_mb) if (ehid1 == eh1.id) { f0 = true; break; }
+            if (f0) continue;
 
             if (eh1.tail() == ehalfs[ehids_p.front()].tail()) f1 = true;
             if (eh1.head() == ehalfs[ehids_q.back()].head())  f3 = true;
@@ -360,13 +359,11 @@ struct Emesh {
                 if (eh1.head() == ehalfs[ehid1].head()) { f4 = true; break; }
             }
 
-
             eq1.replace_ehalf(
-                eh1.id,
+                eh1.id, rep,
                 f3 && !f4 ? ehids_q : vec<int>{},
-                rep,
                 f1 && !f2 ? ehids_p : vec<int>{}
-                );
+            );
             eq1.debug_draw();
         }
     }
