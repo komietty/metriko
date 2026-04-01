@@ -140,6 +140,7 @@ struct Emesh {
     const Hmesh& hm;
     vec<Equad> equads;
     vec<Ehalf> ehalfs;
+    set<int> sings;
 
     explicit Emesh(
         const Hmesh& hm,
@@ -161,6 +162,10 @@ struct Emesh {
                 bool bgn = rg_th.front().first;
                 bool end = rg_th.back().crash;
                 ehalfs[thid] = Ehalf(this, rg_he, thid, tm.thalfs[thid].twid, tq.id, X[teid], bgn, end);
+
+                // add singular vertex id
+                int bgn_id = rg_th.front().half.tail().id;
+                if (bgn) sings.emplace(bgn_id);
             }
         }
     }
@@ -173,8 +178,10 @@ struct Emesh {
             if (sum == 1) side = i; // right now not 0 but 1
         }
 
+        std::cout << "qid: " << qid << std::endl;
+        std::cout << "side: " << side << std::endl;
+
         if (side == -1) return;
-        std::cout << qid << std::endl;
         int bgn = -1;
         int end = -1;
         int sB = -1; // side of the bgn
@@ -240,9 +247,10 @@ struct Emesh {
 
         if (aux.empty()) return;
 
-        assert(sum == 0);
+
         assert(bgn != -1);
         assert(end != -1);
+        assert(sum == 0);
         std::cout << "bgn: " << bgn << " end: " << end << std::endl;
         std::cout << "side a: " << side_a << ", side b: " << side_b << std::endl;
 
@@ -294,8 +302,12 @@ struct Emesh {
 
             int n = ehalfs.size();
             path_mb[i] = n;
-            ehalfs.emplace_back(this, path0, n, n + 1, -1, d);
-            ehalfs.emplace_back(this, path1, n + 1, n, -1, d);
+            bool path0_bgn_flag = this->sings.contains(path0.front().tail().id);
+            bool path0_end_flag = this->sings.contains(path0.back().head().id);
+            bool path1_bgn_flag = this->sings.contains(path1.front().tail().id);
+            bool path1_end_flag = this->sings.contains(path1.back().head().id);
+            ehalfs.emplace_back(this, path0, n, n + 1, -1, d, path0_bgn_flag, path0_end_flag); // todo check bgn and end
+            ehalfs.emplace_back(this, path1, n + 1, n, -1, d, path1_bgn_flag, path1_end_flag); // todo check bgn and end
         }
 
         //for (int ehid: path_mb) { ehalfs[ehid].debug_draw(); }
@@ -399,12 +411,17 @@ inline void Equad::debug_draw() const {
     std::vector<double> val1;
     std::vector<double> val2;
     std::vector<double> val3;
+    std::vector<double> val4; //bgn or end flag
     size_t count = 0;
 
     for (int i = 0; i < ehids.size(); i++) {
         const Ehalf& eh = em->ehalfs[ehids[i]];
         const int side = sides[i];
-        for (const Half h: eh.halfs) {
+        const bool bgn = eh.bgn;
+        const bool end = eh.end;
+        if (end) std::cout << "end, eqid: " << id << std::endl;
+        for (int j = 0; j < eh.halfs.size(); j++) {
+            const Half& h = eh.halfs[j];
             Row3d p1 = h.tail().pos();
             Row3d p2 = h.head().pos();
             ns.emplace_back(p1.x(), p1.y(), p1.z());
@@ -413,6 +430,9 @@ inline void Equad::debug_draw() const {
             val1.emplace_back(side);
             val2.emplace_back(eh.id);
             val3.emplace_back(count);
+            if      (j == 0)                   { val4.emplace_back(bgn ? -1 : 0); val4.emplace_back(0); }
+            else if (j == eh.halfs.size() - 1) { val4.emplace_back(0); val4.emplace_back(end ? 1 : 0); }
+            else                               { val4.emplace_back(0); val4.emplace_back(0); }
             count += 2;
         }
     }
@@ -421,8 +441,9 @@ inline void Equad::debug_draw() const {
     c->addEdgeScalarQuantity("side", val1);
     c->addEdgeScalarQuantity("ehids", val2);
     c->addEdgeScalarQuantity("count", val3);
+    c->addNodeScalarQuantity("bgn end", val4);
     c->resetTransform();
-    c->setRadius(0.004);
+    c->setRadius(0.002);
 }
 }
 
