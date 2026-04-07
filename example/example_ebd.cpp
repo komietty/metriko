@@ -9,6 +9,7 @@
 #include "metriko/core/tutte/embedding.h"
 #include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
 #include "../include/metriko/core/tutte/visualize_tedge_ebd.h"
+#include "igl/false_barycentric_subdivision.h"
 #include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
@@ -38,7 +39,10 @@ MatXd V;
 MatXi F;
 
 int main(int argc, char** argv) {
+    //MatXd V_;
+    //MatXi F_;
     igl::readOBJ(argv[1], V, F);
+    //igl::false_barycentric_subdivision(V_, F_, V, F);
     //igl::upsample(V, F, 1);
 
     mesh = std::make_unique<Hmesh>(V, F);
@@ -196,10 +200,25 @@ int main(int argc, char** argv) {
     */
 
     auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X, R);
+    auto collapsed = std::vector<int>{};
     for (auto eq: emesh.equads) {
-        if (eq.id != 3) continue;
-        emesh.collapse_quad(eq.id);
+        //if (eq.id == 7) { eq.debug_draw(); continue; };
+        //if (eq.id <= 6) emesh.collapse_quad(eq.id);
+        //for (auto eq: emesh.equads) { }
+        if (emesh.collapse_quad(eq.id)) { collapsed.push_back(eq.id); }
     }
+
+    for (auto eq: emesh.equads) {
+        if (rg::contains(collapsed, eq.id)) { continue; }
+        //if (eq.id == 16)
+            //eq.debug_draw();
+        //for (auto ehid: eq.ehids) {
+        //    tutte::Ehalf eh = emesh.ehalfs[ehid];
+        //    std::cout << "eh.x:" << eh.x << std::endl;
+        //}
+    }
+
+    emesh.collapse_half(50);
 
     //for (auto tq: tmesh.tquads) { tutte::extract_polyline_from_tquad(hm_cut, emesh, tmesh, tq, half_data, R, X); }
 
@@ -312,7 +331,6 @@ int main(int argc, char** argv) {
     prms2->setEnabled(true);
     prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
     prms2->setCheckerSize(1);
-     *
      */
 
     polyscope::show();

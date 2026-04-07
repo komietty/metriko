@@ -93,6 +93,8 @@ struct Equad {
         return res;
     }
 
+    vec<int> verts_inside() const;
+
     void replace_ehalf(
         int ehid,
         const vec<int>& reps,
@@ -137,24 +139,41 @@ struct Emesh {
         }
     }
 
-    bool merge_half(const int ehid) {
-        auto& eh = ehalfs[ehid];
-        auto& eq = equads[eh.eqid];
-        auto  it = rg::find(eq.ehids, ehid);
-        auto visit = std::vector(hm.nH, false);
-        auto path = std::vector<int>();
-    }
-
     bool collapse_half(const int ehid) {
         auto& eh = ehalfs[ehid];
         auto& eq = equads[eh.eqid];
         auto  it = rg::find(eq.ehids, ehid);
-        auto visit = std::vector(hm.nH, false);
+
+        auto visit_edge = std::vector(hm.nH, false);
         auto path = std::vector<int>();
 
-        for (int ehid: eq.ehids)
-        for (Half h: ehalfs[ehid].halfs)
-            visit[h.id] = true;
+        // 1. 境界エッジを踏まないようにする (既存)
+        //for (int ehid_b: eq.ehids) {
+        //    for (Half h: ehalfs[ehid_b].halfs) {
+        //        visit_edge[h.id] = true;
+        //        visit_edge[h.twin().id] = true; // 双対も念のため
+        //    }
+        //}
+
+        // ---------------------------------------------------------
+        // 2. 「許可リスト (Allowlist)」の作成
+        // ---------------------------------------------------------
+        std::vector<bool> allow_vert(hm.nV, false);
+        std::vector<glm::vec3> inside_verts_debug;
+
+        for (int vid: eq.verts_inside()) {
+            allow_vert[vid] = true;
+            Vec3d p = hm.verts[vid].pos();
+            inside_verts_debug.emplace_back(p.x(), p.y(), p.z());
+        }
+
+        auto vq = polyscope::registerPointCloud("inside verts", inside_verts_debug);
+        vq->setEnabled(true);
+        vq->setPointRadius(0.0005);
+        vq->resetTransform();
+
+
+        // ---------------------------------------------------------
 
         if (it != eq.ehids.end()) {
             int idx = rg::distance(eq.ehids.begin(), it);
@@ -162,17 +181,19 @@ struct Emesh {
             int idx_next = (idx + 1) % len;
             int idx_prev = (idx + len - 1) % len;
             int side_curr = eq.sides[idx];
-            int side_next = eq.sides[idx_next];
             int side_prev = eq.sides[idx_prev];
-            assert(side_curr == side_next || side_curr == side_prev);
-            if (side_curr != side_next) {
 
-            }
             if (side_curr != side_prev) {
                 Ehalf& eh_prev = ehalfs[eq.ehids[idx_prev]];
                 Vert v0 = eh_prev.halfs.front().tail();
                 Vert v1 = eh.halfs.back().head();
-                path = compute_dijkstra(hm, visit, v0, v1);
+
+                // 始点と終点がAllowlistに入っていることを保証
+                allow_vert[v0.id] = true;
+                allow_vert[v1.id] = true;
+
+                // 3. Allowlist付きでダイクストラを実行
+                path = compute_dijkstra_for_tquad_temp(hm, visit_edge, allow_vert, v0, v1);
             }
         }
 
@@ -226,12 +247,11 @@ struct Emesh {
                 if (eh0.end) return {eh0.head().id, s1};
                 if (eh1.end) return {eh1.head().id, s0};
             }
-            return {-1, -1};
+            throw std::runtime_error("terminal not found");
         };
 
         auto [bgn, sB] = find_terminal(ehids_p, side_b, side_a); // vert and side of the bgn
         auto [end, sE] = find_terminal(ehids_q, side_a, side_b); // vert and side of the end
-        if (bgn == -1 || end == -1) return false;
 
         double sum = 0;
         double cmp = 0;
@@ -250,13 +270,11 @@ struct Emesh {
         for (int ehid: ehids_b) { Ehalf& eh = ehalfs[ehid]; sum -= eh.x; cmp -= (eh.x + 1); aux.emplace(AuxDijkData{ eh.head(), side_b, sum, cmp }); }
 
         if (aux.empty()) return false;
-
-
-        assert(bgn != -1 && end != -1 && sum == 0);
+        assert(sum == 0);
 
         vec<int> path_mb;
 
-        auto visit = std::vector(hm.nH, false);
+        auto visit = vec(hm.nH, false);
         vec aux_sorted(aux.begin(), aux.end());
         vec aux_visited(aux.size(), false);
         int N = aux.size() - 1;
@@ -358,6 +376,60 @@ struct Emesh {
 
 inline const Ehalf& Ehalf::twin() const { return em->ehalfs[twid]; }
 
+inline vec<int> Equad::verts_inside() const {
+    vec<int> res;
+    const Hmesh& hm = em->hm;
+
+    vec is_boundary(hm.nH, false);
+    vec visited_face(hm.nF, false);
+    std::queue<int> q;
+
+    for (int ehid : ehids) {
+        const Ehalf& eh = em->ehalfs[ehid];
+        for (Half h : eh.halfs) {
+            is_boundary[h.id] = true;
+
+            int fid = h.face().id;
+            if (fid != -1 && !visited_face[fid]) {
+                visited_face[fid] = true;
+                q.push(fid);
+            }
+        }
+    }
+
+    vec<int> inner_faces;
+    while (!q.empty()) {
+        int curr_fid = q.front();
+        q.pop();
+        inner_faces.push_back(curr_fid);
+
+        Face f = hm.faces[curr_fid];
+        for (Half he: f.adjHalfs()) {
+            if (is_boundary[he.id]) continue;
+
+            int next_fid = he.twin().face().id;
+            if (next_fid != -1 && !visited_face[next_fid]) {
+                visited_face[next_fid] = true;
+                q.push(next_fid);
+            }
+        }
+    }
+
+    vec visited_vert(hm.nV, false);
+    for (int fid : inner_faces) {
+        Face f = hm.faces[fid];
+        for (Half he : f.adjHalfs()) {
+            Vert v = he.tail();
+            if (!visited_vert[v.id]) {
+                visited_vert[v.id] = true;
+                res.push_back(v.id);
+            }
+        }
+    }
+
+    return res;
+}
+
 inline void Equad::replace_ehalf(
     int ehid,
     const vec<int>& reps,
@@ -372,13 +444,6 @@ inline void Equad::replace_ehalf(
         int idx = (int)std::distance(ehids.begin(), it);
         side = sides[idx];
 
-        //std::cout << "ehid: " << ehid << std::endl;
-        //std::cout << "idx:  " << idx  << std::endl;
-        //std::cout << "side: " << side << std::endl;
-        //std::cout << "reps: ";
-        //for (int rep: reps) { std::cout << rep << ", "; }
-        //std::cout << std::endl;
-
         auto it1 = ehids.erase(ehids.begin() + idx);
         auto it2 = sides.erase(sides.begin() + idx);
         ehids.insert_range(it1, reps);
@@ -386,21 +451,54 @@ inline void Equad::replace_ehalf(
     }
 
     { // insert for the prev side
-        //Ehalf curr_eh = em->ehalfs[ehid];
-        //for (const int prev_ehid: std::views::reverse(ext1)) { curr_eh.extend_prev(em->ehalfs[prev_ehid]); }
         int s = (side + 3) % 4;
         auto it = std::find(sides.rbegin(), sides.rend(), s);
-        int idx = sides.size() - 1 - std::distance(sides.rbegin(), it) + 1;
-        ehids.insert_range(ehids.begin() + idx, ext1);
-        sides.insert_range(sides.begin() + idx, vec(ext1.size(), s));
+        assert(it != sides.rend());
+
+        int idx = sides.size() - 1 - std::distance(sides.rbegin(), it);
+        Ehalf& prev_eh = const_cast<Ehalf&>(em->ehalfs[ehids[idx]]);
+        Ehalf& prev_tw = const_cast<Ehalf&>(em->ehalfs[prev_eh.twid]);
+
+        for (int prev_ehid: ext1) {
+            const Ehalf& ext_eh = em->ehalfs[prev_ehid];
+            const Ehalf& ext_tw = em->ehalfs[ext_eh.twid];
+            prev_eh.extend_next(ext_eh);
+            prev_tw.extend_prev(ext_tw);
+
+            Equad& eq_twin = const_cast<Equad&>(em->equads[ext_tw.eqid]);
+            auto twin_it = rg::find(eq_twin.ehids, ext_tw.id);
+            assert(twin_it != eq_twin.ehids.end());
+
+            int iter = std::distance(eq_twin.ehids.begin(), twin_it);
+            eq_twin.ehids.erase(eq_twin.ehids.begin() + iter);
+            eq_twin.sides.erase(eq_twin.sides.begin() + iter);
+        }
     }
 
     { // insert for the next side
         int s = (side + 1) % 4;
         auto it = rg::find(sides, s);
+        assert(it != sides.end());
+
         int idx = (int)std::distance(sides.begin(), it);
-        ehids.insert_range(ehids.begin() + idx, ext0);
-        sides.insert_range(sides.begin() + idx, vec(ext0.size(), s));
+        Ehalf& next_eh = const_cast<Ehalf&>(em->ehalfs[ehids[idx]]);
+        Ehalf& next_tw = const_cast<Ehalf&>(em->ehalfs[next_eh.twid]);
+
+        for (int next_ehid: std::views::reverse(ext0)) {
+            const Ehalf& ext_eh = em->ehalfs[next_ehid];
+            const Ehalf& ext_tw = em->ehalfs[ext_eh.twid];
+
+            next_eh.extend_prev(ext_eh);
+            next_tw.extend_next(ext_tw);
+
+            Equad& eq_twin = const_cast<Equad&>(em->equads[ext_tw.eqid]);
+            auto twin_it = rg::find(eq_twin.ehids, ext_tw.id);
+            assert(twin_it != eq_twin.ehids.end());
+
+            int iter = std::distance(eq_twin.ehids.begin(), twin_it);
+            eq_twin.ehids.erase(eq_twin.ehids.begin() + iter);
+            eq_twin.sides.erase(eq_twin.sides.begin() + iter);
+        }
     }
 }
 
@@ -453,7 +551,7 @@ inline void Equad::debug_draw() const {
             val2.emplace_back(eh.id);
             val3.emplace_back(count);
             val5.emplace_back(id);
-            x.emplace_back(eh.x == 0? 0 : 1);
+            x.emplace_back(eh.x == 0 ? 0 : 1);
             if      (j == 0)                   { val4.emplace_back(bgn ? -1 : 0); val4.emplace_back(0); }
             else if (j == eh.halfs.size() - 1) { val4.emplace_back(0); val4.emplace_back(end ? 1 : 0); }
             else                               { val4.emplace_back(0); val4.emplace_back(0); }

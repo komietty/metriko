@@ -141,15 +141,13 @@ inline void face_cutting(
     // 2: assign edge halfs
     for (Half h: f.adjHalfs()) {
         const auto& idcs_ = h_auxs[h.id];
-        if (idcs_.empty()) { halfs.emplace_back(h.tail().id, h.head().id, h); }
+        if (idcs_.empty()) halfs.emplace_back(h.tail().id, h.head().id, h);
         else {
             halfs.emplace_back(idcs_.begin()->second, h.head().id, h);
 
             auto prev = idcs_.begin();
             auto curr = std::next(idcs_.begin());
-            for (; curr != idcs_.end(); ++curr, ++prev) {
-                halfs.emplace_back(curr->second, prev->second, h);
-            }
+            for (; curr != idcs_.end(); ++curr, ++prev) { halfs.emplace_back(curr->second, prev->second, h); }
             halfs.emplace_back(h.tail().id, idcs_.rbegin()->second, h);
         }
     }
@@ -202,6 +200,10 @@ inline void face_cutting(
             if (cur == sta) break;
         }
 
+        for (int j = 1; j < poly.size() - 1; ++j)
+            f_auxs.emplace_back(std::array{poly[0], poly[j], poly[j + 1]});
+
+        /*
         switch (int n = poly.size()) {
         case 3:
             f_auxs.emplace_back(std::array{poly[0], poly[1], poly[2]});
@@ -215,6 +217,7 @@ inline void face_cutting(
                 f_auxs.emplace_back(std::array{poly[0], poly[j], poly[j + 1]});
             break;
         }
+        */
     }
 }
 
