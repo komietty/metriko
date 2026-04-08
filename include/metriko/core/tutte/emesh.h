@@ -148,12 +148,12 @@ struct Emesh {
         auto path = std::vector<int>();
 
         // 1. 境界エッジを踏まないようにする (既存)
-        //for (int ehid_b: eq.ehids) {
-        //    for (Half h: ehalfs[ehid_b].halfs) {
-        //        visit_edge[h.id] = true;
-        //        visit_edge[h.twin().id] = true; // 双対も念のため
-        //    }
-        //}
+        for (int ehid_b: eq.ehids) {
+            for (Half h: ehalfs[ehid_b].halfs) {
+                visit_edge[h.id] = true;
+                visit_edge[h.twin().id] = true; // 双対も念のため
+            }
+        }
 
         // ---------------------------------------------------------
         // 2. 「許可リスト (Allowlist)」の作成
@@ -211,7 +211,7 @@ struct Emesh {
             count += 2;
         }
 
-        auto c = polyscope::registerCurveNetwork("test", ns, es);
+        auto c = polyscope::registerCurveNetwork("test-"+ std::to_string(ehid), ns, es);
         c->resetTransform();
         c->setRadius(0.002);
 

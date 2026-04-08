@@ -62,6 +62,7 @@ struct AuxHalf2 {
 using AuxHalf1 = std::set<std::pair<double, int>>; // the list of index and ratio in the Half
 using AuxFace  = vec<std::array<AuxHalf2, 3>>;     // per original face, this contains halfedge data of a divided triangle
 
+
 // Beware epsilon validity must be solved beforehand
 inline void face_cutting(
     const tm::Tmesh& tm,     //
@@ -101,7 +102,7 @@ inline void face_cutting(
             std::pair(&sg.to, -1)
         };
 
-        // 1: assign inside halfs
+        /// 1: Assign inside halfs
         for (auto& [mv, idx]: mvs) {
             Row3d p;
             std::optional<std::pair<Half, double>> val;
@@ -138,7 +139,7 @@ inline void face_cutting(
         halfs.emplace_back(AuxHalf2{i1, i0, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), -1, o1, f1, b0 }});
     }
 
-    // 2: assign edge halfs
+    /// 2: Assign edge halfs
     for (Half h: f.adjHalfs()) {
         const auto& idcs_ = h_auxs[h.id];
         if (idcs_.empty()) halfs.emplace_back(h.tail().id, h.head().id, h);
@@ -152,6 +153,7 @@ inline void face_cutting(
         }
     }
 
+    /// 3: Create halfedge polyline
     while (!halfs.empty()) {
         auto h = halfs.back();
         halfs.pop_back();
@@ -200,24 +202,32 @@ inline void face_cutting(
             if (cur == sta) break;
         }
 
-        for (int j = 1; j < poly.size() - 1; ++j)
-            f_auxs.emplace_back(std::array{poly[0], poly[j], poly[j + 1]});
+        /// 4: Calc simple ear clipping for convex polygon.
+        ///    Find out the starting vertex not to generate 0 size area
+        int start_idx = 0;
 
-        /*
-        switch (int n = poly.size()) {
-        case 3:
-            f_auxs.emplace_back(std::array{poly[0], poly[1], poly[2]});
-            break;
-        case 4:
-            f_auxs.emplace_back(std::array{poly[0], poly[1], poly[2]});
-            f_auxs.emplace_back(std::array{poly[0], poly[2], poly[3]});
-            break;
-        default:
-            for (int j = 1; j < n - 1; ++j)
-                f_auxs.emplace_back(std::array{poly[0], poly[j], poly[j + 1]});
-            break;
+        while (true) {
+            bool flag = true;
+            for (int j = 1; j < poly.size() - 1; ++j) {
+                auto poly0 = poly[start_idx];
+                auto poly1 = poly[(start_idx + j    ) % poly.size()];
+                auto poly2 = poly[(start_idx + j + 1) % poly.size()];
+                Row3d& p0 = vpos[poly0.i0];
+                Row3d& p1 = vpos[poly1.i0];
+                Row3d& p2 = vpos[poly2.i0];
+                double area = f.normal().dot((p1 - p0).cross(p2 - p0));
+                if (abs(area) < EPS) { flag = false; break; }
+            }
+            if (flag) { break; }
+            start_idx++;
         }
-        */
+
+        for (int j = 1; j < poly.size() - 1; ++j) {
+            auto poly0 = poly[start_idx];
+            auto poly1 = poly[(start_idx + j    ) % poly.size()];
+            auto poly2 = poly[(start_idx + j + 1) % poly.size()];
+            f_auxs.emplace_back(std::array{poly0, poly1, poly2});
+        }
     }
 }
 

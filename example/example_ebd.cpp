@@ -196,8 +196,6 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.002);
     }
-    /*
-    */
 
     auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X, R);
     auto collapsed = std::vector<int>{};
@@ -211,7 +209,7 @@ int main(int argc, char** argv) {
     for (auto eq: emesh.equads) {
         if (rg::contains(collapsed, eq.id)) { continue; }
         //if (eq.id == 16)
-            //eq.debug_draw();
+            eq.debug_draw();
         //for (auto ehid: eq.ehids) {
         //    tutte::Ehalf eh = emesh.ehalfs[ehid];
         //    std::cout << "eh.x:" << eh.x << std::endl;
@@ -219,6 +217,7 @@ int main(int argc, char** argv) {
     }
 
     emesh.collapse_half(50);
+    emesh.collapse_half(84);
 
     //for (auto tq: tmesh.tquads) { tutte::extract_polyline_from_tquad(hm_cut, emesh, tmesh, tq, half_data, R, X); }
 
