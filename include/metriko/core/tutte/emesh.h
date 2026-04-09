@@ -115,8 +115,7 @@ struct Emesh {
         const Hmesh& hm,
         const tm::Tmesh& tm,
         const set<HalfData>& hdata,
-        const VecXd& X,
-        const VecXd& R
+        const VecXd& X
     ): hm(hm) {
         equads.resize(tm.tquads.size());
         ehalfs.resize(tm.thalfs.size());
@@ -139,83 +138,9 @@ struct Emesh {
         }
     }
 
-    bool collapse_half(const int ehid) {
-        auto& eh = ehalfs[ehid];
-        auto& eq = equads[eh.eqid];
-        auto  it = rg::find(eq.ehids, ehid);
+    vec<Half> collapse_half_find_path(int ehid);
+    bool collapse_half(int ehid);
 
-        auto visit_edge = std::vector(hm.nH, false);
-        auto path = std::vector<int>();
-
-        // 1. 境界エッジを踏まないようにする (既存)
-        for (int ehid_b: eq.ehids) {
-            for (Half h: ehalfs[ehid_b].halfs) {
-                visit_edge[h.id] = true;
-                visit_edge[h.twin().id] = true; // 双対も念のため
-            }
-        }
-
-        // ---------------------------------------------------------
-        // 2. 「許可リスト (Allowlist)」の作成
-        // ---------------------------------------------------------
-        std::vector<bool> allow_vert(hm.nV, false);
-        std::vector<glm::vec3> inside_verts_debug;
-
-        for (int vid: eq.verts_inside()) {
-            allow_vert[vid] = true;
-            Vec3d p = hm.verts[vid].pos();
-            inside_verts_debug.emplace_back(p.x(), p.y(), p.z());
-        }
-
-        auto vq = polyscope::registerPointCloud("inside verts", inside_verts_debug);
-        vq->setEnabled(true);
-        vq->setPointRadius(0.0005);
-        vq->resetTransform();
-
-
-        // ---------------------------------------------------------
-
-        if (it != eq.ehids.end()) {
-            int idx = rg::distance(eq.ehids.begin(), it);
-            int len = eq.sides.size();
-            int idx_next = (idx + 1) % len;
-            int idx_prev = (idx + len - 1) % len;
-            int side_curr = eq.sides[idx];
-            int side_prev = eq.sides[idx_prev];
-
-            if (side_curr != side_prev) {
-                Ehalf& eh_prev = ehalfs[eq.ehids[idx_prev]];
-                Vert v0 = eh_prev.halfs.front().tail();
-                Vert v1 = eh.halfs.back().head();
-
-                // 始点と終点がAllowlistに入っていることを保証
-                allow_vert[v0.id] = true;
-                allow_vert[v1.id] = true;
-
-                // 3. Allowlist付きでダイクストラを実行
-                path = compute_dijkstra_for_tquad_temp(hm, visit_edge, allow_vert, v0, v1);
-            }
-        }
-
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2>> es;
-        size_t count = 0;
-
-        for (int iH: path) {
-            Half h = hm.halfs[iH];
-            auto p1 = h.tail().pos();
-            auto p2 = h.head().pos();
-            ns.emplace_back(p1.x(), p1.y(), p1.z());
-            ns.emplace_back(p2.x(), p2.y(), p2.z());
-            es.emplace_back(std::array{count, count + 1});
-            count += 2;
-        }
-
-        auto c = polyscope::registerCurveNetwork("test-"+ std::to_string(ehid), ns, es);
-        c->resetTransform();
-        c->setRadius(0.002);
-
-    }
 
     bool collapse_quad(const int qid) {
         int side = -1; // if 0 or 1, collapse
@@ -226,6 +151,7 @@ struct Emesh {
         }
 
         if (side == -1) return false;
+        std::cout << "collapse eqid: " << qid << std::endl;
 
         int side_a = side == 0 ? 1 : 2;                     // remain side a
         int side_b = side == 0 ? 3 : 0;                     // remain side b
@@ -551,7 +477,7 @@ inline void Equad::debug_draw() const {
             val2.emplace_back(eh.id);
             val3.emplace_back(count);
             val5.emplace_back(id);
-            x.emplace_back(eh.x == 0 ? 0 : 1);
+            x.emplace_back(eh.x);
             if      (j == 0)                   { val4.emplace_back(bgn ? -1 : 0); val4.emplace_back(0); }
             else if (j == eh.halfs.size() - 1) { val4.emplace_back(0); val4.emplace_back(end ? 1 : 0); }
             else                               { val4.emplace_back(0); val4.emplace_back(0); }

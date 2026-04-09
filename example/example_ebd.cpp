@@ -13,6 +13,7 @@
 #include "igl/upsample.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
+#include "metriko/core/tutte/emesh_collapse_ehalf.h"
 #include "metriko/core/tutte/tutte_cutting_upsample.h"
 #include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/tutte/tutte_collapse.h"
@@ -197,27 +198,31 @@ int main(int argc, char** argv) {
         c->setRadius(0.002);
     }
 
-    auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X, R);
+    auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X);
     auto collapsed = std::vector<int>{};
     for (auto eq: emesh.equads) {
         //if (eq.id == 7) { eq.debug_draw(); continue; };
         //if (eq.id <= 6) emesh.collapse_quad(eq.id);
         //for (auto eq: emesh.equads) { }
-        if (emesh.collapse_quad(eq.id)) { collapsed.push_back(eq.id); }
-    }
-
-    for (auto eq: emesh.equads) {
-        if (rg::contains(collapsed, eq.id)) { continue; }
-        //if (eq.id == 16)
-            eq.debug_draw();
-        //for (auto ehid: eq.ehids) {
-        //    tutte::Ehalf eh = emesh.ehalfs[ehid];
-        //    std::cout << "eh.x:" << eh.x << std::endl;
-        //}
+        if ( emesh.collapse_quad(eq.id)) { collapsed.push_back(eq.id); }
     }
 
     emesh.collapse_half(50);
     emesh.collapse_half(84);
+
+    for (auto eq: emesh.equads) {
+        if (rg::contains(collapsed, eq.id)) { continue; }
+        //if (eq.id == 16)
+            //eq.debug_draw();
+    }
+
+    emesh.equads[11].debug_draw();
+    emesh.equads[14].debug_draw();
+    emesh.equads[15].debug_draw();
+
+    //emesh.equads[16].debug_draw();
+    //emesh.equads[17].debug_draw();
+    //emesh.equads[10].debug_draw();
 
     //for (auto tq: tmesh.tquads) { tutte::extract_polyline_from_tquad(hm_cut, emesh, tmesh, tq, half_data, R, X); }
 

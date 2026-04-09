@@ -58,7 +58,7 @@ std::vector<int> compute_dijkstra(
     return {};
 }
 
-std::vector<int> compute_dijkstra_for_tquad_temp(
+std::vector<Half> compute_dijkstra_for_tquad_temp(
     const Hmesh& hm,
     const std::vector<bool>& visit_edge,
     const std::vector<bool>& allow_vert,
@@ -101,11 +101,11 @@ std::vector<int> compute_dijkstra_for_tquad_temp(
         incoming_v2h[iVc] = iHc;
 
         if (iVc == v1.id) {
-            std::vector<int> path;
+            std::vector<Half> path;
             int iV = iVc;
             while (iV != v0.id) {
                 int iHp = incoming_v2h[iV];
-                path.push_back(iHp);
+                path.push_back(hm.halfs[iHp]);
                 iV = hm.tail[iHp];
             }
             rg::reverse(path);
