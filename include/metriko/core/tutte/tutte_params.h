@@ -20,7 +20,7 @@ inline SprsD embedding_tutte_for_tquad(
     const int tqid,
     const std::vector<HalfData>& data,
     const Hmesh& hm, // the cut mesh
-    const tm::Tmesh& tm, // the tmesh of original hmesh
+    const Emesh& tm, // the tmesh of original hmesh
     const VecXd& X
 ) {
     std::vector<TripD> T;
@@ -32,8 +32,9 @@ inline SprsD embedding_tutte_for_tquad(
     auto sum = complex(0, 0);
 
     for (int i = 0; i < 4; i++) {
-        for (int thid: tm.tquads[tqid].thids_by_side(i)) {
-            auto x = X[tm.thalfs[thid].edge().id];
+        for (int thid: tm.equads[tqid].ehids_by_side(i)) {
+            //auto x = X[tm.ehalfs[thid].edge().id];
+            auto x = tm.ehalfs[thid].x;
             for (auto& it: rg::equal_range(tq_rg, thid, {}, &HalfData::thid)) {
                 auto val = x * it.v0;
                 auto vid = it.half.tail().id;
@@ -223,17 +224,17 @@ struct HalfHash { std::size_t operator()(const Half& h) const noexcept { return 
 
 inline MatXd compute_tutte_parameterization(
     const Hmesh& hm,                // hmesh after tutte cutting
-    const tm::Tmesh& tm,            // tmesh original
+    const Emesh& tm,            // tmesh original
     const vec<bool>& seam,          // seam adapted to tutte cutting
     const std::vector<HalfData>& data, //
     const VecXd& X                  //
 ) {
     // compute uv per tquad first...
     vec<SprsD> uv_tq;
-    uv_tq.resize(tm.tquads.size());
+    uv_tq.resize(tm.equads.size());
 
-    #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < tm.tquads.size(); i++) {
+    //#pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < tm.equads.size(); i++) {
         uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm, X);
     }
 
@@ -253,9 +254,14 @@ inline MatXd compute_tutte_parameterization(
         for (auto nh: sequential_mapping(hm, uv_tq[i], h, b, seam, flag, uv)) stack.emplace(nh);
     }
 
+    int count = 0;
     // 2: other tquads
     while (rg::any_of(flag, [&](auto f) { return !f; })) {
+        count++;
+        std::cout << "[count] " << count << std::endl;
         auto h = hm.halfs[stack.top()];
+        //if (count == 86) { break; }
+
         stack.pop();
         if (flag[h.face().id]) continue;
 

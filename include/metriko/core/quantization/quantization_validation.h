@@ -41,7 +41,7 @@ namespace metriko {
         const tm::Tmesh &tm,
         const VecXd &X
     ) {
-        return (X.array() > 0).all() &&
+        return (X.array() >= 0).all() &&
                rg::all_of(
                    tm.thalfs | vw::filter([&](auto th) { return tm.th2sing[th.id] > -1; }),
                    [&](auto &th) { return compute_validation(tm, X, th.id); }

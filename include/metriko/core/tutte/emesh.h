@@ -129,7 +129,7 @@ struct Emesh {
                 auto rg_he = rg_th | vw::transform([](auto& hd) { return hd.half; }) | rg::to<vec<Half>>();
                 bool bgn = rg_th.front().first;
                 bool end = rg_th.back().crash;
-                ehalfs[thid] = Ehalf(this, rg_he, thid, tm.thalfs[thid].twid, tq.id, X[teid] - 1, bgn, end); // todo: x - 1 is temporal
+                ehalfs[thid] = Ehalf(this, rg_he, thid, tm.thalfs[thid].twid, tq.id, X[teid], bgn, end); // todo: x - 1 is temporal
 
                 // add singular vertex id
                 int bgn_id = rg_th.front().half.tail().id;

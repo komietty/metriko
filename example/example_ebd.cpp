@@ -14,6 +14,7 @@
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/emesh_collapse_ehalf.h"
+#include "metriko/core/tutte/emesh_postprocess.h"
 #include "metriko/core/tutte/tutte_cutting_upsample.h"
 #include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/tutte/tutte_collapse.h"
@@ -161,21 +162,10 @@ int main(int argc, char** argv) {
     double t_cut1 = omp_get_wtime();
     std::cout << "[time] compute_embedding_cut_hmesh: " << (t_cut1 - t_cut0) << " s" << std::endl;
 
-    //double t_tutte0 = omp_get_wtime();
-    //MatXd uv = tutte::compute_tutte_parameterization(hm_cut, tmesh, seam_cut, half_data, X);
-    //double t_tutte1 = omp_get_wtime();
-    //std::cout << "[time] compute_tutte_parameterization: " << (t_tutte1 - t_tutte0) << " s" << std::endl;
-
     ///--- visualize cut mesh ---///
     const auto surf_cut = polyscope::registerSurfaceMesh("cut_1", hm_cut.pos, hm_cut.idx);
     surf_cut->setEdgeWidth(1);
 
-    //{
-    //    auto prms1 = surf_cut->addParameterizationQuantity("params_1", uv);
-    //    prms1->setEnabled(true);
-    //    prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-    //    prms1->setCheckerSize(1);
-    //}
 
     ///--- visuailize seam of cut mesh ---
     {
@@ -207,18 +197,33 @@ int main(int argc, char** argv) {
         if ( emesh.collapse_quad(eq.id)) { collapsed.push_back(eq.id); }
     }
 
-    emesh.collapse_half(50);
+    //emesh.collapse_half(50);
     emesh.collapse_half(84);
 
     for (auto eq: emesh.equads) {
         if (rg::contains(collapsed, eq.id)) { continue; }
-        //if (eq.id == 16)
-            //eq.debug_draw();
+        // if (eq.id == 16)
+        eq.debug_draw();
     }
 
-    emesh.equads[11].debug_draw();
-    emesh.equads[14].debug_draw();
-    emesh.equads[15].debug_draw();
+    auto half_data_em = tutte::compute_half_data(emesh);
+
+    double t_tutte0 = omp_get_wtime();
+    MatXd uv = tutte::compute_tutte_parameterization(hm_cut, emesh, seam_cut, half_data_em, X);
+    double t_tutte1 = omp_get_wtime();
+    std::cout << "[time] compute_tutte_parameterization: " << (t_tutte1 - t_tutte0) << " s" << std::endl;
+
+    {
+        auto prms1 = surf_cut->addParameterizationQuantity("params_1", uv);
+        prms1->setEnabled(true);
+        prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+        prms1->setCheckerSize(1);
+    }
+
+
+    //emesh.equads[11].debug_draw();
+    //emesh.equads[14].debug_draw();
+    //emesh.equads[15].debug_draw();
 
     //emesh.equads[16].debug_draw();
     //emesh.equads[17].debug_draw();
@@ -293,10 +298,10 @@ int main(int argc, char** argv) {
     }
     */
 
-    /*
     ///--- visuailize seam of cut mesh ---///
     auto hm_cut_cut = compute_cut_mesh(hm_cut, seam_cut);
     // todo: need to assert locally injective here...
+
 
     std::vector<int> b_;
     std::vector<Row2d> bc_;
@@ -317,7 +322,7 @@ int main(int argc, char** argv) {
 
 
     for (int i = 0; i < static_cast<int>(bc_.size()); ++i) { bc.row(i) = bc_[i]; }
-    double soft_const_p = 0;
+    double soft_const_p = 1e5;
     Eigen::MatrixXd uv_init(hm_cut_cut->nV, 2);
     for (auto v: hm_cut_cut->verts) {
         uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
@@ -326,7 +331,7 @@ int main(int argc, char** argv) {
     sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
 
     slim_precompute(hm_cut_cut->pos, hm_cut_cut->idx, uv_init, sData, sData.slim_energy, b, bc, soft_const_p);
-    slim_solve(sData, 100);
+    slim_solve(sData, 10);
 
     std::cout << "slim result: " << (sData.V_o - uv_init).norm() << std::endl;
 
@@ -335,7 +340,6 @@ int main(int argc, char** argv) {
     prms2->setEnabled(true);
     prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
     prms2->setCheckerSize(1);
-     */
 
     polyscope::show();
     return 0;
