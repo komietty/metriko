@@ -70,11 +70,17 @@ struct Ehalf {
     void debug_draw() const;
 };
 
+struct Edata {
+    int ehid;
+    int side;
+};
+
 struct Equad {
     const Emesh* em = nullptr;
     int id = -1;
-    vec<int> ehids;
-    vec<int> sides;
+    vec<Edata> edata;
+    //vec<int> ehids;
+    //vec<int> sides;
     Equad() = default;
 
     Equad(
@@ -82,26 +88,22 @@ struct Equad {
         const int id,
         const vec<int>& ehids,
         const vec<int>& sides
-    ): em(em), id(id), ehids(ehids), sides(sides) {}
+    ): em(em), id(id) {
+        edata.resize(ehids.size());
+        for (int i = 0; i < ehids.size(); i++) edata[i] = Edata(ehids[i], sides[i]);
+    }
 
     vec<int> ehids_by_side(int side, bool reverse = false) const {
         vec<int> res;
-        for (int i = 0; i < ehids.size(); i++) {
-            int j = reverse ? (int)ehids.size() - i - 1 : i;
-            if (sides[j] == side) res.emplace_back(ehids[j]);
+        for (int i = 0; i < edata.size(); i++) {
+            int j = reverse ? (int)edata.size() - i - 1 : i;
+            if (edata[j].side == side) res.emplace_back(edata[j].ehid);
         }
         return res;
     }
 
     vec<int> verts_inside() const;
-
-    void replace_ehalf(
-        int ehid,
-        const vec<int>& reps,
-        const vec<int>& ext0,
-        const vec<int>& ext1
-        );
-
+    void replace_ehalf(int ehid, const vec<int>& reps, const vec<int>& ext0, const vec<int>& ext1);
     void debug_draw() const;
 };
 
@@ -310,7 +312,7 @@ inline vec<int> Equad::verts_inside() const {
     vec visited_face(hm.nF, false);
     std::queue<int> q;
 
-    for (int ehid : ehids) {
+    for (auto [ehid, side] : edata) {
         const Ehalf& eh = em->ehalfs[ehid];
         for (Half h : eh.halfs) {
             is_boundary[h.id] = true;
@@ -365,32 +367,27 @@ inline void Equad::replace_ehalf(
     int side;
 
     { // replace side
-        auto it = rg::find(ehids, ehid);
-        if (it == ehids.end()) throw std::runtime_error("ehid not found");
-        int idx = (int)std::distance(ehids.begin(), it);
-        side = sides[idx];
-        auto it1 = ehids.erase(ehids.begin() + idx);
-        auto it2 = sides.erase(sides.begin() + idx);
-        ehids.insert_range(it1, reps);
-        sides.insert_range(it2, vec(reps.size(), side));
+        auto it = rg::find(edata, ehid, &Edata::ehid);
+        assert(it != edata.end());
+        side = it->side;
+        auto addr = edata.erase(it);
+        auto item = reps | vw::transform([side](int r) { return Edata{r, side}; });
+        edata.insert_range(addr, item);
     }
 
-    auto remove_from_twin_equad = [&](int twin_eqid, int twin_id) {
+    auto remove_from_twin_equad = [&](int twin_eqid, int twin_ehid) {
         auto& eq = const_cast<Equad&>(em->equads[twin_eqid]);
-        auto it = rg::find(eq.ehids, twin_id);
-        if (it != eq.ehids.end()) {
-            auto idx = std::distance(eq.ehids.begin(), it);
-            eq.ehids.erase(it);
-            eq.sides.erase(eq.sides.begin() + idx);
-        }
+        auto it = rg::find(eq.edata, twin_ehid, &Edata::ehid);
+        if (it != eq.edata.end()) eq.edata.erase(it);
     };
 
     { // insert for the prev side
-        auto it = std::find(sides.rbegin(), sides.rend(), (side + 3) % 4);
-        assert(it != sides.rend());
-        int idx = sides.size() - 1 - std::distance(sides.rbegin(), it);
-        Ehalf& eh = const_cast<Ehalf&>(em->ehalfs[ehids[idx]]);
+        auto rev_edata = edata | vw::reverse;
+        auto it = rg::find(rev_edata, (side + 3) % 4, &Edata::side);
+        assert(it != rev_edata.end());
+        Ehalf& eh = const_cast<Ehalf&>(em->ehalfs[it->ehid]);
         Ehalf& tw = const_cast<Ehalf&>(em->ehalfs[eh.twid]);
+
         for (int ehid_: ext1) {
             const Ehalf& ext_eh = em->ehalfs[ehid_];
             const Ehalf& ext_tw = em->ehalfs[ext_eh.twid];
@@ -401,10 +398,9 @@ inline void Equad::replace_ehalf(
     }
 
     { // insert for the next side
-        auto it = rg::find(sides, (side + 1) % 4);
-        assert(it != sides.end());
-        int idx = (int)std::distance(sides.begin(), it);
-        Ehalf& eh = const_cast<Ehalf&>(em->ehalfs[ehids[idx]]);
+        auto it = rg::find(edata, (side + 1) % 4, &Edata::side);
+        assert(it != edata.end());
+        Ehalf& eh = const_cast<Ehalf&>(em->ehalfs[it->ehid]);
         Ehalf& tw = const_cast<Ehalf&>(em->ehalfs[eh.twid]);
         for (int ehid_: std::views::reverse(ext0)) {
             const Ehalf& ext_eh = em->ehalfs[ehid_];
@@ -448,9 +444,9 @@ inline void Equad::debug_draw() const {
     std::vector<double> x; //x
     size_t count = 0;
 
-    for (int i = 0; i < ehids.size(); i++) {
-        const Ehalf& eh = em->ehalfs[ehids[i]];
-        const int side = sides[i];
+    for (int i = 0; i < edata.size(); i++) {
+        const Ehalf& eh = em->ehalfs[edata[i].ehid];
+        const int side = edata[i].side;
         const bool bgn = eh.bgn;
         const bool end = eh.end;
         for (int j = 0; j < eh.halfs.size(); j++) {

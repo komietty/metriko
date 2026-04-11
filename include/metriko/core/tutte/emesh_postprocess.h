@@ -17,7 +17,6 @@ vec<HalfData> compute_half_data(const Emesh& em) {
                 double sum = 0;
                 int order = 0;
                 auto& eh = em.ehalfs[ehid];
-                double x = eh.x;
                 double l = 0;
                 for (Half h: eh.halfs) l += h.len();
                 double d = 1. / l;
@@ -34,7 +33,7 @@ vec<HalfData> compute_half_data(const Emesh& em) {
 
     // --- ★ 追加: equal_range を機能させるために事前ソート ---
     // tqid -> thid -> order の優先順位で並び替える
-    std::sort(half_data.begin(), half_data.end(), [](const HalfData& a, const HalfData& b) {
+    rg::sort(half_data.begin(), half_data.end(), [](const HalfData& a, const HalfData& b) {
         if (a.tqid != b.tqid) return a.tqid < b.tqid;
         if (a.thid != b.thid) return a.thid < b.thid;
         return a.order < b.order;
