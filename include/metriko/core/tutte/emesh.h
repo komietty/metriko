@@ -3,7 +3,6 @@
 
 #include "metriko/core/hmesh/hmesh.h"
 #include "compute_dijkstra.h"
-#include "tutte_cutting.h"
 
 namespace metriko::tutte {
 template <class T> using vec = std::vector<T>;
@@ -30,7 +29,8 @@ struct AuxDijkData {
     int side;
     double value;
     double comparator;
-    bool operator<(const AuxDijkData& rhs) const noexcept { return comparator < rhs.comparator; } // if x is 0, the value (sum of x) is same and not pushed to set
+    bool operator<(const AuxDijkData& rhs) const noexcept { return comparator < rhs.comparator; }
+    // if x is 0, the value (sum of x) is same and not pushed to set
 };
 
 
@@ -79,21 +79,23 @@ struct Equad {
     const Emesh* em = nullptr;
     int id = -1;
     vec<Edata> edata;
-    //vec<int> ehids;
-    //vec<int> sides;
-    Equad() = default;
 
+    Equad() = default;
     Equad(
         const Emesh* em,
         const int id,
         const vec<int>& ehids,
         const vec<int>& sides
     ): em(em), id(id) {
-        edata.resize(ehids.size());
-        for (int i = 0; i < ehids.size(); i++) edata[i] = Edata(ehids[i], sides[i]);
+        edata.reserve(ehids.size());
+        for (auto [ehid, side] : vw::zip(ehids, sides)) edata.emplace_back(ehid, side);
     }
 
     vec<int> ehids_by_side(int side, bool reverse = false) const {
+        //auto filter_view = edata | vw::filter([side](const Edata& d) { return d.side == side; }) | vw::transform(&Edata::ehid);
+        //vec<int> res = rg::to<vec<int>>(filter_view);
+        //if (reverse) rg::reverse(res);
+        //return res;
         vec<int> res;
         for (int i = 0; i < edata.size(); i++) {
             int j = reverse ? (int)edata.size() - i - 1 : i;
@@ -143,13 +145,13 @@ struct Emesh {
     vec<Half> collapse_half_find_path(int ehid);
     bool collapse_half(int ehid);
 
-
     bool collapse_quad(const int qid) {
-        int side = -1; // if 0 or 1, collapse
+        int side = -1;
         const auto& eq = equads[qid];
-        for (int i = 0; i < 2; i++) {
-            int sum = (int)rg::fold_left(eq.ehids_by_side(i), 0, [&](int acc, int ehid) { return acc + ehalfs[ehid].x; });
-            if (sum == 0) side = i;
+        for (int i : {0, 1}) {
+            auto side_ehids = eq.ehids_by_side(i);
+            int sum = rg::fold_left(side_ehids | vw::transform([this](int id){ return ehalfs[id].x; }), 0., std::plus());
+            if (sum == 0) { side = i; break; }
         }
 
         if (side == -1) return false;

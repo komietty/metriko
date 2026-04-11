@@ -17,50 +17,50 @@ inline vec<Half> Emesh::collapse_half_find_path(int ehid) {
     auto  it = rg::find(eq.edata, ehid, &Edata::ehid);
     assert(it != eq.edata.end());
 
-    auto visit_edge = std::vector(hm.nH, false);
+    vec visit = std::vector(hm.nH, false);
+    vec allow(hm.nV, false);
 
     for (auto [ehid_, _]: eq.edata) {
     for (Half h: ehalfs[ehid_].halfs) {
-        visit_edge[h.id] = true;
-        visit_edge[h.twin().id] = true; // 双対も念のため
+        visit[h.id] = true;
+        visit[h.twin().id] = true; // 双対も念のため
     }}
 
-    std::vector allow_vert(hm.nV, false);
-    for (int vid: eq.verts_inside()) { allow_vert[vid] = true; }
+    for (int vid: eq.verts_inside()) { allow[vid] = true; }
     auto it_prev = circular_prev(eq.edata, it);
     assert(it->side != it_prev->side);
+
     Ehalf& eh_prev = ehalfs[it_prev->ehid];
     Vert v0 = eh_prev.halfs.front().tail();
     Vert v1 = eh.halfs.back().head();
 
     // guarantees bgn/end vertex id is in the allowed list
-    allow_vert[v0.id] = true;
-    allow_vert[v1.id] = true;
-    return compute_dijkstra_for_tquad_temp(hm, visit_edge, allow_vert, v0, v1);
+    allow[v0.id] = true;
+    allow[v1.id] = true;
+    return compute_dijkstra_for_tquad_temp(hm, visit, allow, v0, v1);
 }
 
 inline bool Emesh::collapse_half(const int ehid) {
     auto& eh = ehalfs[ehid];
     auto& eq = equads[eh.eqid];
+    auto it0 = rg::find(eq.edata, ehid, &Edata::ehid); // edata of ehid
+    auto it1 = circular_prev(eq.edata, it0);           // edata of prev of ehid
 
-    vec<Half> path0 = collapse_half_find_path(ehid);
-    vec<Half> path1 = path0 | vw::reverse | vw::transform(&Half::twin) | rg::to<vec<Half>>();
+    auto path0 = collapse_half_find_path(ehid);
+    auto path1 = path0 | vw::reverse | vw::transform(&Half::twin) | rg::to<vec<Half>>();
 
-    auto it = rg::find(eq.edata, ehid, &Edata::ehid);
-    auto it_prev = circular_prev(eq.edata, it);
-
-    Ehalf& eh_prev = ehalfs[it_prev->ehid];
-    Ehalf& eh_prev_twin = ehalfs[eh_prev.twid];
+    Ehalf& eh_prev_curr = ehalfs[it1->ehid];
+    Ehalf& eh_prev_twin = ehalfs[eh_prev_curr.twid];
 
     // 1: erase ehalf of this tquad
     // 2: Replace prev (and twin of prev) ehalf
-    eq.edata.erase(it);
-    eh_prev.halfs = path0;
+    eq.edata.erase(it0);
+    eh_prev_curr.halfs = path0;
     eh_prev_twin.halfs = path1;
 
     // 3: extend ehalf of twin tquad
     Equad& eq_twin = equads[eh_prev_twin.eqid];
-    auto it_twin = rg::find(eq_twin.edata, eh_prev.twid, &Edata::ehid);
+    auto it_twin = rg::find(eq_twin.edata, eh_prev_twin.id, &Edata::ehid);
     if (it_twin != eq_twin.edata.end()) {
         Ehalf& eh_twin = ehalfs[circular_prev(eq_twin.edata, it_twin)->ehid];
         eh_twin.extend_next(eh);
