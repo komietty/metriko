@@ -357,10 +357,10 @@ inline vec<int> Equad::verts_inside() const {
 }
 
 inline void Equad::replace_ehalf(
-    int ehid,
-    const vec<int>& reps,
-    const vec<int>& ext0,
-    const vec<int>& ext1
+    int ehid,             // tgt ehalf id
+    const vec<int>& reps, // ehids for replacing ehalf above
+    const vec<int>& ext0, // ehids for extending next side of ehalfs
+    const vec<int>& ext1  // ehids for extending prev side of ehalfs
 ) {
     int side;
 
@@ -369,65 +369,52 @@ inline void Equad::replace_ehalf(
         if (it == ehids.end()) throw std::runtime_error("ehid not found");
         int idx = (int)std::distance(ehids.begin(), it);
         side = sides[idx];
-
         auto it1 = ehids.erase(ehids.begin() + idx);
         auto it2 = sides.erase(sides.begin() + idx);
         ehids.insert_range(it1, reps);
         sides.insert_range(it2, vec(reps.size(), side));
     }
 
+    auto remove_from_twin_equad = [&](int twin_eqid, int twin_id) {
+        auto& eq = const_cast<Equad&>(em->equads[twin_eqid]);
+        auto it = rg::find(eq.ehids, twin_id);
+        if (it != eq.ehids.end()) {
+            auto idx = std::distance(eq.ehids.begin(), it);
+            eq.ehids.erase(it);
+            eq.sides.erase(eq.sides.begin() + idx);
+        }
+    };
+
     { // insert for the prev side
-        int s = (side + 3) % 4;
-        auto it = std::find(sides.rbegin(), sides.rend(), s);
+        auto it = std::find(sides.rbegin(), sides.rend(), (side + 3) % 4);
         assert(it != sides.rend());
-
         int idx = sides.size() - 1 - std::distance(sides.rbegin(), it);
-        Ehalf& prev_eh = const_cast<Ehalf&>(em->ehalfs[ehids[idx]]);
-        Ehalf& prev_tw = const_cast<Ehalf&>(em->ehalfs[prev_eh.twid]);
-
-        for (int prev_ehid: ext1) {
-            const Ehalf& ext_eh = em->ehalfs[prev_ehid];
+        Ehalf& eh = const_cast<Ehalf&>(em->ehalfs[ehids[idx]]);
+        Ehalf& tw = const_cast<Ehalf&>(em->ehalfs[eh.twid]);
+        for (int ehid_: ext1) {
+            const Ehalf& ext_eh = em->ehalfs[ehid_];
             const Ehalf& ext_tw = em->ehalfs[ext_eh.twid];
-            prev_eh.extend_next(ext_eh);
-            prev_tw.extend_prev(ext_tw);
-
-            Equad& eq_twin = const_cast<Equad&>(em->equads[ext_tw.eqid]);
-            auto twin_it = rg::find(eq_twin.ehids, ext_tw.id);
-            assert(twin_it != eq_twin.ehids.end());
-
-            int iter = std::distance(eq_twin.ehids.begin(), twin_it);
-            eq_twin.ehids.erase(eq_twin.ehids.begin() + iter);
-            eq_twin.sides.erase(eq_twin.sides.begin() + iter);
+            eh.extend_next(ext_eh);
+            tw.extend_prev(ext_tw);
+            remove_from_twin_equad(ext_tw.eqid, ext_tw.id);
         }
     }
 
     { // insert for the next side
-        int s = (side + 1) % 4;
-        auto it = rg::find(sides, s);
+        auto it = rg::find(sides, (side + 1) % 4);
         assert(it != sides.end());
-
         int idx = (int)std::distance(sides.begin(), it);
-        Ehalf& next_eh = const_cast<Ehalf&>(em->ehalfs[ehids[idx]]);
-        Ehalf& next_tw = const_cast<Ehalf&>(em->ehalfs[next_eh.twid]);
-
-        for (int next_ehid: std::views::reverse(ext0)) {
-            const Ehalf& ext_eh = em->ehalfs[next_ehid];
+        Ehalf& eh = const_cast<Ehalf&>(em->ehalfs[ehids[idx]]);
+        Ehalf& tw = const_cast<Ehalf&>(em->ehalfs[eh.twid]);
+        for (int ehid_: std::views::reverse(ext0)) {
+            const Ehalf& ext_eh = em->ehalfs[ehid_];
             const Ehalf& ext_tw = em->ehalfs[ext_eh.twid];
-
-            next_eh.extend_prev(ext_eh);
-            next_tw.extend_next(ext_tw);
-
-            Equad& eq_twin = const_cast<Equad&>(em->equads[ext_tw.eqid]);
-            auto twin_it = rg::find(eq_twin.ehids, ext_tw.id);
-            assert(twin_it != eq_twin.ehids.end());
-
-            int iter = std::distance(eq_twin.ehids.begin(), twin_it);
-            eq_twin.ehids.erase(eq_twin.ehids.begin() + iter);
-            eq_twin.sides.erase(eq_twin.sides.begin() + iter);
+            eh.extend_prev(ext_eh);
+            tw.extend_next(ext_tw);
+            remove_from_twin_equad(ext_tw.eqid, ext_tw.id);
         }
     }
 }
-
 
 inline void Ehalf::debug_draw() const {
     std::vector<glm::vec3> ns;

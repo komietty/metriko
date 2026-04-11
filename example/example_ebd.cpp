@@ -164,6 +164,7 @@ int main(int argc, char** argv) {
 
     ///--- visualize cut mesh ---///
     const auto surf_cut = polyscope::registerSurfaceMesh("cut_1", hm_cut.pos, hm_cut.idx);
+    surf->setEnabled(false);
     surf_cut->setEdgeWidth(1);
 
 
