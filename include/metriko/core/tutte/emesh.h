@@ -259,6 +259,7 @@ struct Emesh {
         }
 
         auto path_md = path_mb | vw::transform([&](int ehid) { return ehalfs[ehid].twid; }) | rg::to<vec<int>>();
+        rg::reverse(path_md);
 
         replace_remain_side(eq, path_mb, ehids_p, ehids_q, side_a);
         replace_remain_side(eq, path_md, ehids_q, ehids_p, side_b);
