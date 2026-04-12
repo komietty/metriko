@@ -258,9 +258,8 @@ inline MatXd compute_tutte_parameterization(
     // 2: other tquads
     while (rg::any_of(flag, [&](auto f) { return !f; })) {
         count++;
-        std::cout << "[count] " << count << std::endl;
+        //std::cout << "[count] " << count << std::endl;
         auto h = hm.halfs[stack.top()];
-        //if (count == 86) { break; }
 
         stack.pop();
         if (flag[h.face().id]) continue;

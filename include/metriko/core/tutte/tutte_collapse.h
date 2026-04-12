@@ -129,7 +129,7 @@ inline void extract_polyline_from_tquad(
         for (const auto& ad: aux) {
             Vert v = ad.vert;
             pts.emplace_back(v.pos().x(), v.pos().y(), v.pos().z());
-            val.emplace_back(ad.value);
+            val.emplace_back(ad.val);
             side.emplace_back(ad.side);
         }
 

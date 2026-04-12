@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     //igl::upsample(V, F, 1);
 
     mesh = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
+    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
@@ -192,21 +192,36 @@ int main(int argc, char** argv) {
     auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X);
     auto collapsed = std::vector<int>{};
     for (auto eq: emesh.equads) {
-        //if (eq.id == 7) { eq.debug_draw(); continue; };
         //if (eq.id <= 6) emesh.collapse_quad(eq.id);
         //for (auto eq: emesh.equads) { }
-        if ( emesh.collapse_quad(eq.id)) { collapsed.push_back(eq.id); }
+        //eq.debug_draw();
+        //if (eq.id > 37) { break; };
+        //if (eq.id == 11)
+        if (emesh.collapse_quad(eq.id)) { collapsed.push_back(eq.id); }
     }
 
-    //emesh.collapse_half(50);
-    emesh.collapse_half(84);
+    //for (auto eq: emesh.equads) {
+    //    if (rg::contains(collapsed, eq.id)) { continue; }
+    //    for (auto [ehid, side]: eq.edata) {
+    //        auto& eh = emesh.ehalfs[ehid];
+    //        if (eh.x == 0) {
+    //            std::cout << "ehid to collapse: " << ehid << std::endl;
+    //            emesh.collapse_half(ehid);
+    //        }
+    //    }
+    //}
+
+    //emesh.collapse_half(84);
+
 
     for (auto eq: emesh.equads) {
         if (rg::contains(collapsed, eq.id)) { continue; }
-        // if (eq.id == 16)
-        eq.debug_draw();
+         //eq.debug_draw();
+         //if (eq.id == 15) eq.debug_draw();
+         //if (eq.id == 17) eq.debug_draw();
     }
 
+    /*
     auto half_data_em = tutte::compute_half_data(emesh);
 
     double t_tutte0 = omp_get_wtime();
@@ -232,7 +247,6 @@ int main(int argc, char** argv) {
 
     //for (auto tq: tmesh.tquads) { tutte::extract_polyline_from_tquad(hm_cut, emesh, tmesh, tq, half_data, R, X); }
 
-    /*
     { // cut half data 1
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -297,7 +311,6 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.002);
     }
-    */
 
     ///--- visuailize seam of cut mesh ---///
     auto hm_cut_cut = compute_cut_mesh(hm_cut, seam_cut);
@@ -341,6 +354,7 @@ int main(int argc, char** argv) {
     prms2->setEnabled(true);
     prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
     prms2->setCheckerSize(1);
+    */
 
     polyscope::show();
     return 0;
