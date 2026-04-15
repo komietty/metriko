@@ -12,6 +12,7 @@ namespace metriko::tutte {
 vec<HalfData> compute_half_data(const Emesh& em) {
     vec<HalfData> half_data;
     for (auto& eq: em.equads) {
+        if (eq.id == -1) continue;
         for (int i = 0; i < 4; i++) {
             for (int ehid: eq.ehids_by_side(i)) {
                 double sum = 0;

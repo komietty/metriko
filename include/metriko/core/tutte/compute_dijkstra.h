@@ -7,6 +7,9 @@
 #include <queue>
 
 namespace metriko {
+
+constexpr double SAME_FACE_PENALTY = 10000.0;
+
 // need some refactor
 std::vector<int> compute_dijkstra(
     const Hmesh& hm,
@@ -22,18 +25,27 @@ std::vector<int> compute_dijkstra(
 
     auto discovered = [&](Vert v) { return v == v0 || incoming_v2h.contains(v.id); };
 
-    auto enqueue_iH = [&](Vert v, double d) {
+    auto enqueue_iH = [&](Vert v, double d, int incoming_iH) {
+        int prev_fid = -1;
+        if (incoming_iH != -1) { prev_fid = hm.face[incoming_iH]; }
+
         for (Half h: v.adjHalfs()) {
             Vec3d p1 = h.tail().pos();
             Vec3d p2 = h.head().pos();
-            double mag = sqrt((p1 - p2).dot(p1 - p2));
+            auto mag = sqrt((p1 - p2).dot(p1 - p2));
+            auto pen = 0.;
+            auto fid = h.face().id;
+
+            // 変更点2: 同じFaceを連続して通る場合にペナルティを加算
+            // (境界エッジなどでFace IDが -1 になる場合を考慮して -1 は除外)
+            if (prev_fid != -1 && fid != -1 && prev_fid == fid) { pen = SAME_FACE_PENALTY; }
             if (!discovered(h.head()) && !visit[h.id] && !visit[h.twin().id]) {
-                pq.emplace(d + mag, h.id);
+                pq.emplace(d + mag + pen, h.id);
             }
         }
     };
 
-    enqueue_iH(v0, 0.);
+    enqueue_iH(v0, 0., -1);
 
     while (!pq.empty()) {
         double dist = get<0>(pq.top());
@@ -53,19 +65,20 @@ std::vector<int> compute_dijkstra(
             rg::reverse(begin(path), end(path));
             return path;
         }
-        enqueue_iH(hm.verts[iVc], dist);
+        enqueue_iH(hm.verts[iVc], dist, iHc);
     }
     return {};
 }
 
 std::vector<Half> compute_dijkstra_for_tquad_temp(
     const Hmesh& hm,
-    const std::vector<bool>& visit_edge,
     const std::vector<bool>& allow_vert,
     Vert v0,
     Vert v1
 ) {
     if (v0 == v1) return {};
+
+    std::vector visit_edge = std::vector(hm.nH, false);
 
     using len_half = std::tuple<double, int>;
     std::priority_queue<len_half, std::vector<len_half>, std::greater<>> pq;
@@ -73,7 +86,11 @@ std::vector<Half> compute_dijkstra_for_tquad_temp(
 
     auto discovered = [&](Vert v) { return v == v0 || incoming_v2h.contains(v.id); };
 
-    auto enqueue_iH = [&](Vert v, double d) {
+    auto enqueue_iH = [&](Vert v, double d, int incoming_iH) {
+
+        int prev_fid = -1;
+        if (incoming_iH != -1) { prev_fid = hm.face[incoming_iH]; }
+
         for (Half h: v.adjHalfs()) {
             // 条件: 境界エッジでなく、かつ、行き先の頂点が「許可リスト」に入っていること
             if (!discovered(h.head()) &&
@@ -83,13 +100,16 @@ std::vector<Half> compute_dijkstra_for_tquad_temp(
 
                 Vec3d p1 = h.tail().pos();
                 Vec3d p2 = h.head().pos();
-                double mag = sqrt((p1 - p2).dot(p1 - p2));
-                pq.emplace(d + mag, h.id);
-                }
+                auto mag = sqrt((p1 - p2).dot(p1 - p2));
+                auto pen = 0.;
+                auto fid = h.face().id;
+                if (prev_fid != -1 && fid != -1 && prev_fid == fid) { pen = SAME_FACE_PENALTY; }
+                pq.emplace(d + mag + pen, h.id);
+            }
         }
     };
 
-    enqueue_iH(v0, 0.);
+    enqueue_iH(v0, 0., -1);
 
     while (!pq.empty()) {
         double dist = get<0>(pq.top());
@@ -111,7 +131,7 @@ std::vector<Half> compute_dijkstra_for_tquad_temp(
             rg::reverse(path);
             return path;
         }
-        enqueue_iH(hm.verts[iVc], dist);
+        enqueue_iH(hm.verts[iVc], dist, iHc);
     }
     return {};
 }

@@ -36,7 +36,7 @@ MatXi F;
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     mesh = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
+    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
@@ -83,15 +83,14 @@ int main(int argc, char** argv) {
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
 
     /// ---- visualize mesh ---- ///
-    const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
-    const auto prms = surf->addParameterizationQuantity("params", uv1);
-    surf->setEdgeWidth(1);
-    surf->setEnabled(false);
-    prms->setStyle(polyscope::ParamVizStyle::GRID);
-    prms->setCheckerSize(1);
-
-    ///--- visuailize seam ---///
     {
+        const auto surf = polyscope::registerSurfaceMesh("mesh", V, F);
+        const auto prms = surf->addParameterizationQuantity("params", uv1);
+        surf->setEdgeWidth(0.7);
+        surf->setEnabled(false);
+        prms->setStyle(polyscope::ParamVizStyle::GRID);
+        prms->setCheckerSize(1);
+
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         size_t counter = 0;
@@ -148,11 +147,6 @@ int main(int argc, char** argv) {
     double t_cut1 = omp_get_wtime();
     std::cout << "[time] compute_embedding_cut_hmesh: " << (t_cut1 - t_cut0) << " s" << std::endl;
 
-    ///--- visualize cut mesh ---///
-    const auto surf_cut = polyscope::registerSurfaceMesh("cut_1", hm_cut.pos, hm_cut.idx);
-    surf->setEnabled(false);
-    surf_cut->setEdgeWidth(1);
-
 
     ///--- visuailize seam of cut mesh ---
     {
@@ -177,39 +171,49 @@ int main(int argc, char** argv) {
 
     auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X);
 
-    auto collapsed = std::vector<int>{};
+    auto success_collapse_quads = true;
+
     for (auto eq: emesh.equads) {
-        if (emesh.collapse_quad(eq.id)) { collapsed.push_back(eq.id); }
+        if (!emesh.collapse_quad(eq.id)) {
+            success_collapse_quads = false;
+            break;
+        }
     }
 
-    //for (auto eq: emesh.equads) {
-    //    if (rg::contains(collapsed, eq.id)) { continue; }
-    //    for (auto [ehid, side]: eq.edata) {
-    //        auto& eh = emesh.ehalfs[ehid];
-    //        if (eh.x == 0) {
-    //            std::cout << "ehid to collapse: " << ehid << std::endl;
-    //            emesh.collapse_half(ehid);
-    //        }
-    //    }
-    //}
+    if (!success_collapse_quads) { polyscope::show(); return 0; }
 
-    emesh.collapse_half(84);
+    for (auto eq: emesh.equads) {
+        if (eq.id == -1) { continue; }
+        for (auto [ehid, side]: eq.edata) {
+            auto& eh = emesh.ehalfs[ehid];
+            if (eh.x == 0) {
+                std::cout << "ehid to collapse: " << ehid << std::endl;
+                emesh.collapse_half(ehid);
+            }
+        }
+    }
 
     auto half_data_em = tutte::compute_half_data(emesh);
 
     double t_tutte0 = omp_get_wtime();
-    MatXd uv = tutte::compute_tutte_parameterization(hm_cut, emesh, seam_cut, half_data_em, X);
+    MatXd uv;
+    bool tutte_success = tutte::compute_tutte_parameterization(hm_cut, emesh, seam_cut, half_data_em, uv);
     double t_tutte1 = omp_get_wtime();
     std::cout << "[time] compute_tutte_parameterization: " << (t_tutte1 - t_tutte0) << " s" << std::endl;
 
+    ///--- visualize cut mesh ---///
     {
-        auto prms1 = surf_cut->addParameterizationQuantity("params_1", uv);
-        prms1->setEnabled(true);
-        prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-        prms1->setCheckerSize(1);
+        auto surf = polyscope::registerSurfaceMesh("cut_1", hm_cut.pos, hm_cut.idx);
+        auto prms = surf->addParameterizationQuantity("uv", uv);
+        surf->setEdgeWidth(0.7);
+        surf->setEnabled(false);
+        prms->setEnabled(true);
+        prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+        prms->setCheckerSize(1);
     }
 
-    { // cut half data 1
+    // cut half data 1
+    {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> val1; //
@@ -241,7 +245,9 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.002);
     }
-    { // cut half data 2
+
+    // cut half data 2
+    {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> val1; //
@@ -274,47 +280,47 @@ int main(int argc, char** argv) {
         c->setRadius(0.002);
     }
 
-    ///--- visuailize seam of cut mesh ---///
-    auto hm_cut_cut = compute_cut_mesh(hm_cut, seam_cut);
-    // todo: need to assert locally injective here...
+    if (tutte_success) {
+        auto hm3 = compute_cut_mesh(hm_cut, seam_cut);
 
-    std::vector<int> b_;
-    std::vector<Row2d> bc_;
+        std::vector<int> b_;
+        std::vector<Row2d> bc_;
+        VecXi b;
+        MatXd bc;
 
-    for (auto v: hm_cut_cut->verts) {
-        if (v.isBoundary()) {
-            Row2d val = uv.row(v.half().next().crnr().id);
-            b_.push_back(v.id);
-            bc_.push_back(val);
+        for (auto v: hm3->verts) {
+            if (v.isBoundary()) {
+                Row2d val = uv.row(v.half().next().crnr().id);
+                b_.push_back(v.id);
+                bc_.push_back(val);
+            }
         }
+
+        b = Eigen::Map<VecXi>(b_.data(), b_.size());
+        bc.resize(bc_.size(), 2);
+
+
+        for (int i = 0; i < (int)bc_.size(); ++i) { bc.row(i) = bc_[i]; }
+        double soft_const_p = 1e5;
+        MatXd uv_init(hm3->nV, 2);
+        for (auto v: hm3->verts) {
+            uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
+        }
+        igl::SLIMData sData;
+        sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
+
+        slim_precompute(hm3->pos, hm3->idx, uv_init, sData, sData.slim_energy, b, bc, soft_const_p);
+        slim_solve(sData, 10);
+
+        std::cout << "compute success: slim result: " << (sData.V_o - uv_init).norm() << std::endl;
+
+        auto surf = polyscope::registerSurfaceMesh("cut_2", hm3->pos, hm3->idx);
+        auto prms = surf->addVertexParameterizationQuantity("uv", sData.V_o);
+        surf->setEdgeWidth(0.7);
+        prms->setEnabled(true);
+        prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+        prms->setCheckerSize(1);
     }
-
-    Eigen::VectorXi b;
-    Eigen::MatrixXd bc;
-
-    b = Eigen::Map<VecXi>(b_.data(), b_.size());
-    bc.resize(bc_.size(), 2);
-
-
-    for (int i = 0; i < static_cast<int>(bc_.size()); ++i) { bc.row(i) = bc_[i]; }
-    double soft_const_p = 1e5;
-    Eigen::MatrixXd uv_init(hm_cut_cut->nV, 2);
-    for (auto v: hm_cut_cut->verts) {
-        uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
-    }
-    igl::SLIMData sData;
-    sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
-
-    slim_precompute(hm_cut_cut->pos, hm_cut_cut->idx, uv_init, sData, sData.slim_energy, b, bc, soft_const_p);
-    slim_solve(sData, 10);
-
-    std::cout << "slim result: " << (sData.V_o - uv_init).norm() << std::endl;
-
-    const auto surf_cut_cut = polyscope::registerSurfaceMesh("cut_2", hm_cut_cut->pos, hm_cut_cut->idx);
-    auto prms2 = surf_cut_cut->addVertexParameterizationQuantity("params_2", sData.V_o);
-    prms2->setEnabled(true);
-    prms2->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-    prms2->setCheckerSize(1);
 
     polyscope::show();
     return 0;

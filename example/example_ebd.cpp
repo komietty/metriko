@@ -95,13 +95,11 @@ int main(int argc, char** argv) {
     { /// ---- visualize mesh ---- ///
         const auto surf = polyscope::registerSurfaceMesh("mesh", hm->pos, hm->idx);
         const auto prms = surf->addParameterizationQuantity("params", uv1);
-        surf->setEdgeWidth(1);
+        surf->setEdgeWidth(0.7);
         surf->setEnabled(false);
         prms->setStyle(polyscope::ParamVizStyle::GRID);
         prms->setCheckerSize(1);
-    }
 
-    { ///--- visuailize seam ---///
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> ms;
@@ -178,7 +176,6 @@ int main(int argc, char** argv) {
     //    }
     //}
 
-    em2->collapse_half(84);
 
     //for (auto eq: em2->equads) { eq.debug_draw(); }
     auto half_data_em = tutte::compute_half_data(*em2);

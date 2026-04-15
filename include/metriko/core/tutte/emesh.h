@@ -171,7 +171,7 @@ struct Emesh {
             if (sum == 0) { side = i; break; }
         }
 
-        if (side == -1) return false;
+        if (side == -1) return true;
         std::cout << "collapse eqid: " << qid << std::endl;
 
         int side_a = side == 0 ? 1 : 2;                     // remain side a
@@ -194,11 +194,16 @@ struct Emesh {
                 if (eh0.end) return {eh0.head().id, s1};
                 if (eh1.end) return {eh1.head().id, s0};
             }
-            throw std::runtime_error("terminal not found");
+            return {-1, -1};
         };
 
         auto [bgn, sB] = find_terminal(ehids_p, side_b, side_a); // vert and side of the bgn
         auto [end, sE] = find_terminal(ehids_q, side_a, side_b); // vert and side of the end
+
+        if (bgn == -1 || end == -1) {
+            std::cerr << "collapse eqid failed: " << qid << std::endl;
+            return false;
+        }
 
         double sum = 0;
         double cmp = 0;
@@ -233,7 +238,7 @@ struct Emesh {
         }
 
 
-        if (aux.empty()) return false;
+        if (aux.empty()) return true;
         assert(sum1 == 0);
 
         rg::sort(aux, [](const AuxDijkData& a, const AuxDijkData& b) {
@@ -385,6 +390,7 @@ struct Emesh {
         replace_remain_side(eq, path_mb, ehids_p, ehids_q, side_a);
         std::cout << "path_md" << std::endl;
         replace_remain_side(eq, path_md, ehids_q, ehids_p, side_b);
+        equads[qid].id = -1;
         return true;
     }
 
@@ -480,6 +486,17 @@ inline vec<int> Equad::verts_inside() const {
             }
         }
     }
+
+
+    std::vector<glm::vec3> pts;
+    for (int vid: res) {
+        Vert v = hm.verts[vid];
+        pts.emplace_back(v.pos().x(), v.pos().y(), v.pos().z());
+    }
+    auto p = polyscope::registerPointCloud("inside pts of quad: " + std::to_string(id), pts);
+    p->setEnabled(false);
+    p->setPointRadius(0.0005);
+    p->resetTransform();
 
     return res;
 }

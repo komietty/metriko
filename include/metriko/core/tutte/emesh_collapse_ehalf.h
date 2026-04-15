@@ -17,14 +17,7 @@ inline vec<Half> Emesh::collapse_half_find_path(int ehid) {
     auto  it = rg::find(eq.edata, ehid, &Edata::ehid);
     assert(it != eq.edata.end());
 
-    vec visit = std::vector(hm.nH, false);
     vec allow(hm.nV, false);
-
-    for (auto [ehid_, _]: eq.edata) {
-    for (Half h: ehalfs[ehid_].halfs) {
-        visit[h.id] = true;
-        visit[h.twin().id] = true; // 双対も念のため
-    }}
 
     for (int vid: eq.verts_inside()) { allow[vid] = true; }
     auto it_prev = circular_prev(eq.edata, it);
@@ -37,11 +30,10 @@ inline vec<Half> Emesh::collapse_half_find_path(int ehid) {
     // guarantees bgn/end vertex id is in the allowed list
     allow[v0.id] = true;
     allow[v1.id] = true;
-    return compute_dijkstra_for_tquad_temp(hm, visit, allow, v0, v1);
+    return compute_dijkstra_for_tquad_temp(hm, allow, v0, v1);
 }
 
 inline bool Emesh::collapse_half(const int ehid) {
-    std::cout << "collapse_half " << ehid << std::endl;
     auto& eh = ehalfs[ehid];
     auto& eq = equads[eh.eqid];
     auto it0 = rg::find(eq.edata, ehid, &Edata::ehid); // edata of ehid

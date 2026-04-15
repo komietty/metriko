@@ -8,22 +8,21 @@ namespace metriko::tutte {
 
 inline Mat2d compute_rotation(int i) {
     Mat2d r0, r1, r2, r3;
-    r0 << 1, 0, 0, 1;
-    r1 << 0, -1, 1, 0;
-    r2 << -1, 0, 0, -1;
-    r3 << 0, 1, -1, 0;
-    auto r = std::vector{r2, r1, r0, r3}; // need fix
+    r0 <<  1,  0,  0,  1;
+    r1 <<  0, -1,  1,  0;
+    r2 << -1,  0,  0, -1;
+    r3 <<  0,  1, -1,  0;
+    auto r = vec{r2, r1, r0, r3}; // need fix
     return r[i];
 }
 
 inline SprsD embedding_tutte_for_tquad(
     const int tqid,
-    const std::vector<HalfData>& data,
+    const vec<HalfData>& data,
     const Hmesh& hm, // the cut mesh
-    const Emesh& tm, // the tmesh of original hmesh
-    const VecXd& X
+    const Emesh& tm  // the tmesh of original hmesh
 ) {
-    std::vector<TripD> T;
+    vec<TripD> T;
 
     SprsD emb_uv(hm.nV, 2);
     auto tq_rg = rg::equal_range(data, tqid, {}, &HalfData::tqid);
@@ -164,7 +163,7 @@ inline vec<int> sequential_mapping(
 
 // try to multiply rotation until halfedge coner values corresponds
 // need to consider: is there any possibility of flip?
-inline void apply_transition(
+inline bool apply_transition(
     const bool flag,
     const Half h,    // the halfedge of unfixed side
     const SprsD& m0, // the fixed uv information
@@ -214,32 +213,36 @@ inline void apply_transition(
                 m1.coeffRef(ir, 0) = p.x();
                 m1.coeffRef(ir, 1) = p.y();
             }
-            return;
+            return true;
         }
     }
-    throw std::runtime_error("no corresponding rotation found");
+    return false;
 }
 
 struct HalfHash { std::size_t operator()(const Half& h) const noexcept { return std::hash<int>{}(h.id); } };
 
-inline MatXd compute_tutte_parameterization(
+inline bool compute_tutte_parameterization(
     const Hmesh& hm,           // hmesh after tutte cutting
     const Emesh& tm,           // tmesh original
     const vec<bool>& seam,     // seam adapted to tutte cutting
     const vec<HalfData>& data, //
-    const VecXd& X             //
+    MatXd& uv
 ) {
+    bool success = true;
     // compute uv per tquad first...
     vec<SprsD> uv_tq;
     uv_tq.resize(tm.equads.size());
 
     //#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < tm.equads.size(); i++) {
-        uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm, X);
+        if (tm.equads[i].id != -1)
+            uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
     }
 
-    MatXd uv = MatXd::Zero(hm.nC, 2);
-    auto flag = std::vector(hm.nF, false);
+    uv.resize(hm.nC, 2);
+    uv.setZero();
+
+    auto flag = vec(hm.nF, false);
     std::stack<int> stack;
 
     std::unordered_map<Half, const HalfData*, HalfHash> data_by_half;
@@ -264,15 +267,21 @@ inline MatXd compute_tutte_parameterization(
         stack.pop();
         if (flag[h.face().id]) continue;
 
-        auto curr = data_by_half.at(h);
+        auto it = data_by_half.find(h);
+        if (it == data_by_half.end()) {
+            std::cerr << "[Error] compute_tutte_parameterization: Halfedge " << h.id << " not found in data_by_half map." << std::endl;
+            return false;
+        }
+
+        auto curr = it->second;
         SprsD& uv_curr = uv_tq[curr->tqid];
-        apply_transition(false, h, uv.sparseView(), uv_curr);
+        success &= apply_transition(false, h, uv.sparseView(), uv_curr);
 
         vec b(hm.nH, false);
         for (auto& d: data) { if (d.tqid == curr->tqid) b[d.half.id] = true; }
         for (auto nh: sequential_mapping(hm, uv_curr, h, b, seam, flag, uv)) stack.emplace(nh);
     }
-    return uv;
+    return success;
 }
 }
 
