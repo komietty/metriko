@@ -41,6 +41,7 @@ inline vec<Half> Emesh::collapse_half_find_path(int ehid) {
 }
 
 inline bool Emesh::collapse_half(const int ehid) {
+    std::cout << "collapse_half " << ehid << std::endl;
     auto& eh = ehalfs[ehid];
     auto& eq = equads[eh.eqid];
     auto it0 = rg::find(eq.edata, ehid, &Edata::ehid); // edata of ehid

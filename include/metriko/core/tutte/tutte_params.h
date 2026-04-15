@@ -223,11 +223,11 @@ inline void apply_transition(
 struct HalfHash { std::size_t operator()(const Half& h) const noexcept { return std::hash<int>{}(h.id); } };
 
 inline MatXd compute_tutte_parameterization(
-    const Hmesh& hm,                // hmesh after tutte cutting
-    const Emesh& tm,            // tmesh original
-    const vec<bool>& seam,          // seam adapted to tutte cutting
-    const std::vector<HalfData>& data, //
-    const VecXd& X                  //
+    const Hmesh& hm,           // hmesh after tutte cutting
+    const Emesh& tm,           // tmesh original
+    const vec<bool>& seam,     // seam adapted to tutte cutting
+    const vec<HalfData>& data, //
+    const VecXd& X             //
 ) {
     // compute uv per tquad first...
     vec<SprsD> uv_tq;

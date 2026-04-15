@@ -32,6 +32,8 @@ namespace metriko::visualizer {
         std::vector<double> vecX;
         std::vector<double> difx;
         std::vector<double> dify;
+        std::vector<double> count;
+
 
         for (int i = 0; i < tm.nTE; i++) {
             const auto& te = tm.tedges[i];
@@ -49,6 +51,7 @@ namespace metriko::visualizer {
                 if (R != nullptr) vecR.emplace_back((*R)[i]);
                 if (X != nullptr) vecX.emplace_back((*X)[i]);
                 randoms.emplace_back(random_value);
+                count.emplace_back(counter);
                 counter += 2;
             }
         }
@@ -61,6 +64,7 @@ namespace metriko::visualizer {
         c->addEdgeScalarQuantity("difx", difx);
         c->addEdgeScalarQuantity("dify", dify);
         c->addEdgeScalarQuantity("random", randoms);
+        c->addEdgeScalarQuantity("count", count);
         c->setEnabled(show);
         c->resetTransform();
         c->setRadius(0.0004);

@@ -121,6 +121,17 @@ struct Emesh {
     vec<Ehalf> ehalfs;
     set<int> sings;
 
+    Emesh(
+        const Emesh& old_em,
+        const Hmesh& new_hm
+    ): hm(new_hm) {
+        equads = old_em.equads;
+        ehalfs = old_em.ehalfs;
+        sings  = old_em.sings;
+        for (auto& eq : equads) { eq.em = this; }
+        for (auto& eh : ehalfs) { eh.em = this; }
+    }
+
     explicit Emesh(
         const Hmesh& hm,
         const tm::Tmesh& tm,
@@ -590,6 +601,7 @@ inline void Equad::debug_draw() const {
     c->addEdgeScalarQuantity("count", val3);
     c->addNodeScalarQuantity("bgn end", val4);
     c->addEdgeScalarQuantity("x", x)->setEnabled(true);
+    c->setEnabled(false);
     c->resetTransform();
     c->setRadius(0.002);
 }
