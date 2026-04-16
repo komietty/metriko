@@ -172,7 +172,7 @@ struct Emesh {
         }
 
         if (side == -1) return true;
-        std::cout << "collapse eqid: " << qid << std::endl;
+        std::cout << "-------- collapse eqid: " << qid << std::endl;
 
         int side_a = side == 0 ? 1 : 2;                     // remain side a
         int side_b = side == 0 ? 3 : 0;                     // remain side b
@@ -181,26 +181,27 @@ struct Emesh {
         auto ehids_a = eq.ehids_by_side(side_a);            // remain side a
         auto ehids_b = eq.ehids_by_side(side_b);            // remain side b
 
-        auto find_terminal = [&](const vec<int>& ehids, int s0, int s1) -> std::pair<int, int> {
+        auto find_terminal = [&](const vec<int>& ehids, int s0, int s1) -> std::tuple<int, int, int> {
             for (int ehid: ehids) {
                 Ehalf& eh0 = ehalfs[ehid];
                 Ehalf& eh1 = ehalfs[eh0.twid];
-                if (eh0.bgn) return {eh0.tail().id, s0};
-                if (eh1.bgn) return {eh1.tail().id, s1};
+                if (eh0.bgn) return {eh0.tail().id, eh0.head().id, s0};
+                if (eh1.bgn) return {eh1.tail().id, eh1.head().id, s1};
             }
             for (int ehid: ehids) {
                 Ehalf& eh0 = ehalfs[ehid];
                 Ehalf& eh1 = ehalfs[eh0.twid];
-                if (eh0.end) return {eh0.head().id, s1};
-                if (eh1.end) return {eh1.head().id, s0};
+                if (eh0.end) return {eh0.head().id, eh0.tail().id, s1};
+                if (eh1.end) return {eh1.head().id, eh1.tail().id, s0};
             }
-            return {-1, -1};
+            return {-1, -1, -1};
         };
 
-        auto [bgn, sB] = find_terminal(ehids_p, side_b, side_a); // vert and side of the bgn
-        auto [end, sE] = find_terminal(ehids_q, side_a, side_b); // vert and side of the end
+        auto [bgn, markedB, sB] = find_terminal(ehids_p, side_b, side_a); // vert, other marked vert and side of the bgn
+        auto [end, markedE, sE] = find_terminal(ehids_q, side_a, side_b); // vert, other marked vert and side of the end
 
         if (bgn == -1 || end == -1) {
+            equads[qid].debug_draw();
             std::cerr << "collapse eqid failed: " << qid << std::endl;
             return false;
         }
@@ -209,7 +210,7 @@ struct Emesh {
         double cmp = 0;
         for (int ehid: ehids_a) {
             sum += ehalfs[ehid].x;
-            cmp += ehalfs[ehid].x + 1;
+            cmp += ehalfs[ehid].halfs.size();
         }
 
         vec<AuxDijkData> aux;
@@ -223,17 +224,25 @@ struct Emesh {
         for (int ehid: ehids_a) {
             Ehalf& eh = ehalfs[ehid];
             sum1 += eh.x;
-            cmp1 += eh.x + 1;
-            if (sum1 != 0 && sum1 != sum)
-                aux.emplace_back(AuxDijkData{ eh.head(), side_a, sum1, cmp1});
+            cmp1 += eh.halfs.size();
+            if (eh.head().id == bgn) { continue; }
+            if (eh.head().id == end) { continue; }
+            if (eh.head().id == markedB) { continue; }
+            if (eh.head().id == markedE) { continue; }
+            //if (sum1 != 0 && sum1 != sum)
+            aux.emplace_back(AuxDijkData{ eh.head(), side_a, sum1, cmp1});
             std::cout << "aux side a vert id: " << eh.head().id << ", aux side a side id: " << side_a << std::endl;
         }
         for (int ehid: ehids_b) {
             Ehalf& eh = ehalfs[ehid];
             sum1 -= eh.x;
-            cmp1 -= eh.x + 1;
-            if (sum1 != 0 && sum1 != sum)
-                aux.emplace_back(AuxDijkData{ eh.head(), side_b, sum1, cmp1});
+            cmp1 -= eh.halfs.size();
+            if (eh.head().id == bgn) { continue; }
+            if (eh.head().id == end) { continue; }
+            if (eh.head().id == markedB) { continue; }
+            if (eh.head().id == markedE) { continue; }
+            //if (sum1 != 0 && sum1 != sum)
+            aux.emplace_back(AuxDijkData{ eh.head(), side_b, sum1, cmp1});
             std::cout << "aux side b vert id: " << eh.head().id << ", aux side b side id: " << side_b << ", sum: " << sum << std::endl;
         }
 
@@ -249,7 +258,14 @@ struct Emesh {
         auto ret = rg::unique(aux, [](const AuxDijkData& a, const AuxDijkData& b) {
             return std::tie(a.val, a.vert.id, a.side) == std::tie(b.val, b.vert.id, b.side);
         });
+
+        std::cout << "aux len: " << aux.size() << std::endl;
         aux.erase(ret.begin(), ret.end());
+        std::cout << "aux len: " << aux.size() << std::endl;
+
+        for (auto a: aux) {
+            std::cout << "aux val: " << a.val << ", vid: " << a.vert.id << ", side: " << a.side << std::endl;
+        }
 
         vec<int> path_mb;
 
@@ -264,7 +280,7 @@ struct Emesh {
             Row3d p = a.vert.pos();
             verts_to_passby.emplace_back(p.x(), p.y(), p.z());
         }
-        auto vq = polyscope::registerPointCloud("verts to pass by", verts_to_passby);
+        auto vq = polyscope::registerPointCloud("verts to pass by eqid " + std::to_string(qid), verts_to_passby);
         vq->setEnabled(true);
         vq->setPointRadius(0.002);
         vq->resetTransform();
@@ -381,7 +397,7 @@ struct Emesh {
             auto c = polyscope::registerCurveNetwork("path_md of eqid" + std::to_string(qid), ns, es);
             c->addEdgeScalarQuantity("order", val1);
             c->resetTransform();
-            c->setRadius(0.002);
+            c->setRadius(0.001);
         }
         /*
         */

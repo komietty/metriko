@@ -233,7 +233,7 @@ inline bool compute_tutte_parameterization(
     vec<SprsD> uv_tq;
     uv_tq.resize(tm.equads.size());
 
-    //#pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < tm.equads.size(); i++) {
         if (tm.equads[i].id != -1)
             uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);

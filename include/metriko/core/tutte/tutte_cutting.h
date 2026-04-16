@@ -239,7 +239,7 @@ inline void face_cutting(
 // creating embedded tquad as an intermediate data set because the vertex
 // positions of each tedges are consistent as the whole graph.
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
-inline Hmesh compute_embedding_cut_hmesh(
+inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
 //inline Hmesh compute_embedding_cut_hmesh(
     const Hmesh& hm,           // input hmesh
     const tm::Tmesh& tm,       // input tmesh
@@ -295,9 +295,9 @@ inline Hmesh compute_embedding_cut_hmesh(
         }
     }
 
-    auto hm_cut = Hmesh(vert_info, face_info);
+    auto hm_cut = std::make_unique<Hmesh>(vert_info, face_info);
     auto h_data = std::set<HalfData>();
-    seam1 = std::vector(hm_cut.nE, false);
+    seam1 = std::vector(hm_cut->nE, false);
 
     struct EdgeKey {
         int tail;
@@ -312,9 +312,9 @@ inline Hmesh compute_embedding_cut_hmesh(
     };
 
     std::unordered_map<EdgeKey, Half, EdgeKeyHash> half_by_verts;
-    half_by_verts.reserve(hm_cut.nH * 2);
+    half_by_verts.reserve(hm_cut->nH * 2);
 
-    for (Half h: hm_cut.halfs) {
+    for (Half h: hm_cut->halfs) {
         half_by_verts.insert({EdgeKey{h.tail().id, h.head().id}, h});
     }
 

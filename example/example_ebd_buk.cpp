@@ -11,6 +11,8 @@
 #include "../include/metriko/core/tutte/visualize_tedge_ebd.h"
 #include "igl/false_barycentric_subdivision.h"
 #include "igl/upsample.h"
+#include "metriko/core/subdivide.h"
+#include "metriko/core/subdivide_with_emesh.h"
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/emesh_collapse_ehalf.h"
@@ -26,7 +28,7 @@ MatXi flatF;
 MatXd uv1;                            // real number uv
 VecXc uv2;                            // complex number uv
 std::vector<bool> seam;
-std::unique_ptr<Hmesh> mesh;
+std::unique_ptr<Hmesh> hm0;
 std::unique_ptr<FaceRosyField> rawf;
 std::unique_ptr<FaceRosyField> cmbf;
 
@@ -35,20 +37,18 @@ MatXi F;
 
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
-    mesh = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::CurvatureAligned);
+    hm0  = std::make_unique<Hmesh>(V, F);
+    rawf = std::make_unique<FaceRosyField>(*hm0, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
-    auto cutm = compute_cut_mesh(*mesh, seam);
+    auto cutm = compute_cut_mesh(*hm0 , seam);
     cmbf = compute_combbed_field(*rawf, seam);
-    MatXd cmbExtRosy(mesh->nF, 3 * N);
-    MatXd cmbExtZero(mesh->nF, 3);
-    for (Face f: mesh->faces) {
+    MatXd cmbExtRosy(hm0->nF, 3 * N);
+    for (Face f: hm0->faces) {
         complex c0 = cmbf->field(f.id, 0);
         complex c1 = cmbf->field(f.id, 1);
         complex c2 = cmbf->field(f.id, 2);
         complex c3 = cmbf->field(f.id, 3);
-        cmbExtZero.row(f.id) = (c0.real() * f.basisX() + c0.imag() * f.basisY()).normalized();
         cmbExtRosy.block(f.id, 0, 1, 3) = (c0.real() * f.basisX() + c0.imag() * f.basisY()).normalized();
         cmbExtRosy.block(f.id, 3, 1, 3) = (c1.real() * f.basisX() + c1.imag() * f.basisY()).normalized();
         cmbExtRosy.block(f.id, 6, 1, 3) = (c2.real() * f.basisX() + c2.imag() * f.basisY()).normalized();
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     }
 
     double t_integ0 = omp_get_wtime();
-    RosyParameterization rp(*mesh, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
+    RosyParameterization rp(*hm0, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
     rp.seamless = false;
     rp.localInjectivity = true;
     rp.verbose = false;
@@ -65,14 +65,14 @@ int main(int argc, char** argv) {
     double t_integ1 = omp_get_wtime();
     std::cout << "[time] compute_integration: " << (t_integ1 - t_integ0) << " s" << std::endl;
 
-    uv1.resize(mesh->nF * 3, 2);
-    uv2.resize(mesh->nF * 3);
-    for (const Face f: mesh->faces) {
+    uv1.resize(hm0->nF * 3, 2);
+    uv2.resize(hm0->nF * 3);
+    for (Face f: hm0->faces) {
         uv1.row(f.id * 3 + 0) << rp.cfn(f.id, 0), rp.cfn(f.id, 1);
         uv1.row(f.id * 3 + 1) << rp.cfn(f.id, 4), rp.cfn(f.id, 5);
         uv1.row(f.id * 3 + 2) << rp.cfn(f.id, 8), rp.cfn(f.id, 9);
     }
-    for (const Face f: mesh->faces) {
+    for (Face f: hm0->faces) {
         uv2(f.id * 3 + 0) = complex{uv1(f.id * 3 + 0, 0), uv1(f.id * 3 + 0, 1)};
         uv2(f.id * 3 + 1) = complex{uv1(f.id * 3 + 1, 0), uv1(f.id * 3 + 1, 1)};
         uv2(f.id * 3 + 2) = complex{uv1(f.id * 3 + 2, 0), uv1(f.id * 3 + 2, 1)};
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         size_t counter = 0;
-        for (auto e: mesh->edges) {
+        for (auto e: hm0->edges) {
             if (seam[e.id]) {
                 Row3d p1 = e.half().tail().pos();
                 Row3d p2 = e.half().head().pos();
@@ -111,12 +111,12 @@ int main(int argc, char** argv) {
     }
 
     ///--- gen mport, medge ---///
-    auto graph = mc::MotorcycleGraph(*mesh, uv2, cmbf->matching, cmbf->singular);
-    auto tmesh = metriko::tm::Tmesh(graph.mcurvs);
-    VecXd R = VecXd::Zero(tmesh.nTE);
-    for (int i = 0; i < tmesh.nTE; i++) {
+    auto graph = mc::MotorcycleGraph(*hm0, uv2, cmbf->matching, cmbf->singular);
+    auto tm    = metriko::tm::Tmesh(graph.mcurvs);
+    VecXd R = VecXd::Zero(tm.nTE);
+    for (int i = 0; i < tm.nTE; i++) {
         bool bgn = false;
-        const auto& te = tmesh.tedges[i];
+        const auto& te = tm.tedges[i];
         for (const mc::Msgmt& seg: te.seg_fr.value().curv->sgmts) {
             if (seg == te.seg_fr) bgn = true;
             if (bgn) {
@@ -127,34 +127,28 @@ int main(int argc, char** argv) {
     }
     double t_quantize0 = omp_get_wtime();
 
-    VecXd X = compute_quantization(tmesh, R);
-    validate_quantization(tmesh, X);
+    VecXd X = compute_quantization(tm, R);
+    validate_quantization(tm, X);
 
     double t_quantize1 = omp_get_wtime();
     std::cout << "[time] compute_quantization: " << (t_quantize1 - t_quantize0) << " s" << std::endl;
 
-    visualizer::visualize_tedge(tmesh, uv2, &X, &R);
+    visualizer::visualize_tedge(tm, uv2, &X, &R);
 
 
     std::vector<tutte::HalfData> half_data;
     std::set<tutte::HalfData> half_set;
-    std::vector<bool> seam_cut;
+    std::vector<bool> seam1;
 
-    //tutte::compute_embedded_halfs(*mesh, tmesh, uv2, half_data);
-
-    double t_cut0 = omp_get_wtime();
-    auto hm_cut = tutte::compute_embedding_cut_hmesh(*mesh, tmesh, uv2, X, R, seam, seam_cut, half_set, half_data);
-    double t_cut1 = omp_get_wtime();
-    std::cout << "[time] compute_embedding_cut_hmesh: " << (t_cut1 - t_cut0) << " s" << std::endl;
-
+    auto hm1 = tutte::compute_embedding_cut_hmesh(*hm0, tm, uv2, X, R, seam, seam1, half_set, half_data);
 
     ///--- visuailize seam of cut mesh ---
     {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         size_t counter = 0;
-        for (auto e: hm_cut.edges) {
-            if (seam_cut[e.id]) {
+        for (auto e: hm1->edges) {
+            if (seam1[e.id]) {
                 Row3d p1 = e.half().tail().pos();
                 Row3d p2 = e.half().head().pos();
                 ns.emplace_back(p1.x(), p1.y(), p1.z());
@@ -169,41 +163,52 @@ int main(int argc, char** argv) {
         c->setRadius(0.002);
     }
 
-    auto emesh = tutte::Emesh(hm_cut, tmesh, half_set, X);
+    auto em0 = std::make_unique<tutte::Emesh>(*hm1, tm, half_set, X);
+
+    auto hm2 = twelve_subdivide_hmesh(*hm1);
+    auto em2 = tutte::upgrade_emesh(*em0, *hm2);
+
+    //hm1 = std::move(hm2);
+    //em0 = std::move(em2);
 
     auto success_collapse_quads = true;
 
-    for (auto eq: emesh.equads) {
-        if (!emesh.collapse_quad(eq.id)) {
+    for (auto eq: em0->equads) {
+        if (!em0->collapse_quad(eq.id)) {
             success_collapse_quads = false;
             break;
         }
     }
 
-    if (!success_collapse_quads) { polyscope::show(); return 0; }
+    if (!success_collapse_quads) {
+        auto surf = polyscope::registerSurfaceMesh("cut_1", hm1->pos, hm1->idx);
+        surf->setEdgeWidth(0.7);
+        polyscope::show();
+        return 0;
+    }
 
-    for (auto eq: emesh.equads) {
+    for (auto eq: em0->equads) {
         if (eq.id == -1) { continue; }
         for (auto [ehid, side]: eq.edata) {
-            auto& eh = emesh.ehalfs[ehid];
+            auto& eh = em0->ehalfs[ehid];
             if (eh.x == 0) {
                 std::cout << "ehid to collapse: " << ehid << std::endl;
-                emesh.collapse_half(ehid);
+                em0->collapse_half(ehid);
             }
         }
     }
 
-    auto half_data_em = tutte::compute_half_data(emesh);
+    auto half_data_em = tutte::compute_half_data(*em0);
 
     double t_tutte0 = omp_get_wtime();
     MatXd uv;
-    bool tutte_success = tutte::compute_tutte_parameterization(hm_cut, emesh, seam_cut, half_data_em, uv);
+    bool tutte_success = tutte::compute_tutte_parameterization(*hm1, *em0, seam1, half_data_em, uv);
     double t_tutte1 = omp_get_wtime();
     std::cout << "[time] compute_tutte_parameterization: " << (t_tutte1 - t_tutte0) << " s" << std::endl;
 
     ///--- visualize cut mesh ---///
     {
-        auto surf = polyscope::registerSurfaceMesh("cut_1", hm_cut.pos, hm_cut.idx);
+        auto surf = polyscope::registerSurfaceMesh("cut_1", hm1->pos, hm1->idx);
         auto prms = surf->addParameterizationQuantity("uv", uv);
         surf->setEdgeWidth(0.7);
         surf->setEnabled(false);
@@ -212,8 +217,8 @@ int main(int argc, char** argv) {
         prms->setCheckerSize(1);
     }
 
-    // cut half data 1
-    {
+    /*
+    { // cut half data 1
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> val1; //
@@ -222,7 +227,7 @@ int main(int argc, char** argv) {
         size_t count = 0;
 
         for (const auto& hd: half_data) {
-            if (!tmesh.thalfs[hd.thid].cano) continue;
+            if (!tm.thalfs[hd.thid].cano) continue;
             //if (hd.tqid != 3) continue;
             Row3d p1 = hd.half.tail().pos();
             Row3d p2 = hd.half.head().pos();
@@ -245,9 +250,7 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.002);
     }
-
-    // cut half data 2
-    {
+    { // cut half data 2
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> val1; //
@@ -256,7 +259,7 @@ int main(int argc, char** argv) {
         size_t count = 0;
 
         for (const auto& hd: half_data) {
-            if (tmesh.thalfs[hd.thid].cano) continue;
+            if (tm.thalfs[hd.thid].cano) continue;
             //if (hd.tqid != 3) continue;
             Row3d p1 = hd.half.tail().pos();
             Row3d p2 = hd.half.head().pos();
@@ -279,9 +282,10 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.002);
     }
+    */
 
     if (tutte_success) {
-        auto hm3 = compute_cut_mesh(hm_cut, seam_cut);
+        auto hm3 = compute_cut_mesh(*hm1, seam1);
 
         std::vector<int> b_;
         std::vector<Row2d> bc_;
