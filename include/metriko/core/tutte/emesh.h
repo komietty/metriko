@@ -159,7 +159,7 @@ struct Emesh {
         }
     }
 
-    vec<Half> collapse_half_find_path(int ehid);
+    //std::optional<vec<Half>> collapse_half_find_path(int ehid);
     bool collapse_half(int ehid);
 
     bool collapse_quad(const int qid) {
@@ -214,10 +214,10 @@ struct Emesh {
         }
 
         vec<AuxDijkData> aux;
-        aux.emplace_back(AuxDijkData{hm.verts[bgn], sB, 0., 0.});
+        aux.emplace_back(AuxDijkData{hm.verts[bgn], sB, 0., -1e6});
+        aux.emplace_back(AuxDijkData{hm.verts[end], sE, sum, 1e6});
         std::cout << "aux first vert id: " << hm.verts[bgn].id << ", aux first side id: " << sB << std::endl;
-        aux.emplace_back(AuxDijkData{hm.verts[end], sE, sum, cmp});
-        std::cout << "aux last vert id: " << hm.verts[end].id << ", aux last side id: " << sE << std::endl;
+        std::cout << "aux last vert id: "  << hm.verts[end].id << ", aux last side id: "  << sE << std::endl;
 
         double sum1 = 0;
         double cmp1 = 0;
@@ -530,8 +530,16 @@ inline void Equad::replace_ehalf(
         assert(it != edata.end());
         side = it->side;
         auto addr = edata.erase(it);
-        auto item = reps | vw::transform([side](int r) { return Edata{r, side}; });
-        edata.insert_range(addr, item);
+        //auto item = reps | vw::transform([side](int r) { return Edata{r, side}; });
+        //edata.insert_range(addr, item);
+
+        vec<Edata> items;
+        items.reserve(reps.size());
+        for (int r : reps) {
+            items.push_back(Edata{r, side});
+            const_cast<Ehalf&>(em->ehalfs[r]).eqid = this->id;
+        }
+        edata.insert_range(addr, items);
     }
 
     auto remove_from_twin_equad = [&](int twin_eqid, int twin_ehid) {

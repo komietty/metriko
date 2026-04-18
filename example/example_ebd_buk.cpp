@@ -38,6 +38,7 @@ MatXi F;
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     hm0  = std::make_unique<Hmesh>(V, F);
+    //rawf = std::make_unique<FaceRosyField>(*hm0, N, FieldType::CurvatureAligned);
     rawf = std::make_unique<FaceRosyField>(*hm0, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
@@ -165,13 +166,14 @@ int main(int argc, char** argv) {
 
     auto em0 = std::make_unique<tutte::Emesh>(*hm1, tm, half_set, X);
 
-    auto hm2 = twelve_subdivide_hmesh(*hm1);
-    auto em2 = tutte::upgrade_emesh(*em0, *hm2);
+    auto hm2 = twelve_subdivide_hmesh(*hm1);     // todo: there must be bugs
+    auto em2 = tutte::upgrade_emesh(*em0, *hm2); // todo: there must be bugs
 
     //hm1 = std::move(hm2);
     //em0 = std::move(em2);
 
     auto success_collapse_quads = true;
+    auto success_collapse_halfs = true;
 
     for (auto eq: em0->equads) {
         if (!em0->collapse_quad(eq.id)) {
@@ -187,15 +189,74 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    for (auto eq: em0->equads) {
+    //em0->equads[15].debug_draw();
+    //auto surf = polyscope::registerSurfaceMesh("cut_1", hm1->pos, hm1->idx);
+    //surf->setEdgeWidth(0.7);
+    //polyscope::show();
+    //return 0;
+
+    for (auto& eq: em0->equads) {
         if (eq.id == -1) { continue; }
+
+        std::vector<int> ehids_to_collapse;
         for (auto [ehid, side]: eq.edata) {
             auto& eh = em0->ehalfs[ehid];
-            if (eh.x == 0) {
-                std::cout << "ehid to collapse: " << ehid << std::endl;
-                em0->collapse_half(ehid);
+            if (eh.x == 0) { ehids_to_collapse.push_back(ehid); }
+        }
+
+        // 2. 集めた ehid に対して順番に collapse_half を呼ぶ
+        for (int ehid : ehids_to_collapse) {
+            // ※注意：直前のコラプスによって、同じeqの別の辺がすでに消滅・合体している可能性がある。
+            // そのため、現在もまだこの辺が有効か（eqid が -1 でないか等）を確認してから実行する
+            auto& eh = em0->ehalfs[ehid];
+
+            // すでに別の collapse に巻き込まれて無効化（削除）されている場合はスキップ
+            if (eh.eqid == -1) {
+                continue;
+            }
+
+            std::cout << "----------- ehid to collapse: " << ehid << std::endl;
+
+            // (デバッグ出力等はお好みで)
+            if (eq.id == 15) {
+                for (auto [ehid_, side_]: eq.edata) {
+                    std::cout << "eqid: " << eq.id << ", ehid: " << ehid_ << ", side: " << side_ << ", x: " << em0->ehalfs[ehid_].x << std::endl;
+                }
+            }
+
+            if (!em0->collapse_half(ehid)) {
+                success_collapse_halfs = false;
+                std::cout << "collapse failed at ehid: " << ehid << std::endl;
+                goto finished_collapse_ehalfs;
             }
         }
+
+
+        //for (auto [ehid, side]: eq.edata) {
+        //    auto& eh = em0->ehalfs[ehid];
+        //    if (eh.x == 0) {
+        //        std::cout << "----------- ehid to collapse: " << ehid << std::endl;
+        //        if (eq.id == 15) {
+        //            for (auto [ehid_, side_]: eq.edata) {
+        //                std::cout << "eqid: " << eq.id << ", ehid: " << ehid_ << ", side: " << side_ << ", x: " << em0->ehalfs[ehid].x << std::endl;
+        //            }
+        //        }
+        //        if (!em0->collapse_half(ehid)) {
+        //            success_collapse_halfs = false;
+        //            std::cout << "collapse failed" << std::endl;
+        //            goto finished_collapse_ehalfs;
+        //        }
+        //    }
+        //}
+    }
+
+    finished_collapse_ehalfs:
+
+    if (!success_collapse_halfs) {
+        auto surf = polyscope::registerSurfaceMesh("cut_1", hm1->pos, hm1->idx);
+        surf->setEdgeWidth(0.7);
+        polyscope::show();
+        return 0;
     }
 
     auto half_data_em = tutte::compute_half_data(*em0);

@@ -73,8 +73,8 @@ inline SprsD embedding_tutte_for_tquad(
         for (Half h: f.adjHalfs()) verts[h.tail().id] = true;
     }
 
-    int nF_sub = rg::count(visit, true);
-    int nV_sub = rg::count(verts, true);
+    int nF_sub = (int)rg::count(visit, true);
+    int nV_sub = (int)rg::count(verts, true);
 
     SprsD f_table(nF_sub, hm.nF);
     SprsD v_table(nV_sub, hm.nV);
@@ -216,6 +216,8 @@ inline bool apply_transition(
             return true;
         }
     }
+
+    std::cout << "failed to map tutte params: " << std::endl;
     return false;
 }
 
@@ -233,7 +235,7 @@ inline bool compute_tutte_parameterization(
     vec<SprsD> uv_tq;
     uv_tq.resize(tm.equads.size());
 
-    #pragma omp parallel for schedule(dynamic)
+    //#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < tm.equads.size(); i++) {
         if (tm.equads[i].id != -1)
             uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
