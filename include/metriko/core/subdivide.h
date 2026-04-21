@@ -546,10 +546,16 @@ inline Subdivide twelve_subdivide_2(
     return Subdivide{std::move(hm_new), uv_new, seam_new, matching_new, singular_new};
 }
 
-
 // 1-to-12 細分 (4分割の真ん中を貫く中線分割)
-inline std::unique_ptr<Hmesh> twelve_subdivide_hmesh(const Hmesh& hm) {
+// UV, Seam, Matching, Singular 対応版
+inline std::unique_ptr<Hmesh> twelve_subdivide_3(
+    const Hmesh& hm,
+    const std::vector<bool>& seam,
+    std::vector<bool>& new_seam
+) {
+    // 頂点数: 既存頂点 + 外周エッジ中点 + 各面の内部頂点4つ(重心1 + 内周エッジ中点3)
     int nV_new = hm.nV + hm.nE + hm.nF * 4;
+    // 面数: 1面につき12面
     int nF_new = hm.nF * 12;
 
     MatXd V_new(nV_new, 3);
@@ -616,7 +622,6 @@ inline std::unique_ptr<Hmesh> twelve_subdivide_hmesh(const Hmesh& hm) {
         V_new.row(m20) = (p_m2 + p_m0) * 0.5;
         V_new.row(c)   = (p_v0 + p_v1 + p_v2) / 3.0;
 
-        // UVの計算
         int f_idx = i * 12;
 
         // --- 外側の3つの小三角形をそれぞれ2分割 (中線が貫通する部分) ---
@@ -641,9 +646,37 @@ inline std::unique_ptr<Hmesh> twelve_subdivide_hmesh(const Hmesh& hm) {
         F_new.row(f_idx + 11) << c, m2, m20;
     }
 
-    return std::make_unique<Hmesh>(V_new, F_new);
-}
+    auto hm_new = std::make_unique<Hmesh>(V_new, F_new);
 
+    // --- Seam と Matching の再マッピング ---
+    std::vector<bool> seam_new(hm_new->nE, false);
+    VecXi matching_new = VecXi::Zero(hm_new->nE);
+
+    for (int i = 0; i < hm_new->nE; ++i) {
+        auto e_new = hm_new->edges[i];
+        int ev0 = e_new.vert0().id;
+        int ev1 = e_new.vert1().id;
+        auto key = make_edge_key(ev0, ev1);
+
+        // 外周のオリジナルエッジだった場合のみ転写
+        if (edge_to_old_id.find(key) != edge_to_old_id.end()) {
+            int old_id = edge_to_old_id[key];
+            auto e_old = hm.edges[old_id];
+
+            if (!seam.empty() && seam[old_id]) {
+                seam_new[i] = true;
+            }
+        }
+    }
+
+    // --- Singular の再マッピング ---
+    VecXc v1 = VecXc::Zero(hm_new->nC);
+    VecXi v2 = VecXi::Zero(hm_new->nV);
+    VecXi v3 = VecXi::Zero(hm_new->nV);
+    new_seam = seam_new;
+
+    return hm_new;
+}
 
 }
 

@@ -216,8 +216,8 @@ struct Emesh {
         vec<AuxDijkData> aux;
         aux.emplace_back(AuxDijkData{hm.verts[bgn], sB, 0., -1e6});
         aux.emplace_back(AuxDijkData{hm.verts[end], sE, sum, 1e6});
-        std::cout << "aux first vert id: " << hm.verts[bgn].id << ", aux first side id: " << sB << std::endl;
-        std::cout << "aux last vert id: "  << hm.verts[end].id << ", aux last side id: "  << sE << std::endl;
+        //std::cout << "aux first vert id: " << hm.verts[bgn].id << ", aux first side id: " << sB << std::endl;
+        //std::cout << "aux last vert id: "  << hm.verts[end].id << ", aux last side id: "  << sE << std::endl;
 
         double sum1 = 0;
         double cmp1 = 0;
@@ -229,9 +229,7 @@ struct Emesh {
             if (eh.head().id == end) { continue; }
             if (eh.head().id == markedB) { continue; }
             if (eh.head().id == markedE) { continue; }
-            //if (sum1 != 0 && sum1 != sum)
             aux.emplace_back(AuxDijkData{ eh.head(), side_a, sum1, cmp1});
-            std::cout << "aux side a vert id: " << eh.head().id << ", aux side a side id: " << side_a << std::endl;
         }
         for (int ehid: ehids_b) {
             Ehalf& eh = ehalfs[ehid];
@@ -241,9 +239,7 @@ struct Emesh {
             if (eh.head().id == end) { continue; }
             if (eh.head().id == markedB) { continue; }
             if (eh.head().id == markedE) { continue; }
-            //if (sum1 != 0 && sum1 != sum)
             aux.emplace_back(AuxDijkData{ eh.head(), side_b, sum1, cmp1});
-            std::cout << "aux side b vert id: " << eh.head().id << ", aux side b side id: " << side_b << ", sum: " << sum << std::endl;
         }
 
 
@@ -259,13 +255,7 @@ struct Emesh {
             return std::tie(a.val, a.vert.id, a.side) == std::tie(b.val, b.vert.id, b.side);
         });
 
-        std::cout << "aux len: " << aux.size() << std::endl;
         aux.erase(ret.begin(), ret.end());
-        std::cout << "aux len: " << aux.size() << std::endl;
-
-        for (auto a: aux) {
-            std::cout << "aux val: " << a.val << ", vid: " << a.vert.id << ", side: " << a.side << std::endl;
-        }
 
         vec<int> path_mb;
 
@@ -281,7 +271,7 @@ struct Emesh {
             verts_to_passby.emplace_back(p.x(), p.y(), p.z());
         }
         auto vq = polyscope::registerPointCloud("verts to pass by eqid " + std::to_string(qid), verts_to_passby);
-        vq->setEnabled(true);
+        vq->setEnabled(false);
         vq->setPointRadius(0.002);
         vq->resetTransform();
         //return false;
@@ -301,11 +291,9 @@ struct Emesh {
                     Vert va = eh0.tail();
                     Vert vb = eh0.head();
                     if (va.id == v0.id && vb.id  == v1.id) {
-                        std::cout << "i: passed: " << i << std::endl;
                         aux_visited[i] = true; path_mb[i] = eh0.id; for (Half h: eh0.halfs) visit[h.id] = true;
                     }
                     if (vb.id == v0.id && va.id  == v1.id) {
-                        std::cout << "i: passed: " << i << std::endl;
                         aux_visited[i] = true; path_mb[i] = eh1.id; for (Half h: eh1.halfs) visit[h.id] = true;
                     }
                 }
@@ -315,7 +303,6 @@ struct Emesh {
 
 
         for (int i = 0; i < N; i++) {
-            std::cout << "i: check: " << i << std::endl;
             if (aux_visited[i]) continue;
             const auto& a0 = aux_sorted[i];
             const auto& a1 = aux_sorted[i + 1];
@@ -331,7 +318,6 @@ struct Emesh {
                 path0.emplace_back(hm.halfs[hid]);
                 path1.emplace_back(hm.halfs[hid].twin());
             }
-            std::cout << "path0 len: " << path0.size() << std::endl;
 
             rg::reverse(path1);
 
@@ -395,6 +381,7 @@ struct Emesh {
             }
 
             auto c = polyscope::registerCurveNetwork("path_md of eqid" + std::to_string(qid), ns, es);
+            c->setEnabled(false);
             c->addEdgeScalarQuantity("order", val1);
             c->resetTransform();
             c->setRadius(0.001);
@@ -402,9 +389,7 @@ struct Emesh {
         /*
         */
 
-        std::cout << "path_mb" << std::endl;
         replace_remain_side(eq, path_mb, ehids_p, ehids_q, side_a);
-        std::cout << "path_md" << std::endl;
         replace_remain_side(eq, path_md, ehids_q, ehids_p, side_b);
         equads[qid].id = -1;
         return true;
@@ -446,6 +431,20 @@ struct Emesh {
             );
             //eq1.debug_draw();
         }
+    }
+
+    bool check_topology() const {
+        for (const Ehalf& currEH: ehalfs) {
+            auto& twinEH = ehalfs[currEH.twid];
+            assert(twinEH.halfs.size() == currEH.halfs.size());
+            int l = currEH.halfs.size();
+            for (int i = 0; i < l; i++) {
+                Half currH = currEH.halfs[i];
+                Half twinH = twinEH.halfs[l - i - 1];
+                assert(currH.twin() == twinH);
+            }
+        }
+        return true;
     }
 };
 
@@ -636,15 +635,17 @@ inline void Equad::debug_draw() const {
     }
 
     auto c = polyscope::registerCurveNetwork("equad " + std::to_string(id), ns, es);
-    c->addEdgeScalarQuantity("side", val1);
-    c->addEdgeScalarQuantity("eqid", val5);
-    c->addEdgeScalarQuantity("ehids", val2);
-    c->addEdgeScalarQuantity("count", val3);
-    c->addNodeScalarQuantity("bgn end", val4);
-    c->addEdgeScalarQuantity("x", x)->setEnabled(true);
-    c->setEnabled(false);
+    //c->addEdgeScalarQuantity("side", val1);
+    //c->addEdgeScalarQuantity("eqid", val5);
+    //c->addEdgeScalarQuantity("ehids", val2);
+    //c->addEdgeScalarQuantity("count", val3);
+    //c->addNodeScalarQuantity("bgn end", val4);
+    //c->addEdgeScalarQuantity("x", x)->setEnabled(true);
+    c->setEnabled(true);
+    c->setColor(glm::vec4(0, 0, 0, 1));
     c->resetTransform();
-    c->setRadius(0.002);
+    c->setRadius(0.0003);
+    c->setMaterial("flat");
 }
 }
 

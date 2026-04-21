@@ -56,7 +56,8 @@ vec<HalfData> compute_half_data(const Emesh& em) {
         if (it != half_id_to_idx.end()) {
             half_data[i].twin = it->second; // 見つかったらそのインデックスを代入
         } else {
-            half_data[i].twin = -1; // 境界エッジなどで twin がリストに存在しない場合は -1 のまま
+            throw new std::runtime_error("twin half does not exist");
+            //half_data[i].twin = -1; // 境界エッジなどで twin がリストに存在しない場合は -1 のまま
         }
     }
 

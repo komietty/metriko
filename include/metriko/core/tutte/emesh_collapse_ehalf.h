@@ -91,12 +91,24 @@ inline bool Emesh::collapse_half(const int ehid) {
     if (merge_to_prev) {
         Vert v0 = eh_prev.halfs.front().tail();
         Vert v1 = eh.halfs.back().head();
+
+        for (Half& h : eh.halfs) {
+            allow[h.tail().id] = false;
+            allow[h.head().id] = false;
+        }
+
         allow[v0.id] = true;
         allow[v1.id] = true;
         path_res = compute_dijkstra_for_tquad_temp(hm, allow, v0, v1);
     } else {
         Vert v0 = eh.halfs.front().tail();
         Vert v1 = eh_next.halfs.back().head();
+
+        for (Half& h : eh.halfs) {
+            allow[h.tail().id] = false;
+            allow[h.head().id] = false;
+        }
+
         allow[v0.id] = true;
         allow[v1.id] = true;
         path_res = compute_dijkstra_for_tquad_temp(hm, allow, v0, v1);
@@ -191,6 +203,7 @@ inline bool Emesh::collapse_half(const int ehid) {
         }
 
         auto c = polyscope::registerCurveNetwork("collapse-half "+ std::to_string(ehid), ns, es);
+        c->setEnabled(false);
         c->resetTransform();
         c->setRadius(0.002);
     }
