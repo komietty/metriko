@@ -23,11 +23,8 @@ public:
 
 class Tsgmt : public Telem {
 public:
-
     Tsgmt(const Tmesh* tm, const int id): Telem(tm, id) {}
 };
-
-class TempTedge : public Telem {};
 
 class Tedge : public Telem {
 public:

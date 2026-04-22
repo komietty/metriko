@@ -6,9 +6,7 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tutte/embedding.h"
 #include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
-#include "../include/metriko/core/tutte/visualize_tedge_ebd.h"
 #include "igl/false_barycentric_subdivision.h"
 #include "igl/upsample.h"
 #include "metriko/core/subdivide.h"
@@ -16,10 +14,9 @@
 #include "metriko/core/tutte/convex_conbinatin_map.h"
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/emesh_collapse_ehalf.h"
+#include "metriko/core/tutte/emesh_collapse_equad.h"
 #include "metriko/core/tutte/emesh_postprocess.h"
-#include "metriko/core/tutte/tutte_cutting_upsample.h"
 #include "metriko/core/tutte/tutte_params.h"
-#include "metriko/core/tutte/tutte_collapse.h"
 
 using namespace metriko;
 int N = 4;
@@ -38,8 +35,8 @@ MatXi F;
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     hm0  = std::make_unique<Hmesh>(V, F);
-    //rawf = std::make_unique<FaceRosyField>(*hm0, N, FieldType::CurvatureAligned);
-    rawf = std::make_unique<FaceRosyField>(*hm0, N, FieldType::Smoothest);
+    rawf = std::make_unique<FaceRosyField>(*hm0, N, FieldType::CurvatureAligned);
+    //rawf = std::make_unique<FaceRosyField>(*hm0, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*hm0 , seam);
@@ -106,9 +103,9 @@ int main(int argc, char** argv) {
             }
         }
         auto c = polyscope::registerCurveNetwork("seam", ns, es);
-        c->setEnabled(false);
+        c->setEnabled(true);
         c->resetTransform();
-        c->setRadius(0.001);
+        c->setRadius(0.0005);
     }
 
     ///--- gen mport, medge ---///
@@ -134,7 +131,7 @@ int main(int argc, char** argv) {
     double t_quantize1 = omp_get_wtime();
     std::cout << "[time] compute_quantization: " << (t_quantize1 - t_quantize0) << " s" << std::endl;
 
-    visualizer::visualize_tedge(tm, uv2, &X, &R);
+    //visualizer::visualize_tedge(tm, uv2, &X, &R);
 
 
     std::vector<tutte::HalfData> half_data;
@@ -166,16 +163,18 @@ int main(int argc, char** argv) {
 
     auto em0 = std::make_unique<tutte::Emesh>(*hm1, tm, half_set, X);
 
-    auto hm2 = twelve_subdivide_hmesh(*hm1);     // todo: there must be bugs
-    auto em2 = tutte::upgrade_emesh(*em0, *hm2); // todo: there must be bugs
+    std::vector<bool> seam2;
+    auto hm2 = twelve_subdivide_3(*hm1, seam1, seam2);
+    auto em2 = tutte::upgrade_emesh(*em0, *hm2);
 
-    //hm1 = std::move(hm2);
-    //em0 = std::move(em2);
+    hm1 = std::move(hm2);
+    em0 = std::move(em2);
+    //seam2 = seam1;
 
     auto success_collapse_quads = true;
     auto success_collapse_halfs = true;
 
-    for (auto eq: em0->equads) {
+    for (auto& eq: em0->equads) {
         if (!em0->collapse_quad(eq.id)) {
             success_collapse_quads = false;
             break;
@@ -189,12 +188,6 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    //em0->equads[15].debug_draw();
-    //auto surf = polyscope::registerSurfaceMesh("cut_1", hm1->pos, hm1->idx);
-    //surf->setEdgeWidth(0.7);
-    //polyscope::show();
-    //return 0;
-
     for (auto& eq: em0->equads) {
         if (eq.id == -1) { continue; }
 
@@ -204,24 +197,14 @@ int main(int argc, char** argv) {
             if (eh.x == 0) { ehids_to_collapse.push_back(ehid); }
         }
 
-        // 2. 集めた ehid に対して順番に collapse_half を呼ぶ
         for (int ehid : ehids_to_collapse) {
-            // ※注意：直前のコラプスによって、同じeqの別の辺がすでに消滅・合体している可能性がある。
-            // そのため、現在もまだこの辺が有効か（eqid が -1 でないか等）を確認してから実行する
             auto& eh = em0->ehalfs[ehid];
-
-            // すでに別の collapse に巻き込まれて無効化（削除）されている場合はスキップ
-            if (eh.eqid == -1) {
-                continue;
-            }
-
+            if (eh.eqid == -1) { continue; }
             std::cout << "----------- ehid to collapse: " << ehid << std::endl;
 
-            // (デバッグ出力等はお好みで)
             if (eq.id == 15) {
-                for (auto [ehid_, side_]: eq.edata) {
+                for (auto [ehid_, side_]: eq.edata)
                     std::cout << "eqid: " << eq.id << ", ehid: " << ehid_ << ", side: " << side_ << ", x: " << em0->ehalfs[ehid_].x << std::endl;
-                }
             }
 
             if (!em0->collapse_half(ehid)) {
@@ -230,24 +213,6 @@ int main(int argc, char** argv) {
                 goto finished_collapse_ehalfs;
             }
         }
-
-
-        //for (auto [ehid, side]: eq.edata) {
-        //    auto& eh = em0->ehalfs[ehid];
-        //    if (eh.x == 0) {
-        //        std::cout << "----------- ehid to collapse: " << ehid << std::endl;
-        //        if (eq.id == 15) {
-        //            for (auto [ehid_, side_]: eq.edata) {
-        //                std::cout << "eqid: " << eq.id << ", ehid: " << ehid_ << ", side: " << side_ << ", x: " << em0->ehalfs[ehid].x << std::endl;
-        //            }
-        //        }
-        //        if (!em0->collapse_half(ehid)) {
-        //            success_collapse_halfs = false;
-        //            std::cout << "collapse failed" << std::endl;
-        //            goto finished_collapse_ehalfs;
-        //        }
-        //    }
-        //}
     }
 
     finished_collapse_ehalfs:
@@ -259,16 +224,20 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    bool top_check = em0->check_topology();
+    std::cout << "top check: " << top_check << std::endl;
+
     auto half_data_em = tutte::compute_half_data(*em0);
 
     double t_tutte0 = omp_get_wtime();
     MatXd uv;
-    bool tutte_success = tutte::compute_tutte_parameterization(*hm1, *em0, seam1, half_data_em, uv);
+    bool tutte_success = tutte::compute_tutte_parameterization(*hm1, *em0, seam2, half_data_em, uv);
     double t_tutte1 = omp_get_wtime();
     std::cout << "[time] compute_tutte_parameterization: " << (t_tutte1 - t_tutte0) << " s" << std::endl;
 
     ///--- visualize cut mesh ---///
     {
+        for (auto& eq: em0->equads) { eq.debug_draw(); }
         auto surf = polyscope::registerSurfaceMesh("cut_1", hm1->pos, hm1->idx);
         auto prms = surf->addParameterizationQuantity("uv", uv);
         surf->setEdgeWidth(0.7);
@@ -277,6 +246,7 @@ int main(int argc, char** argv) {
         prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
         prms->setCheckerSize(1);
     }
+
 
     /*
     { // cut half data 1
@@ -346,7 +316,7 @@ int main(int argc, char** argv) {
     */
 
     if (tutte_success) {
-        auto hm3 = compute_cut_mesh(*hm1, seam1);
+        auto hm3 = compute_cut_mesh(*hm1, seam2);
 
         std::vector<int> b_;
         std::vector<Row2d> bc_;
@@ -371,11 +341,59 @@ int main(int argc, char** argv) {
         for (auto v: hm3->verts) {
             uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
         }
+
+        int flipped_triangles = 0;
+        int degenerate_triangles = 0;
+
+        for (int i = 0; i < hm3->nF; ++i) {
+            auto f = hm3->faces[i];
+            auto h0 = f.half();
+            int v0 = h0.tail().id;
+            int v1 = h0.next().tail().id;
+            int v2 = h0.prev().tail().id;
+
+            Vec2d p0 = uv_init.row(v0);
+            Vec2d p1 = uv_init.row(v1);
+            Vec2d p2 = uv_init.row(v2);
+
+            // 2Dの符号付き面積（外積のZ成分）
+            double area = (p1.x() - p0.x()) * (p2.y() - p0.y()) - (p1.y() - p0.y()) * (p2.x() - p0.x());
+
+            // 判定を細かく分ける
+            if (area < -1e-10) {
+                flipped_triangles++;
+
+                std::vector<glm::vec3> ns;
+                std::vector<std::array<size_t, 2>> es;
+                size_t counter = 0;
+                for (Half h: f.adjHalfs()) {
+                    Row3d p1 = h.tail().pos();
+                    Row3d p2 = h.head().pos();
+                    ns.emplace_back(p1.x(), p1.y(), p1.z());
+                    ns.emplace_back(p2.x(), p2.y(), p2.z());
+                    es.emplace_back(std::array{counter, counter + 1});
+                    counter += 2;
+                }
+                auto c = polyscope::registerCurveNetwork("flipped uv face " + std::to_string(f.id), ns, es);
+                c->setEnabled(true);
+                c->resetTransform();
+                c->setRadius(0.001);
+
+
+                std::cout << "[Bad Triangle] FID: " << i << ", Area (Negative): " << area << std::endl;
+            } else if (area <= 1e-10) {
+                // 非常に薄い、または面積ゼロ
+                degenerate_triangles++;
+                std::cout << "[Bad Triangle] FID: " << i << ", Area (Zero): " << area << std::endl;
+            }
+        }
+        std::cout << "[SLIM Check] Flipped: " << flipped_triangles << ", Degenerate (Zero): " << degenerate_triangles << std::endl;
+
         igl::SLIMData sData;
         sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
 
         slim_precompute(hm3->pos, hm3->idx, uv_init, sData, sData.slim_energy, b, bc, soft_const_p);
-        slim_solve(sData, 10);
+        slim_solve(sData, 50);
 
         std::cout << "compute success: slim result: " << (sData.V_o - uv_init).norm() << std::endl;
 

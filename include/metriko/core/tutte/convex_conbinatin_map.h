@@ -44,11 +44,19 @@ namespace metriko {
             else {
                 double sum = 0.;
                 for (Half h: v.adjHalfs()) {
-                    const double c = h.edge().cot() / v.baryArea();
-                    sum += c;
-                    T.emplace_back(v.id, h.head().id, c);
+
+                    //const double c = h.edge().cot() / v.baryArea();
+                    //sum += c;
+                    //T.emplace_back(v.id, h.head().id, c);
+
+                    double l = (v.pos() - h.head().pos()).norm();
+                    double w = 1.0 / (l + 1e-12);
+                    sum += w;
+                    T.emplace_back(v.id, h.head().id, -w);
+
                 }
-                T.emplace_back(v.id, v.id, -sum);
+                //T.emplace_back(v.id, v.id, -sum);
+                T.emplace_back(v.id, v.id, sum);
             }
         }
         S.setFromTriplets(T.begin(), T.end());

@@ -6,9 +6,7 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tutte/embedding.h"
 #include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
-#include "../include/metriko/core/tutte/visualize_tedge_ebd.h"
 #include "igl/false_barycentric_subdivision.h"
 #include "igl/upsample.h"
 #include "metriko/core/subdivide.h"
@@ -17,16 +15,7 @@
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/emesh_collapse_ehalf.h"
 #include "metriko/core/tutte/emesh_postprocess.h"
-#include "metriko/core/tutte/tutte_cutting_upsample.h"
 #include "metriko/core/tutte/tutte_params.h"
-#include "metriko/core/tutte/tutte_collapse.h"
-
-// 1: computing speed up
-// 2: tmesh collapsing
-// 3: update vector field
-/// Need to think why smoothing is not working???
-/// Rough embedding is required?? But why??
-/// How to handle with collapse connection? Need Dijkstra algorithm somehow??
 
 using namespace metriko;
 int N = 4;
@@ -148,48 +137,13 @@ int main(int argc, char** argv) {
     std::set<tutte::HalfData> half_set;
     std::vector<bool> seam_cut;
     auto hm1 = tutte::compute_embedding_cut_hmesh(*hm, tmesh, uv2, X, R, seam, seam_cut, half_set, half_data);
-    auto em1 = tutte::Emesh(hm1, tmesh, half_set, X);
+    auto em1 = tutte::Emesh(*hm1, tmesh, half_set, X);
 
     { /// ---- visualize mesh ---- ///
-        const auto surf = polyscope::registerSurfaceMesh("cut mesh", hm1.pos, hm1.idx);
+        const auto surf = polyscope::registerSurfaceMesh("cut mesh", hm1->pos, hm1->idx);
         surf->setEnabled(false);
         surf->setEdgeWidth(1);
         surf->setEnabled(true);
-    }
-
-    //for (auto eq: em.equads) { eq.debug_draw(); }
-
-    // subdivide mesh
-    auto hm2 = twelve_subdivide_hmesh(hm1);
-    auto em2 = tutte::upgrade_emesh(em1, *hm2);
-
-    auto collapsed = std::vector<int>{};
-    for (auto eq: em2->equads) {
-        if (em2->collapse_quad(eq.id)) { collapsed.push_back(eq.id); }
-    }
-
-    //for (auto eq: em2->equads) {
-    //    if (rg::contains(collapsed, eq.id)) { continue; }
-    //    for (auto [ehid, side]: eq.edata) {
-    //        auto& eh = em2->ehalfs[ehid];
-    //        if (eh.x == 0) { em2->collapse_half(ehid); }
-    //    }
-    //}
-
-
-    //for (auto eq: em2->equads) { eq.debug_draw(); }
-    auto half_data_em = tutte::compute_half_data(*em2);
-
-    MatXd uv = tutte::compute_tutte_parameterization(*hm2, *em2, seam_cut, half_data_em, X);
-
-    {
-        const auto surf = polyscope::registerSurfaceMesh("subd mesh", hm2->pos, hm2->idx);
-        surf->setEdgeWidth(1);
-        surf->setEnabled(true);
-        auto prms1 = surf->addParameterizationQuantity("params1", uv);
-        prms1->setEnabled(true);
-        prms1->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-        prms1->setCheckerSize(1);
     }
 
     polyscope::show();

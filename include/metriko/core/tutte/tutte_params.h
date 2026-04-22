@@ -177,6 +177,12 @@ inline bool apply_transition(
     Vec2d uv1  = m1.row(h1.prev().crnr().id).transpose();
     Vec2d uv1a = m1.row(h1.next().crnr().id).transpose();
 
+    double len0 = (uv0a - uv0).norm();
+    double len1 = (uv1a - uv1).norm();
+    if (std::abs(len0 - len1) > 1e-6) {
+        std::cout << "[Scale Mismatch] len0: " << len0 << ", len1: " << len1 << " (diff: " << std::abs(len0 - len1) << ")" << std::endl;
+    }
+
     if (flag) {
         std::cout << "h0 tail: " << h0.tail().id << std::endl;
         std::cout << "h0 head: " << h0.head().id << std::endl;
@@ -199,7 +205,7 @@ inline bool apply_transition(
         Vec2d v1 = rot * (uv1a - uv1);
         Vec2d v2 = uv0a - uv0;
 
-        if ((v1 - v2).norm() < 1e-9) {
+        if ((v1 - v2).norm() < 1e-5) {
 
             if (flag) {
                 std::cout << "rot : " <<  rot  << std::endl;
@@ -217,7 +223,39 @@ inline bool apply_transition(
         }
     }
 
-    std::cout << "failed to map tutte params: " << std::endl;
+    for (int i = 0; i < 4; i++) {
+        Mat2d rot = compute_rotation(i);
+        Mat2d flip; flip << 1, 0, 0, -1; // X軸反転
+        Mat2d transform = rot * flip;
+        Vec2d v1 = transform * (uv1a - uv1);
+        Vec2d v2 = uv0a - uv0;
+
+        if ((v1 - v2).norm() < 1e-9) {
+            std::cout << "[Flip Detected] パッチが反転しています！ hid: " << h.id << std::endl;
+            return false; // 今回は原因調査なのでfalseで抜ける
+        }
+    }
+
+    // debug draw
+    {
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        size_t count = 0;
+
+        auto p1 = h.tail().pos();
+        auto p2 = h.head().pos();
+        ns.emplace_back(p1.x(), p1.y(), p1.z());
+        ns.emplace_back(p2.x(), p2.y(), p2.z());
+        es.emplace_back(std::array{count, count + 1});
+        count += 2;
+
+        auto c = polyscope::registerCurveNetwork("tutte apply failed hid "+ std::to_string(h.id), ns, es);
+        c->setEnabled(true);
+        c->resetTransform();
+        c->setRadius(0.002);
+    }
+
+    std::cout << "failed to map tutte params of hid: " << h.id << std::endl;
     return false;
 }
 
@@ -235,11 +273,25 @@ inline bool compute_tutte_parameterization(
     vec<SprsD> uv_tq;
     uv_tq.resize(tm.equads.size());
 
+    //{//todo: for debug
+    //    uv.resize(hm.nC, 2);
+    //    uv.setZero();
+    //    for (int i = 0; i < tm.equads.size(); i++) {
+    //        if (tm.equads[i].id != -1) {
+    //            std::cout << "tutte params tqid: " << i << std::endl;
+    //            MatXd uv_ = embedding_tutte_for_tquad(i, data, hm, tm);
+    //            uv += uv_;
+    //        }
+    //    }
+    //    return false;
+    //}
+
     //#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < tm.equads.size(); i++) {
         if (tm.equads[i].id != -1)
             uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
     }
+
 
     uv.resize(hm.nC, 2);
     uv.setZero();
@@ -264,6 +316,8 @@ inline bool compute_tutte_parameterization(
     while (rg::any_of(flag, [&](auto f) { return !f; })) {
         count++;
         //std::cout << "[count] " << count << std::endl;
+        //if (stack.empty()) break;
+
         auto h = hm.halfs[stack.top()];
 
         stack.pop();
@@ -277,11 +331,16 @@ inline bool compute_tutte_parameterization(
 
         auto curr = it->second;
         SprsD& uv_curr = uv_tq[curr->tqid];
-        success &= apply_transition(false, h, uv.sparseView(), uv_curr);
+        bool res = apply_transition(h.id == 24665, h, uv.sparseView(), uv_curr);
+        //if (h.id == 24665) return false;
+        //if (h.id == 28260) return false;
+        success &= res;
 
         vec b(hm.nH, false);
         for (auto& d: data) { if (d.tqid == curr->tqid) b[d.half.id] = true; }
         for (auto nh: sequential_mapping(hm, uv_curr, h, b, seam, flag, uv)) stack.emplace(nh);
+
+        //if (!success) return false;
     }
     return success;
 }

@@ -9,7 +9,7 @@
 
 namespace metriko::tutte {
 
-vec<HalfData> compute_half_data(const Emesh& em) {
+inline vec<HalfData> compute_half_data(const Emesh& em) {
     vec<HalfData> half_data;
     for (auto& eq: em.equads) {
         if (eq.id == -1) continue;
@@ -44,21 +44,14 @@ vec<HalfData> compute_half_data(const Emesh& em) {
 
     // ハーフエッジのIDをキーにして、half_data 配列内のインデックスを引けるマップを作成
     std::unordered_map<int, int> half_id_to_idx;
-    for (int i = 0; i < half_data.size(); i++) {
+    for (int i = 0; i < half_data.size(); i++)
         half_id_to_idx[half_data[i].half.id] = i;
-    }
 
-    // 各 HalfData について、自分の twin となる Half の ID をマップで検索し、インデックスをセット
-    for (int i = 0; i < half_data.size(); i++) {
-        int twin_id = half_data[i].half.twin().id; // twin の ID を取得
-        auto it = half_id_to_idx.find(twin_id);
-
-        if (it != half_id_to_idx.end()) {
-            half_data[i].twin = it->second; // 見つかったらそのインデックスを代入
-        } else {
-            throw new std::runtime_error("twin half does not exist");
-            //half_data[i].twin = -1; // 境界エッジなどで twin がリストに存在しない場合は -1 のまま
-        }
+    // assign twin for each halfedge
+    for (HalfData& d : half_data) {
+        auto it = half_id_to_idx.find(d.half.twin().id);
+        if (it != half_id_to_idx.end())  d.twin = it->second;
+        else throw std::runtime_error("twin half does not exist");
     }
 
     return half_data;

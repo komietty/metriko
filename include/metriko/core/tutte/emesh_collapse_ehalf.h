@@ -4,59 +4,12 @@
 
 #ifndef TMESH_H_EMESH_COLLAPSE_EHALF_H
 #define TMESH_H_EMESH_COLLAPSE_EHALF_H
-
 #include "./emesh.h"
+
 namespace metriko::tutte {
 
 constexpr auto circular_prev = [](auto& c, auto it) { return it == c.begin() ? std::prev(c.end()) : std::prev(it); };
 constexpr auto circular_next = [](auto& c, auto it) { auto n = std::next(it); return n == c.end() ? c.begin() : n; };
-
-/*
-inline std::optional<vec<Half>> Emesh::collapse_half_find_path(int ehid) {
-    auto& eh = ehalfs[ehid];
-    auto& eq = equads[eh.eqid]; // todo: inconsistent (maybe after collapse)!!!
-    std::cout << "eqid: " << eq.id << std::endl;
-    for (auto [ehid, side]: eq.edata) {
-        std::cout << "ehid: " << ehid << ", side: " << side << std::endl;
-    }
-
-    auto  it = rg::find(eq.edata, ehid, &Edata::ehid);
-    if(it == eq.edata.end()) {
-        std::cout << "collapse_half_find_path... ehid: " << eh.id << " eh.eqid: " << eh.eqid << ", eq.id: " << eq.id << std::endl;
-        eq.debug_draw();
-        return std::nullopt;
-    }
-
-    vec allow(hm.nV, false);
-
-    for (int vid: eq.verts_inside()) { allow[vid] = true; }
-    auto it_prev = circular_prev(eq.edata, it);
-    auto it_next = circular_next(eq.edata, it);
-    Ehalf& eh_prev = ehalfs[it_prev->ehid];
-    Ehalf& eh_next = ehalfs[it_next->ehid];
-
-    assert(!(it->side != it_prev->side && it->side != it_next->side));
-    assert(!(it->side == it_prev->side && it->side == it_next->side));
-
-    if (it->side != it_prev->side) {
-        Vert v0 = eh_prev.halfs.front().tail();
-        Vert v1 = eh.halfs.back().head();
-        allow[v0.id] = true;
-        allow[v1.id] = true;
-        return compute_dijkstra_for_tquad_temp(hm, allow, v0, v1);
-    }
-
-    if (it->side != it_next->side) {
-        Vert v0 = eh.halfs.front().tail();
-        Vert v1 = eh_next.halfs.back().head();
-        allow[v0.id] = true;
-        allow[v1.id] = true;
-        return compute_dijkstra_for_tquad_temp(hm, allow, v0, v1);
-    }
-
-    return std::nullopt;
-}
-*/
 
 inline bool Emesh::collapse_half(const int ehid) {
     auto& eh = ehalfs[ehid];
@@ -210,7 +163,6 @@ inline bool Emesh::collapse_half(const int ehid) {
 
     return true;
 }
-
 }
 
-#endif //TMESH_H_EMESH_COLLAPSE_EHALF_H
+#endif

@@ -20,19 +20,16 @@ inline Mat2x3d GetAxisAlignedProjection(const Row3d& normal) {
     Mat3x2d P;
 
     if (abs.z() > abs.x() && abs.z() > abs.y()) {
-        // projection = mat3x2({1.0, 0.0, 0.0}, {0.0, 1.0, 0.0});
         P.col(0) << 1., 0., 0.;
         P.col(1) << 0., 1., 0.;
         max = normal.z();
     }
     else if (abs.y() > abs.x()) {
-        // projection = mat3x2({0.0, 0.0, 1.0}, {1.0, 0.0, 0.0});
         P.col(0) << 0., 0., 1.;
         P.col(1) << 1., 0., 0.;
         max = normal.y();
     }
     else {
-        // projection = mat3x2({0.0, 1.0, 0.0}, {0.0, 0.0, 1.0});
         P.col(0) << 0., 1., 0.;
         P.col(1) << 0., 0., 1.;
         max = normal.x();
