@@ -1,12 +1,5 @@
-//
-//--- Copyright (C) 2025 Saki Komikado <komietty@gmail.com>,
-//--- This Source Code Form is subject to the terms of the Mozilla Public License v.2.0.
-
-#ifndef METRIKO_VISUALIZE_TEDGE_H
-#define METRIKO_VISUALIZE_TEDGE_H
-#include <polyscope/point_cloud.h>
-#include <polyscope/curve_network.h>
-#include "gen_qgp_mesh.h"
+#ifndef METRIKO_EXAMPLE_COMMON_H
+#define METRIKO_EXAMPLE_COMMON_H
 
 namespace metriko::visualizer {
     inline void visualize_tedge(
@@ -39,7 +32,7 @@ namespace metriko::visualizer {
             const auto& te = tm.tedges[i];
             int random_value = distr(gen);
             if (!selector.empty() && rg::find(selector, i) == selector.end()) continue;
-            for (const Msgmt &ts: te.segments()) {
+            for (const mc::Msgmt &ts: te.segments()) {
                 Row3d p1 = conversion_2d_3d(ts.face, uv, ts.fr.uv);
                 Row3d p2 = conversion_2d_3d(ts.face, uv, ts.to.uv);
                 ns.emplace_back(p1.x(), p1.y(), p1.z());
@@ -123,3 +116,4 @@ namespace metriko::visualizer {
 }
 
 #endif
+

@@ -7,7 +7,7 @@
 #include "metriko/core/quantization/quantization.h"
 #include "metriko/misc/visualizer/tmesh/visualize_qgp_edge.h"
 #include "metriko/misc/visualizer/tmesh/visualize_qgp_mesh.h"
-#include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
+#include "common.h"
 
 using namespace metriko;
 int main(int argc, char **argv) {

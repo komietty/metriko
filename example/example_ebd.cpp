@@ -6,7 +6,6 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/misc/visualizer/tmesh/visualize_tedge.h"
 #include "igl/false_barycentric_subdivision.h"
 #include "igl/upsample.h"
 #include "metriko/core/subdivide.h"
@@ -16,6 +15,7 @@
 #include "metriko/core/tutte/emesh_collapse_ehalf.h"
 #include "metriko/core/tutte/emesh_postprocess.h"
 #include "metriko/core/tutte/tutte_params.h"
+#include "common.h"
 
 using namespace metriko;
 int N = 4;
@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
     std::vector<tutte::HalfData> half_data;
     std::set<tutte::HalfData> half_set;
     std::vector<bool> seam_cut;
-    auto hm1 = tutte::compute_embedding_cut_hmesh(*hm, tmesh, uv2, X, R, seam, seam_cut, half_set, half_data);
+    auto hm1 = tutte::compute_embedding_cut_hmesh(*hm, tmesh, uv2, R, seam, seam_cut, half_set, half_data);
     auto em1 = tutte::Emesh(*hm1, tmesh, half_set, X);
 
     { /// ---- visualize mesh ---- ///

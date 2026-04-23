@@ -237,11 +237,9 @@ inline void face_cutting(
 // positions of each tedges are consistent as the whole graph.
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
 inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
-//inline Hmesh compute_embedding_cut_hmesh(
     const Hmesh& hm,           // input hmesh
     const tm::Tmesh& tm,       // input tmesh
     const VecXc& cf,           // input corner function of naive parameterization
-    const VecXd& X,            //
     const VecXd& R,            //
     const vec<bool>& seam0,    //
           vec<bool>& seam1,    //

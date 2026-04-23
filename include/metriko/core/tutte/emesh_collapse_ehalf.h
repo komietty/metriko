@@ -25,17 +25,6 @@ inline bool Emesh::collapse_half(const int ehid) {
     Ehalf& eh_prev = ehalfs[it_prev->ehid];
     Ehalf& eh_next = ehalfs[it_next->ehid];
 
-    if(it0->side == it_prev->side && it0->side == it_next->side) {
-        //std::cout << "next ehid: " << it_next->ehid << ", side: " << it_next->side << std::endl;
-        //std::cout << "prev ehid: " << it_prev->ehid << ", side: " << it_prev->side << std::endl;
-        eh.debug_draw();
-        eq.debug_draw();
-        //for (auto [ehid, side]: eq.edata) {
-        //    std::cout << "ehid: " << ehid << ", side: " << side << std::endl;
-        //}
-        return false;
-    }
-
     assert(!(it0->side != it_prev->side && it0->side != it_next->side));
     assert(!(it0->side == it_prev->side && it0->side == it_next->side));
     std::optional<vec<Half>> path_res = std::nullopt;
@@ -67,10 +56,7 @@ inline bool Emesh::collapse_half(const int ehid) {
         path_res = compute_dijkstra_for_tquad_temp(hm, allow, v0, v1);
     }
 
-    if (!path_res.has_value()) {
-        std::cout << "failed to find path_res" << std::endl;
-        return false;
-    }
+    if (!path_res.has_value()) { std::cout << "failed to find path_res" << std::endl; return false; }
 
     auto path0 = path_res.value();
     auto path1 = path0 | vw::reverse | vw::transform(&Half::twin) | rg::to<vec<Half>>();
