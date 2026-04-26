@@ -24,14 +24,18 @@ namespace metriko {
 
             const auto &th = tm.thalfs[thid];
             const auto &te = th.edge();
-            if (!th.cano && te.seg_fr.value().id == 0) return false; /* is first seg */
+            if (!th.cano && te.isBgn) return false; /* is first seg */
 
-            for (auto pair: th.adj_thalfs()) {
-                int teid = pair.edge().id;
-                if (!visited[teid] && X[teid] == 0) {
-                    visited[teid] = true;
-                    q.emplace(pair.id);
-                }
+            //for (auto pair: th.adj_thalfs()) {
+            //    int teid = pair.edge().id;
+            //    if (!visited[teid] && X[teid] == 0) {
+            //        visited[teid] = true;
+            //        q.emplace(pair.id);
+            //    }
+            //}
+            for (int i: th.adjs) {
+                int j = tm.thalfs[i].edge().id;
+                if (!visited[j] && X[j] == 0) { visited[j] = true; q.emplace(i); }
             }
         }
         return true;

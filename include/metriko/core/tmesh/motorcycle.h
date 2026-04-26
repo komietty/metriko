@@ -50,7 +50,7 @@ enum MvertType { None, First, HitL, HitR, HitB };
 class Mvert : Melem {
 public:
     complex uv;
-    Mcurv *crash = nullptr;
+    Mcurv *crash = nullptr; //
     MvertType type = None;
     opt<std::pair<Half, double>> cut; // part of the halfedge flag
 
@@ -130,6 +130,7 @@ public:
     vec<Mport> mports;
     vec<Mcurv> mcurvs;
 
+
     MotorcycleGraph(
         const Hmesh &hm,
         const VecXc &cf,
@@ -173,44 +174,6 @@ public:
 
         // when done, assign index and next/prev info to each segment
         for (auto &c: mcurvs) c.post_process();
-
-        // debug bgn
-        /*
-        std::vector<glm::vec3> vis_port;
-        for (const auto &p: mports)
-            vis_port.emplace_back(p.vert.pos().x(), p.vert.pos().y(), p.vert.pos().z());
-        auto vq = polyscope::registerPointCloud("vis_port", vis_port);
-        vq->setPointRadius(0.002);
-        vq->resetTransform();
-
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2> > es;
-        size_t counter = 0;
-        std::vector<double> type;
-        std::vector<double> idcs;
-        for (auto c: mcurvs) {
-            for (auto &s: c.sgmts) {
-                Row3d p1 = conversion_2d_3d(s.face, cf, s.fr.uv);
-                Row3d p2 = conversion_2d_3d(s.face, cf, s.to.uv);
-
-                type.emplace_back(s.fr.type);
-                type.emplace_back(s.to.type);
-                idcs.emplace_back(s.id);
-
-                ns.emplace_back(p1.x(), p1.y(), p1.z());
-                ns.emplace_back(p2.x(), p2.y(), p2.z());
-                es.emplace_back(std::array{counter, counter + 1});
-                counter += 2;
-            }
-        }
-        auto c = polyscope::registerCurveNetwork("segments", ns, es);
-        c->addNodeScalarQuantity("type", type);
-        c->addEdgeScalarQuantity("idcs", idcs);
-        c->setEnabled(false);
-        c->resetTransform();
-        c->setRadius(0.0005);
-        */
-        // debug end
     }
 
     void gen_ports(const VecXi &singular);

@@ -111,18 +111,10 @@ int main(int argc, char** argv) {
     ///--- gen mport, medge ---///
     auto graph = mc::MotorcycleGraph(*hm0, uv2, cmbf->matching, cmbf->singular);
     auto tm    = metriko::tm::Tmesh(graph.mcurvs);
-    VecXd R = VecXd::Zero(tm.nTE);
-    for (int i = 0; i < tm.nTE; i++) {
-        bool bgn = false;
-        const auto& te = tm.tedges[i];
-        for (const mc::Msgmt& seg: te.seg_fr.value().curv->sgmts) {
-            if (seg == te.seg_fr) bgn = true;
-            if (bgn) {
-                R[i] += std::abs(seg.diff());
-                if (seg == te.seg_to) break;
-            }
-        }
-    }
+
+    VecXd R(tm.nTE);
+    for (int i = 0; i < tm.nTE; i++) R[i] = tm.tedges[i].len;
+
     double t_quantize0 = omp_get_wtime();
 
     VecXd X = compute_quantization(tm, R);

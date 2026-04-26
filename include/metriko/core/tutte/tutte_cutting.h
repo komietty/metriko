@@ -41,12 +41,14 @@ inline Mat2x3d GetAxisAlignedProjection(const Row3d& normal) {
 }
 
 struct AuxSgmt {
-    mc::Msgmt sg;
-    tm::Thalf th;
-    int ord0; // order cano
-    int ord1; // order non cano
-    Row2d v0; // val cano
-    Row2d v1; // val non cano
+    const tm::Tsgmt sg; //
+    const tm::Thalf th; //
+    int ord0;           // order cano
+    int ord1;           // order non cano
+    Row2d v0;           // val cano
+    Row2d v1;           // val non cano
+    bool isBgn;         //
+    bool isEnd;         //
 };
 
 struct AuxHalf2 {
@@ -93,10 +95,10 @@ inline void face_cutting(
         }
     }
 
-    for (const auto& [sg, th, o0, o1, v0, v1]: sgs) {
-        std::pair<const mc::Mvert*, int> mvs[2] = {
-            std::pair(&sg.fr, -1),
-            std::pair(&sg.to, -1)
+    for (const auto& [sg, th, o0, o1, v0, v1, f0, b1]: sgs) {
+        std::pair<const tm::Tvert*, int> mvs[2] = {
+            std::pair(&sg.tvFr, -1),
+            std::pair(&sg.tvTo, -1)
         };
 
         /// 1: Assign inside halfs
@@ -126,14 +128,10 @@ inline void face_cutting(
             }
         }
 
-        auto [mv0, i0] = mvs[0];
-        auto [mv1, i1] = mvs[1];
-        bool f0 = mv0->type == mc::MvertType::First;
-        bool f1 = mv1->type == mc::MvertType::First;
-        bool b0 = mv0->type == mc::MvertType::HitB;
-        bool b1 = mv1->type == mc::MvertType::HitB;
+        int i0 = mvs[0].second;
+        int i1 = mvs[1].second;
         halfs.emplace_back(AuxHalf2{i0, i1, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , tm.th2quad(th.id)  , -1, o0, f0, b1 }});
-        halfs.emplace_back(AuxHalf2{i1, i0, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), -1, o1, f1, b0 }});
+        halfs.emplace_back(AuxHalf2{i1, i0, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), -1, o1, false, false }});
     }
 
     /// 2: Assign edge halfs
@@ -237,12 +235,12 @@ inline void face_cutting(
 // positions of each tedges are consistent as the whole graph.
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
 inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
-    const Hmesh& hm,           // input hmesh
-    const tm::Tmesh& tm,       // input tmesh
-    const VecXc& cf,           // input corner function of naive parameterization
-    const VecXd& R,            //
-    const vec<bool>& seam0,    //
-          vec<bool>& seam1,    //
+    const Hmesh& hm,                  // input hmesh
+    const tm::Tmesh& tm,              // input tmesh
+    const VecXc& cf,                  // input corner function of naive parameterization
+    const VecXd& R,                   //
+    const vec<bool>& seam0,           //
+          vec<bool>& seam1,           //
     std::set<HalfData>& h_data_set,   //
     std::vector<HalfData>& h_data_vec //
 ) {
@@ -251,16 +249,20 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     for (const auto& th: tm.thalfs) {
         if (!th.cano) continue;
         const auto& te = th.edge();
-        const double r = R[te.id];
-        double sum = 0;
-        int order = 0;
-        for (const auto& s: te.segments()) {
-            auto len = abs(s.diff());
-            auto v0 = sum / r; sum += len;
+        const auto r = te.len;
+        const auto n = (int)te.segs.size();
+        auto sum = 0.;
+        auto ord = 0;
+        for (const auto& s: te.segs) {
+            auto l = abs(s.tvTo.uv - s.tvFr.uv);
+            auto v0 = sum / r; sum += l;
             auto v1 = sum / r;
-            auto aux = AuxSgmt{s, th, order, te.n_segments() - order, {v0, v1}, {1 - v1, 1 - v0}};
-            order++;
-            cuts[s.face.id].emplace_back(aux);
+            bool f0 = ord == 0 && te.isBgn;
+            bool b1 = ord == n - 1 && te.isEnd;
+            cuts[s.face.id].emplace_back(
+                AuxSgmt{s, th, ord, n - ord - 1, {v0, v1}, {1 - v1, 1 - v0}, f0, b1}
+            );
+            ord++;
         }
     }
 
@@ -270,9 +272,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     vec<Row3d> vpos;
     for (auto p: hm.pos.rowwise()) { vpos.emplace_back(p); }
 
-    for (Face f: hm.faces) {
-        face_cutting(tm, f, cf, cuts[f.id], vpos, f_aux[f.id], h_aux);
-    }
+    for (Face f: hm.faces) { face_cutting(tm, f, cf, cuts[f.id], vpos, f_aux[f.id], h_aux); }
 
     int count = 0;
     for (const auto& hs: f_aux) { count += (int)hs.size(); }
@@ -284,11 +284,10 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
 
     int count2 = 0;
     for (const auto& fd1: f_aux) {
-        for (auto& fd2: fd1) {
-            face_info.row(count2) << fd2[0].i0, fd2[1].i0, fd2[2].i0;
-            count2++;
-        }
-    }
+    for (auto& fd2: fd1) {
+        face_info.row(count2) << fd2[0].i0, fd2[1].i0, fd2[2].i0;
+        count2++;
+    }}
 
     auto hm_cut = std::make_unique<Hmesh>(vert_info, face_info);
     auto h_data = std::set<HalfData>();

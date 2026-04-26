@@ -6,7 +6,6 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "igl/false_barycentric_subdivision.h"
 #include "igl/upsample.h"
 #include "metriko/core/subdivide.h"
 #include "metriko/core/subdivide_with_emesh.h"
@@ -116,18 +115,8 @@ int main(int argc, char** argv) {
     auto graph = mc::MotorcycleGraph(*hm, uv2, cmbf->matching, cmbf->singular);
     auto tmesh = metriko::tm::Tmesh(graph.mcurvs);
 
-    VecXd R = VecXd::Zero(tmesh.nTE);
-    for (int i = 0; i < tmesh.nTE; i++) {
-        bool bgn = false;
-        const auto& te = tmesh.tedges[i];
-        for (const mc::Msgmt& seg: te.seg_fr.value().curv->sgmts) {
-            if (seg == te.seg_fr) bgn = true;
-            if (bgn) {
-                R[i] += std::abs(seg.diff());
-                if (seg == te.seg_to) break;
-            }
-        }
-    }
+    VecXd R(tmesh.nTE);
+    for (int i = 0; i < tmesh.nTE; i++) R[i] = tmesh.tedges[i].len;
 
     VecXd X = compute_quantization(tmesh, R);
     validate_quantization(tmesh, X);
