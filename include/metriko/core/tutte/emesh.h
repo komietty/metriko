@@ -134,7 +134,7 @@ struct Emesh {
 
     Emesh(
         const Hmesh& hm,
-        const tm::Tmesh& tm,
+        const Tmesh& tm,
         const set<HalfData>& hdata,
         const VecXd& X
     ): hm(hm) {

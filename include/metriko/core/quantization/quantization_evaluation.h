@@ -63,14 +63,14 @@ namespace metriko {
 
     template <typename Func>
     MatXd construct_generating_vectors(
-        const tm::Tmesh& tmesh,
+        const Tmesh& tmesh,
         const VecXd& R,
         Func compare
     ) {
         std::vector<TripD> T;
         int irow = 0;
 
-        for (const tm::Thalf &th: tmesh.thalfs) {
+        for (const Thalf &th: tmesh.thalfs) {
             if (!th.cano) continue;
             auto loop = gen_basis_loop(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side, R, th, compare);
             for (int thid: loop) {

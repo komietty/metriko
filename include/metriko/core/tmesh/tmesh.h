@@ -5,7 +5,7 @@
 #define METRIKO_TMESH_H
 #include "motorcycle.h"
 
-namespace metriko::tm {
+namespace metriko {
 template <class T> using vec = std::vector<T>;
 template <class T> using set = std::set<T>;
 template <class T> using opt = std::optional<T>;
@@ -29,6 +29,7 @@ struct Tsgmt {
     Tvert tvFr;
     Tvert tvTo;
     Tsgmt(const Face& f, Tvert fr, Tvert to): face(f), tvFr(std::move(fr)), tvTo(std::move(to)) {}
+    double len() const { return std::abs(tvTo.uv - tvFr.uv); }
 };
 
 struct Ttemp {
@@ -51,7 +52,9 @@ struct Tedge : Telem {
         const vec<Tsgmt>& segs,
         const bool isBgn,
         const bool isEnd
-    ): Telem(tm, teid), segs(segs), isBgn(isBgn), isEnd(isEnd) { for (auto& sg: segs) len += std::abs(sg.tvTo.uv - sg.tvFr.uv); }
+    ): Telem(tm, teid), segs(segs), isBgn(isBgn), isEnd(isEnd) {
+        for (auto& sg: segs) len += std::abs(sg.tvTo.uv - sg.tvFr.uv);
+    }
 
     [[nodiscard]] complex uv_fr() const { return segs.front().tvFr.uv; }
     [[nodiscard]] complex uv_to() const { return segs.back().tvTo.uv;  }
@@ -192,6 +195,39 @@ struct Tmesh {
                 | vw::take(tt.to.id - tt.fr.id + 1)
                 | vw::transform([](auto& s) { return Tsgmt(s.face, Tvert(s.fr.uv, s.fr.cut), Tvert(s.to.uv, s.to.cut)); })
                 | rg::to<vec<Tsgmt>>();
+
+            /*
+            auto sgs_ = std::vector<Tsgmt>();
+            double SNAP_EPS = 0.01;
+            for (auto& sg: sgs) {
+                auto& c0 = sg.tvFr.cut;
+                auto& c1 = sg.tvTo.cut;
+
+                // skip shot segment
+                if (c0.has_value() && c1.has_value()) {
+                    auto [h0, r0] = c0.value();
+                    auto [h1, r1] = c1.value();
+                    Row3d p0 = h0.tail().pos() * r0 + h0.head().pos() * (1 - r0);
+                    Row3d p1 = h1.tail().pos() * r1 + h1.head().pos() * (1 - r1);
+                    if ((p0 - p1).norm() < SNAP_EPS) continue;
+                }
+
+                // otherwise, snap vert if possible
+                if (c0.has_value()) {
+                    auto [h, r] = c0.value();
+                    if (r < SNAP_EPS)      c0 = std::optional<std::pair<Half, double>>(std::make_pair(h, 0));
+                    if (r >  1 - SNAP_EPS) c0 = std::optional<std::pair<Half, double>>(std::make_pair(h, 1));
+                }
+                if (c1.has_value()) {
+                    auto [h, r] = c1.value();
+                    if (r < SNAP_EPS)      c1 = std::optional<std::pair<Half, double>>(std::make_pair(h, 0));
+                    if (r >  1 - SNAP_EPS) c1 = std::optional<std::pair<Half, double>>(std::make_pair(h, 1));
+                }
+
+                sgs_.emplace_back(sg);
+            };
+            */
+
             bool isBgn = tt.fr.fr.type == mc::First;
             bool isEnd = tt.to.to.type == mc::HitB;
             tedges.emplace_back(this, tt.id, sgs, isBgn, isEnd);
@@ -246,7 +282,7 @@ struct Tmesh {
 }
 
 // ipp
-namespace metriko::tm {
+namespace metriko {
 inline const Tedge& Thalf::edge() const { return tm->tedges[teid]; }
 inline const Thalf& Thalf::twin() const { return tm->thalfs[twid]; }
 inline const Thalf& Thalf::next() const { return tm->thalfs[tm->next_thid(id)]; }

@@ -41,8 +41,8 @@ inline Mat2x3d GetAxisAlignedProjection(const Row3d& normal) {
 }
 
 struct AuxSgmt {
-    const tm::Tsgmt sg; //
-    const tm::Thalf th; //
+    const Tsgmt sg; //
+    const Thalf th; //
     int ord0;           // order cano
     int ord1;           // order non cano
     Row2d v0;           // val cano
@@ -64,7 +64,7 @@ using AuxFace  = vec<std::array<AuxHalf2, 3>>;     // per original face, this co
 
 // Beware epsilon validity must be solved beforehand
 inline void face_cutting(
-    const tm::Tmesh& tm,     //
+    const Tmesh& tm,         //
     const Face& f,           // face to be cut
     const VecXc& cf,         // corner function of original mesh
     const vec<AuxSgmt>& sgs, // segments inside the face
@@ -96,7 +96,7 @@ inline void face_cutting(
     }
 
     for (const auto& [sg, th, o0, o1, v0, v1, f0, b1]: sgs) {
-        std::pair<const tm::Tvert*, int> mvs[2] = {
+        std::pair<const Tvert*, int> mvs[2] = {
             std::pair(&sg.tvFr, -1),
             std::pair(&sg.tvTo, -1)
         };
@@ -235,14 +235,12 @@ inline void face_cutting(
 // positions of each tedges are consistent as the whole graph.
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
 inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
-    const Hmesh& hm,                  // input hmesh
-    const tm::Tmesh& tm,              // input tmesh
-    const VecXc& cf,                  // input corner function of naive parameterization
-    const VecXd& R,                   //
-    const vec<bool>& seam0,           //
-          vec<bool>& seam1,           //
-    std::set<HalfData>& h_data_set,   //
-    std::vector<HalfData>& h_data_vec //
+    const Hmesh& hm,         // input hmesh
+    const Tmesh& tm,         // input tmesh
+    const VecXc& cf,         // input corner function of naive parameterization
+    const vec<bool>& seam0,  //
+          vec<bool>& seam1,  //
+    std::set<HalfData>& data //
 ) {
     std::map<int, vec<AuxSgmt>> cuts; // face id & aux segment data
 
@@ -259,9 +257,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
             auto v1 = sum / r;
             bool f0 = ord == 0 && te.isBgn;
             bool b1 = ord == n - 1 && te.isEnd;
-            cuts[s.face.id].emplace_back(
-                AuxSgmt{s, th, ord, n - ord - 1, {v0, v1}, {1 - v1, 1 - v0}, f0, b1}
-            );
+            cuts[s.face.id].emplace_back(AuxSgmt{s, th, ord, n - ord - 1, {v0, v1}, {1 - v1, 1 - v0}, f0, b1});
             ord++;
         }
     }
@@ -326,12 +322,12 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         }
     }}}
 
-    h_data_vec = std::vector(h_data.begin(), h_data.end());
-    h_data_set = h_data;
+    data = h_data;
 
-    for (auto& hd0: h_data_vec) {
-        for (int i = 0; i < h_data_vec.size(); i++)
-            if (hd0.half.twin() == h_data_vec[i].half) { hd0.twin = i; }
+    auto temp = std::vector(h_data.begin(), h_data.end());
+    for (auto& hd0: temp) {
+    for (int i = 0; i < temp.size(); i++)
+        if (hd0.half.twin() == temp[i].half) { hd0.twin = i; }
     }
 
     return hm_cut;

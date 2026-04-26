@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
 
     ///--- gen mport, medge ---///
     auto graph = mc::MotorcycleGraph(*hm0, uv2, cmbf->matching, cmbf->singular);
-    auto tm    = metriko::tm::Tmesh(graph.mcurvs);
+    auto tm    = Tmesh(graph.mcurvs);
 
     VecXd R(tm.nTE);
     for (int i = 0; i < tm.nTE; i++) R[i] = tm.tedges[i].len;
@@ -126,11 +126,11 @@ int main(int argc, char** argv) {
     //visualizer::visualize_tedge(tm, uv2, &X, &R);
 
 
-    std::vector<tutte::HalfData> half_data;
+    std::vector<tutte::HalfData> temp;
     std::set<tutte::HalfData> half_set;
     std::vector<bool> seam1;
 
-    auto hm1 = tutte::compute_embedding_cut_hmesh(*hm0, tm, uv2, R, seam, seam1, half_set, half_data);
+    auto hm1 = tutte::compute_embedding_cut_hmesh(*hm0, tm, uv2, seam, seam1, half_set, temp);
 
     ///--- visuailize seam of cut mesh ---
     {

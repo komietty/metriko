@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
 
     ///--- gen mport, medge ---///
     auto graph = mc::MotorcycleGraph(*hm, uv2, cmbf->matching, cmbf->singular);
-    auto tmesh = metriko::tm::Tmesh(graph.mcurvs);
+    auto tmesh = Tmesh(graph.mcurvs);
 
     VecXd R(tmesh.nTE);
     for (int i = 0; i < tmesh.nTE; i++) R[i] = tmesh.tedges[i].len;
@@ -122,11 +122,10 @@ int main(int argc, char** argv) {
     validate_quantization(tmesh, X);
     visualizer::visualize_tedge(tmesh, uv2, &X, &R);
 
-    std::vector<tutte::HalfData> half_data;
     std::set<tutte::HalfData> half_set;
     std::vector<bool> seam_cut;
-    auto hm1 = tutte::compute_embedding_cut_hmesh(*hm, tmesh, uv2, R, seam, seam_cut, half_set, half_data);
-    auto em1 = tutte::Emesh(*hm1, tmesh, half_set, X);
+    auto hm1 = tutte::compute_embedding_cut_hmesh(*hm, tmesh, uv2, seam, seam_cut, half_set);
+    //auto em1 = tutte::Emesh(*hm1, tmesh, half_set, X);
 
     { /// ---- visualize mesh ---- ///
         const auto surf = polyscope::registerSurfaceMesh("cut mesh", hm1->pos, hm1->idx);

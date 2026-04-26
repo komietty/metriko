@@ -3,7 +3,7 @@
 
 namespace metriko::visualizer {
     inline void visualize_tedge(
-        const tm::Tmesh& tm,
+        const Tmesh& tm,
         const VecXc& uv,
         const VecXd* X = nullptr,
         const VecXd* R = nullptr,
@@ -32,7 +32,7 @@ namespace metriko::visualizer {
             const auto& te = tm.tedges[i];
             int random_value = distr(gen);
             if (!selector.empty() && rg::find(selector, i) == selector.end()) continue;
-            for (const tm::Tsgmt &ts: te.segs) {
+            for (const Tsgmt &ts: te.segs) {
                 Row3d p1 = conversion_2d_3d(ts.face, uv, ts.tvFr.uv);
                 Row3d p2 = conversion_2d_3d(ts.face, uv, ts.tvTo.uv);
                 ns.emplace_back(p1.x(), p1.y(), p1.z());
