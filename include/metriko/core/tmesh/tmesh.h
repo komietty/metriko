@@ -143,37 +143,35 @@ struct Tmesh {
             Tquad tq;
             tq.id = tquads.size();
             int curr_thid = i;
-            int side_id = 0;
+            int curr_side = 0;
 
             do {
                 if (visited[curr_thid]) break;
                 tq.thids.push_back(curr_thid);
-                tq.sides.push_back(side_id);
+                tq.sides.push_back(curr_side);
                 visited[curr_thid] = true;
-                const Thalf& curr_th = thalfs[curr_thid];
-                const Thalf& next_th = thalfs[curr_th.nxt_id];
-                if (curr_th.edge().curv_id != next_th.edge().curv_id) side_id = (side_id + 1) % 4;
+                auto& curr_th = thalfs[curr_thid];
+                auto& next_th = thalfs[curr_th.nxt_id];
+                if (curr_th.edge().curv_id != next_th.edge().curv_id) curr_side = (curr_side + 1) % 4;
                 curr_thid = next_th.id;
             } while (curr_thid != i);
 
-            // ローテーション: 最初の辺と最後の辺が同じ曲線なら、開始地点をコーナーまでずらす
-            if (!tq.sides.empty()) {
-                const auto& first_th = thalfs[tq.thids.front()];
-                const auto& last_th  = thalfs[tq.thids.back()];
-                if (first_th.edge().curv_id == last_th.edge().curv_id) {
-                    int s0 = tq.sides.front();
-                    int n  = rg::distance(tq.sides | vw::take_while([=](int x) { return x == s0; }));
-                    rg::rotate(tq.sides, tq.sides.begin() + n);
-                    rg::rotate(tq.thids, tq.thids.begin() + n);
+            // Rotate until sides data is sequential
+            auto& fst_th = thalfs[tq.thids.front()];
+            auto& lst_th = thalfs[tq.thids.back()];
+            if (fst_th.edge().curv_id == lst_th.edge().curv_id) {
+                int f = tq.sides.front();
+                int n = rg::distance(tq.sides | vw::take_while([=](int x) { return x == f; }));
+                rg::rotate(tq.sides, tq.sides.begin() + n);
+                rg::rotate(tq.thids, tq.thids.begin() + n);
 
-                    int s = 0;
-                    int last_c = thalfs[tq.thids[0]].edge().curv_id;
-                    for (int j = 0; j < tq.thids.size(); ++j) {
-                        int this_c = thalfs[tq.thids[j]].edge().curv_id;
-                        if (this_c != last_c) s = (s + 1) % 4;
-                        tq.sides[j] = s;
-                        last_c = this_c;
-                    }
+                int s = 0;
+                int last_c = thalfs[tq.thids[0]].edge().curv_id;
+                for (int j = 0; j < tq.thids.size(); ++j) {
+                    int this_c = thalfs[tq.thids[j]].edge().curv_id;
+                    if (this_c != last_c) s = (s + 1) % 4;
+                    tq.sides[j] = s;
+                    last_c = this_c;
                 }
             }
             tquads.push_back(tq);

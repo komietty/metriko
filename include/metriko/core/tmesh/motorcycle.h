@@ -291,6 +291,7 @@ inline void MotorcycleGraph::sort_node_adjacency() {
         if (mn.adj.size() < 3) continue;
 
         // 【新提案】T-Junction(T)の場合、JunctionSide を使ったトポロジーソートを試みる
+        /*
         if (mn.jt == mc::JunctionType::T) {
             bool can_use_topology = true;
 
@@ -328,6 +329,7 @@ inline void MotorcycleGraph::sort_node_adjacency() {
 
             // can_use_topology == false の場合は、下の「幾何ベースのソート」へフォールバックする
         }
+        */
 
         auto get_fid = [&](const Asgmt& as) { return mcurvs[as.curv_id].sgmts[as.sgmt_id].face_id; };
         auto get_dir = [&](const Asgmt& as) {
@@ -480,9 +482,9 @@ inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
 
                 Msgmt s1   = *it;
                 s1.fr_nid  = nid;
-                s1.fr_js   = JunctionSide::R;
+                s1.fr_js   = JunctionSide::R; // todo: need to check direction
                 it->to_nid = nid;
-                it->to_js  = JunctionSide::L;
+                it->to_js  = JunctionSide::L; // same
 
                 cv.sgmts.insert(it + 1, s1);
             }

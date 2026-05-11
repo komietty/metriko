@@ -59,8 +59,6 @@ inline void visualize_motorcycle_graph(
             Row3d p1 = conversion_2d_3d(graph.hm.faces[s.face_id], uv, mc::get_face_uv(graph.mnodes[s.fr_nid], s.face_id, graph.hm, graph.cf));
             Row3d p2 = conversion_2d_3d(graph.hm.faces[s.face_id], uv, mc::get_face_uv(graph.mnodes[s.to_nid], s.face_id, graph.hm, graph.cf));
 
-            // if ((p2 - p1).norm() < 0.01) std::cout << "cid: " << c.id << ", sid: " << s.this_id << ", p2 - p1: " << (p2 - p1).norm() << std::endl;
-
             ns.emplace_back(p1.x(), p1.y(), p1.z());
             ns.emplace_back(p2.x(), p2.y(), p2.z());
             es.emplace_back(std::array{counter, counter + 1});
@@ -80,58 +78,45 @@ inline void visualize_motorcycle_graph(
     c->setMaterial("flat");
 }
 
-inline void visualize_node_adjacency(
-    const mc::MotorcycleGraph& graph,
-    const VecXc& uv,
-    bool show = true
-) {
+inline void visualize_node_adjacency(const mc::MotorcycleGraph& mg, const VecXc& uv, bool show = true) {
     std::vector<glm::vec3> pts;
     std::vector<double> adj_order;
     std::vector<double> nid_list;
 
-    for (int nid = 0; nid < graph.mnodes.size(); ++nid) {
-        const auto& mn = graph.mnodes[nid];
-
-        // 接続が2本以上あるノード（T-Junctionや特異点）のみ対象
+    for (int nid = 0; nid < mg.mnodes.size(); ++nid) {
+        const auto& mn = mg.mnodes[nid];
         if (mn.adj.size() < 3) continue;
-
         std::vector<glm::vec3> local_pts;
 
-        // 1. 各セグメントへのオフセット位置を計算
         for (int i = 0; i < mn.adj.size(); ++i) {
             const auto& as = mn.adj[i];
-            const auto& sg = graph.mcurvs[as.curv_id].sgmts[as.sgmt_id];
+            const auto& sg = mg.mcurvs[as.curv_id].sgmts[as.sgmt_id];
 
-            bool is_outgoing = (sg.fr_nid == nid);
+            bool is_outgoing = sg.fr_nid == nid;
             int fid = sg.face_id;
 
-            Row3d pA = conversion_2d_3d(graph.hm.faces[fid], uv, mc::get_face_uv(graph.mnodes[sg.fr_nid], fid, graph.hm, graph.cf));
-            Row3d pB = conversion_2d_3d(graph.hm.faces[fid], uv, mc::get_face_uv(graph.mnodes[sg.to_nid], fid, graph.hm, graph.cf));
-
-            // ノードの3D座標と、向かっている先の3D座標
-            Row3d p_node  = is_outgoing ? pA : pB;
-            Row3d p_other = is_outgoing ? pB : pA;
-
-            // ノードから外側へ 10% オフセットした点を計算
-            Row3d pt = p_node * 0.90 + p_other * 0.10;
+            Row3d pA = conversion_2d_3d(mg.hm.faces[fid], uv, mc::get_face_uv(mg.mnodes[sg.fr_nid], fid, mg.hm, mg.cf));
+            Row3d pB = conversion_2d_3d(mg.hm.faces[fid], uv, mc::get_face_uv(mg.mnodes[sg.to_nid], fid, mg.hm, mg.cf));
+            Row3d p0 = is_outgoing ? pA : pB;
+            Row3d p1 = is_outgoing ? pB : pA;
+            Row3d pt = p0 * 0.85 + p1 * 0.15;
             glm::vec3 gpt(pt.x(), pt.y(), pt.z());
 
             pts.push_back(gpt);
             local_pts.push_back(gpt);
 
-            adj_order.push_back(i);    // 0, 1, 2...
+            adj_order.push_back(i);
             nid_list.push_back(nid);
         }
     }
 
-    // --- ポイントクラウドの登録 ---
     auto pc = polyscope::registerPointCloud("CCW Adjacency Points", pts);
     pc->setEnabled(show);
-    pc->setPointRadius(0.005);
+    pc->setPointRadius(0.002);
 
     auto q_order = pc->addScalarQuantity("adj_index", adj_order);
     q_order->setEnabled(true);
-    q_order->setColorMap("turbo"); // 青から赤への連続グラデーション
+    q_order->setColorMap("turbo");
     pc->addScalarQuantity("node_id", nid_list);
 
 }
@@ -170,33 +155,28 @@ inline void visualize_tedge(
 
         // Tedge が保持する Msgmt の履歴を辿る
         for (const mc::Msgmt &ts: te.segs) {
+            // mg を使って、ノードIDからFaceローカルなUV座標を動的に計算する
+            complex uvFr = mc::get_face_uv(mg.mnodes[ts.fr_nid], ts.face_id, mg.hm, mg.cf);
+            complex uvTo = mc::get_face_uv(mg.mnodes[ts.to_nid], ts.face_id, mg.hm, mg.cf);
 
-            if (te.len == 0) {
-                std::cout << "len 0 teid: " << te.id << std::endl;
+            // ローカルUVから3D空間座標へ変換
+            Row3d p1 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvFr);
+            Row3d p2 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvTo);
 
-                // mg を使って、ノードIDからFaceローカルなUV座標を動的に計算する
-                complex uvFr = mc::get_face_uv(mg.mnodes[ts.fr_nid], ts.face_id, mg.hm, mg.cf);
-                complex uvTo = mc::get_face_uv(mg.mnodes[ts.to_nid], ts.face_id, mg.hm, mg.cf);
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            es.emplace_back(std::array{counter, counter + 1});
 
-                // ローカルUVから3D空間座標へ変換
-                Row3d p1 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvFr);
-                Row3d p2 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvTo);
+            teids.emplace_back(i);
+            difx.emplace_back(uvTo.real() - uvFr.real());
+            dify.emplace_back(uvTo.imag() - uvFr.imag());
 
-                ns.emplace_back(p1.x(), p1.y(), p1.z());
-                ns.emplace_back(p2.x(), p2.y(), p2.z());
-                es.emplace_back(std::array{counter, counter + 1});
+            vecR.emplace_back(te.len);
+            if (X != nullptr) vecX.emplace_back((*X)[i]);
 
-                teids.emplace_back(i);
-                difx.emplace_back(uvTo.real() - uvFr.real());
-                dify.emplace_back(uvTo.imag() - uvFr.imag());
-
-                vecR.emplace_back(te.len);
-                if (X != nullptr) vecX.emplace_back((*X)[i]);
-
-                randoms.emplace_back(random_value);
-                count.emplace_back(counter);
-                counter += 2;
-            }
+            randoms.emplace_back(random_value);
+            count.emplace_back(counter);
+            counter += 2;
         }
     }
 

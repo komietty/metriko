@@ -8,52 +8,6 @@
 #include "metriko/core/tmesh/tmesh.h"
 
 namespace metriko {
-/*
-    inline bool compute_validation(
-        const Tmesh &tm,
-        const VecXd &X,
-        const int thid
-    ) {
-        std::queue<int> q;
-        std::vector<bool> visited;
-        visited.assign(tm.nTE, false);
-        q.emplace(tm.thalfs[thid].id);
-
-        while (!q.empty()) {
-            int thid = q.front();
-            q.pop();
-
-            const auto &th = tm.thalfs[thid];
-            const auto &te = th.edge();
-            if (!th.cano && te.isBgn) return false; // is first seg
-
-            //for (auto pair: th.adj_thalfs()) {
-            //    int teid = pair.edge().id;
-            //    if (!visited[teid] && X[teid] == 0) {
-            //        visited[teid] = true;
-            //        q.emplace(pair.id);
-            //    }
-            //}
-            for (int i: th.adjs) {
-                int j = tm.thalfs[i].edge().id;
-                if (!visited[j] && X[j] == 0) { visited[j] = true; q.emplace(i); }
-            }
-        }
-        return true;
-    }
-
-    inline bool compute_validation(
-        const Tmesh &tm,
-        const VecXd &X
-    ) {
-        return (X.array() >= 0).all() &&
-               rg::all_of(
-                   tm.thalfs | vw::filter([&](auto th) { return tm.th2sing[th.id] > -1; }),
-                   [&](auto &th) { return compute_validation(tm, X, th.id); }
-               );
-    }
- */
-
 inline bool compute_validation(
     const mc::MotorcycleGraph &mg,
     const Tmesh &tm,
