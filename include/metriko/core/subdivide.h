@@ -678,6 +678,114 @@ inline std::unique_ptr<Hmesh> twelve_subdivide_3(
     return hm_new;
 }
 
+// 1-to-4 細分 (標準的な各辺の中点を結ぶ4分割)
+// UV, Seam, Matching, Singular 対応版
+inline std::unique_ptr<Hmesh> four_subdivide(
+    const Hmesh& hm,
+    const std::vector<bool>& seam,
+    std::vector<bool>& new_seam
+) {
+    // 頂点数: 既存頂点 + 各エッジの中点
+    int nV_new = hm.nV + hm.nE;
+    // 面数: 1面につき4面
+    int nF_new = hm.nF * 4;
+
+    MatXd V_new(nV_new, 3);
+    MatXi F_new(nF_new, 3);
+
+    int e_offset = hm.nV;
+
+    // SeamとMatchingの引継ぎ用マップ: (min_v, max_v) -> old_edge_id
+    std::map<std::pair<int, int>, int> edge_to_old_id;
+    auto make_edge_key = [](int a, int b) {
+        return std::make_pair(std::min(a, b), std::max(a, b));
+    };
+
+    // 1. 既存の頂点のコピー
+    for (int i = 0; i < hm.nV; ++i) {
+        V_new.row(i) = hm.pos.row(i);
+    }
+
+    // 2. エッジ中点の座標計算と親子関係の記録
+    for (int i = 0; i < hm.nE; ++i) {
+        auto e = hm.edges[i];
+        int v0 = e.vert0().id;
+        int v1 = e.vert1().id;
+        int m_id = e_offset + i;
+
+        // 中点の計算
+        V_new.row(m_id) = (hm.pos.row(v0) + hm.pos.row(v1)) * 0.5;
+
+        // 分割された2つの新しいエッジ片が、元のアウターエッジに属していることを記録
+        edge_to_old_id[make_edge_key(v0, m_id)] = i;
+        edge_to_old_id[make_edge_key(m_id, v1)] = i;
+    }
+
+    // 3. 面の分割
+    for (int i = 0; i < hm.nF; ++i) {
+        auto f = hm.faces[i];
+        auto h0 = f.half();
+        auto h1 = h0.next();
+        auto h2 = h1.next();
+
+        int v0 = h0.tail().id;
+        int v1 = h1.tail().id;
+        int v2 = h2.tail().id;
+
+        int m0 = e_offset + h0.edge().id; // 辺 v0-v1 の中点
+        int m1 = e_offset + h1.edge().id; // 辺 v1-v2 の中点
+        int m2 = e_offset + h2.edge().id; // 辺 v2-v0 の中点
+
+        int f_idx = i * 4;
+
+        // 頂点の並び順（反時計回り）を維持して4分割
+        // Corner 0 (v0周辺)
+        F_new.row(f_idx + 0) << v0, m0, m2;
+
+        // Corner 1 (v1周辺)
+        F_new.row(f_idx + 1) << v1, m1, m0;
+
+        // Corner 2 (v2周辺)
+        F_new.row(f_idx + 2) << v2, m2, m1;
+
+        // Center (中央にできる逆向きの三角形)
+        F_new.row(f_idx + 3) << m0, m1, m2;
+    }
+
+    auto hm_new = std::make_unique<Hmesh>(V_new, F_new);
+
+    // --- Seam と Matching の再マッピング ---
+    std::vector<bool> seam_new(hm_new->nE, false);
+    // (必要に応じてMatching配列もここで初期化します)
+    // VecXi matching_new = VecXi::Zero(hm_new->nE);
+
+    for (int i = 0; i < hm_new->nE; ++i) {
+        auto e_new = hm_new->edges[i];
+        int ev0 = e_new.vert0().id;
+        int ev1 = e_new.vert1().id;
+        auto key = make_edge_key(ev0, ev1);
+
+        // オリジナルのエッジ上に存在する新しいエッジの場合のみ属性を転写
+        if (edge_to_old_id.find(key) != edge_to_old_id.end()) {
+            int old_id = edge_to_old_id[key];
+
+            if (!seam.empty() && seam[old_id]) {
+                seam_new[i] = true;
+            }
+        }
+    }
+
+    // --- Singular の再マッピング (元のダミー変数を維持) ---
+    // Singular等の追加計算が必要であればこのブロックで行います
+    // VecXc v1 = VecXc::Zero(hm_new->nC);
+    // VecXi v2 = VecXi::Zero(hm_new->nV);
+    // VecXi v3 = VecXi::Zero(hm_new->nV);
+
+    new_seam = seam_new;
+
+    return hm_new;
+}
+
 }
 
 

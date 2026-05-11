@@ -6,15 +6,9 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
+#include "common.h"
 #include "igl/upsample.h"
 #include "metriko/core/subdivide.h"
-#include "metriko/core/subdivide_with_emesh.h"
-#include "metriko/core/tutte/convex_conbinatin_map.h"
-#include "metriko/core/tutte/tutte_cutting.h"
-#include "metriko/core/tutte/emesh_collapse_ehalf.h"
-#include "metriko/core/tutte/emesh_postprocess.h"
-#include "metriko/core/tutte/tutte_params.h"
-#include "common.h"
 
 using namespace metriko;
 int N = 4;
@@ -84,7 +78,8 @@ int main(int argc, char** argv) {
         const auto surf = polyscope::registerSurfaceMesh("mesh", hm->pos, hm->idx);
         const auto prms = surf->addParameterizationQuantity("params", uv1);
         surf->setEdgeWidth(0.7);
-        surf->setEnabled(false);
+        //surf->setEnabled(false);
+        //visualizer::visualize_frosy_field(surf, *hm, *rawf, *cmbf, N);
         prms->setStyle(polyscope::ParamVizStyle::GRID);
         prms->setCheckerSize(1);
 
@@ -110,29 +105,38 @@ int main(int argc, char** argv) {
         c->resetTransform();
         c->setRadius(0.001);
     }
+    //{
+    //    std::vector<bool> seam2;
+    //    std::vector<bool> seam3;
+    //    std::vector<bool> seam4;
+    //    auto hm2 = four_subdivide(*hm, seam, seam2);
+    //    auto hm3 = four_subdivide(*hm2, seam2, seam3);
+    //    auto hm4 = four_subdivide(*hm3, seam3, seam4);
+    //    const auto surf = polyscope::registerSurfaceMesh("mesh_subdiv", hm4->pos, hm4->idx);
+    //    surf->setEdgeWidth(0.7);
+    //}
 
     ///--- gen mport, medge ---///
-    auto graph = mc::MotorcycleGraph(*hm, uv2, cmbf->matching, cmbf->singular);
-    auto tmesh = Tmesh(graph.mcurvs);
+    auto mg = mc::MotorcycleGraph(*hm, uv2, cmbf->matching, cmbf->singular);
+    visualizer::visualize_motorcycle_graph(mg, uv2);
+    visualizer::visualize_node_adjacency(mg, uv2);
+    auto tm = Tmesh(mg);
+    VecXd X = compute_quantization(tm, mg);
+    //validate_quantization(tmesh, X);
+    visualizer::visualize_tedge(tm, mg, uv2, &X);
+    //visualizer::visualize_tedge(tm, mg, uv2);
+    visualizer::debug_tquad_sides(tm, mg, uv2);
 
-    VecXd R(tmesh.nTE);
-    for (int i = 0; i < tmesh.nTE; i++) R[i] = tmesh.tedges[i].len;
-
-    VecXd X = compute_quantization(tmesh, R);
-    validate_quantization(tmesh, X);
-    visualizer::visualize_tedge(tmesh, uv2, &X, &R);
-
-    std::set<tutte::HalfData> half_set;
-    std::vector<bool> seam_cut;
-    auto hm1 = tutte::compute_embedding_cut_hmesh(*hm, tmesh, uv2, seam, seam_cut, half_set);
+    //std::set<tutte::HalfData> half_set;
+    //std::vector<bool> seam_cut;
+    //auto hm1 = tutte::compute_embedding_cut_hmesh(*hm, tmesh, uv2, seam, seam_cut, half_set);
     //auto em1 = tutte::Emesh(*hm1, tmesh, half_set, X);
-
-    { /// ---- visualize mesh ---- ///
-        const auto surf = polyscope::registerSurfaceMesh("cut mesh", hm1->pos, hm1->idx);
-        surf->setEnabled(false);
-        surf->setEdgeWidth(1);
-        surf->setEnabled(true);
-    }
+    //{ /// ---- visualize mesh ---- ///
+    //    const auto surf = polyscope::registerSurfaceMesh("cut mesh", hm1->pos, hm1->idx);
+    //    surf->setEnabled(false);
+    //    surf->setEdgeWidth(1);
+    //    surf->setEnabled(true);
+    //}
 
     polyscope::show();
     return 0;

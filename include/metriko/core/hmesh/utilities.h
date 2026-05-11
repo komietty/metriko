@@ -63,29 +63,7 @@ inline bool is_inside_face(
     return is_inside_triangle(uv1, uv2, uv3, uv);
 }
 
-inline Half get_opposite_half(
-    const Half h0,   // half came in
-    const VecXc &cf, // corner function
-    const complex o, // origin in 2d
-    const complex d  // direction in 2d
-) {
-    // if hit halfedge, return it
-    for (Half h: h0.face().adjHalfs()) {
-        if (h.id == h0.id) continue;
-        auto a = cf(h.next().crnr().id);
-        auto b = cf(h.prev().crnr().id);
-        if (is_points_into(o, a, b, o + d, 0)) return h;
-    }
-
-    // if hit vertex, always return the left side (ccw side) halfedge
-    for (Half h: h0.face().adjHalfs()) {
-        auto b = cf(h.next().crnr().id);
-        auto v = b - o;
-        if (abs(v) > EPS && dot(v, d) > 0 && is_collinear(o, o + d, b)) return h;
-    }
-
-    throw std::invalid_argument("The input uv might not be inside of uv-space of the face");
-}
+//
 }
 
 #endif

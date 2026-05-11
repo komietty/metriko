@@ -8,6 +8,10 @@
 #include "typedef.h"
 
 namespace metriko {
+
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+
 inline complex get_quater_rot(int i) {
     switch ((i % 4 + 4) % 4) {
         case 0: return {1, 0};

@@ -87,8 +87,8 @@ endif()
 #========== Done finding OpenMp ========================================================================================
 
 add_library(${PROJECT_NAME} INTERFACE
-        include/metriko/core/tutte/tutte_cutting.h
-        include/metriko/core/common/predicates.h)
+        include/metriko/core/quantization/quantization.h
+)
 
 target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
 

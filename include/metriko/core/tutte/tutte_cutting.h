@@ -14,41 +14,29 @@ constexpr double EPS = 1e-10;
 using Mat3x2d = Eigen::Matrix<double, 3, 2>;
 using Mat2x3d = Eigen::Matrix<double, 2, 3>;
 
-inline Mat2x3d GetAxisAlignedProjection(const Row3d& normal) {
-    Row3d abs = normal.cwiseAbs();
+inline Mat2x3d axis_align_proj(const Row3d& n) {
+    Row3d a = n.cwiseAbs();
     double max;
     Mat3x2d P;
 
-    if (abs.z() > abs.x() && abs.z() > abs.y()) {
-        P.col(0) << 1., 0., 0.;
-        P.col(1) << 0., 1., 0.;
-        max = normal.z();
-    }
-    else if (abs.y() > abs.x()) {
-        P.col(0) << 0., 0., 1.;
-        P.col(1) << 1., 0., 0.;
-        max = normal.y();
-    }
-    else {
-        P.col(0) << 0., 1., 0.;
-        P.col(1) << 0., 0., 1.;
-        max = normal.x();
-    }
+    if (a.z() > a.x() && a.z() > a.y()) { P.col(0) << 1., 0., 0.; P.col(1) << 0., 1., 0.; max = n.z(); }
+    else if (a.y() > a.x())             { P.col(0) << 0., 0., 1.; P.col(1) << 1., 0., 0.; max = n.y(); }
+    else                                { P.col(0) << 0., 1., 0.; P.col(1) << 0., 0., 1.; max = n.x(); }
 
-    if (max < 0.) P.col(0) *= -1.; // projection[0] *= -1.0;
-    return P.transpose(); // mat3x2 -> mat2x3
+    if (max < 0) P.col(0) *= -1;
+    return P.transpose();
 }
 }
 
 struct AuxSgmt {
     const Tsgmt sg; //
     const Thalf th; //
-    int ord0;           // order cano
-    int ord1;           // order non cano
-    Row2d v0;           // val cano
-    Row2d v1;           // val non cano
-    bool isBgn;         //
-    bool isEnd;         //
+    int ord0;       // order cano
+    int ord1;       // order non cano
+    Row2d v0;       // val cano
+    Row2d v1;       // val non cano
+    bool isBgn;     //
+    bool isEnd;     //
 };
 
 struct AuxHalf2 {
@@ -58,19 +46,19 @@ struct AuxHalf2 {
     std::optional<HalfData> data;
 };
 
-using AuxHalf1 = std::set<std::pair<double, int>>; // the list of index and ratio in the Half
-using AuxFace  = vec<std::array<AuxHalf2, 3>>;     // per original face, this contains halfedge data of a divided triangle
-
+using AuxHalf = std::set<std::pair<double, int>>; // the list of index and ratio in the Half
+using AuxFace = vec<std::array<AuxHalf2, 3>>;     // per original face, this contains halfedge data of a divided triangle
 
 // Beware epsilon validity must be solved beforehand
 inline void face_cutting(
     const Tmesh& tm,         //
+    const Hmesh& hm,         //
     const Face& f,           // face to be cut
     const VecXc& cf,         // corner function of original mesh
     const vec<AuxSgmt>& sgs, // segments inside the face
-    vec<Row3d>& vpos,        // vertex position (altered)
+    vec<Row3d>& pos,         // vertex position (altered)
     AuxFace& f_auxs,         //
-    vec<AuxHalf1>& h_auxs    //
+    vec<AuxHalf>& h_auxs     //
 ) {
     if (sgs.empty()) {
         Half h0 = f.half();
@@ -89,47 +77,43 @@ inline void face_cutting(
 
     for (Half h0: f.adjHalfs()) {
         idcs.push_back(h0.tail().id); // verts are candidate
-        Half h1 = h0.twin();
-        for (auto [r, i]: h_auxs[h1.id]) {
-            if (r > 0 && r < 1) { idcs.emplace_back(i); }
-        }
+        for (auto [r, i]: h_auxs[h0.twin().id]) { if (r > 0 && r < 1) idcs.emplace_back(i); }
     }
 
     for (const auto& [sg, th, o0, o1, v0, v1, f0, b1]: sgs) {
-        std::pair<const Tvert*, int> mvs[2] = {
-            std::pair(&sg.tvFr, -1),
-            std::pair(&sg.tvTo, -1)
-        };
+        std::pair<const Tvert*, int> mvs[2] = { std::pair(&sg.tvFr, -1), std::pair(&sg.tvTo, -1) };
 
         /// 1: Assign inside halfs
-        for (auto& [mv, idx]: mvs) {
+        for (auto& [mv, id]: mvs) {
             Row3d p;
             std::optional<std::pair<Half, double>> val;
-            if (mv->cut.has_value()) {
-                auto [h, r] = mv->cut.value();
+            if (mv->hid != -1) {
+                Half h = hm.halfs[mv->hid];
+                auto r = mv->rt;
                 p = h.tail().pos() * r + h.head().pos() * (1 - r);
                 val = std::pair(h, r);
             }
             else { p = conversion_2d_3d(sg.face, cf, mv->uv); }
 
-            auto find = rg::find_if(idcs, [&](int i) { return (vpos[i] - p).norm() < EPS; });
-            if (find != idcs.end()) { idx = *find; }
+            auto find = rg::find_if(idcs, [&](int i) { return (pos[i] - p).norm() < EPS; });
+            if (find != idcs.end()) { id = *find; }
             else {
-                vpos.emplace_back(p);
-                int l = (int)vpos.size() - 1;
+                pos.emplace_back(p);
+                int l = (int)pos.size() - 1;
                 idcs.emplace_back(l);
-                idx = l;
+                id = l;
                 if (val.has_value()) {
                     auto [h0, r] = val.value();
                     auto h1 = h0.twin();
-                    h_auxs[h0.id].emplace(r, idx);
-                    h_auxs[h1.id].emplace(1 - r, idx);
+                    h_auxs[h0.id].emplace(r, id);
+                    h_auxs[h1.id].emplace(1 - r, id);
                 }
             }
         }
 
         int i0 = mvs[0].second;
         int i1 = mvs[1].second;
+        if (i0 == i1) continue;
         halfs.emplace_back(AuxHalf2{i0, i1, std::nullopt, HalfData{Half(), v0.x(), v0.y(), th.id  , tm.th2quad(th.id)  , -1, o0, f0, b1 }});
         halfs.emplace_back(AuxHalf2{i1, i0, std::nullopt, HalfData{Half(), v1.x(), v1.y(), th.twid, tm.th2quad(th.twid), -1, o1, false, false }});
     }
@@ -160,9 +144,8 @@ inline void face_cutting(
         while (true) {
             int prev_v = poly.back().i0;
             int curr_v = poly.back().i1;
-
-            const Row3d& p_prev = vpos[prev_v];
-            const Row3d& p_curr = vpos[curr_v];
+            const Row3d& p_prev = pos[prev_v];
+            const Row3d& p_curr = pos[curr_v];
             const Row3d  d_prev = (p_curr - p_prev).normalized();
 
             auto best_it = halfs.end();
@@ -172,18 +155,14 @@ inline void face_cutting(
                 if (it->i0 != curr_v) continue;
                 if (it->i1 == prev_v) continue;
                 int cand_to = it->i1;
-                Row3d d_cand = (vpos[cand_to] - p_curr).normalized();
+                Row3d d_cand = (pos[cand_to] - p_curr).normalized();
 
                 // 向き判定：d_prev から d_cand への回転が CCW かどうか
                 Row3d c = d_prev.cross(d_cand);  // 回転軸方向
-                double sign = f.normal().dot(c); // face 法線と同じ向きなら CCW
-                if (c.norm() > EPS && sign <= 0) { continue; }
+                if (c.norm() > EPS && f.normal().dot(c) <= 0) { continue; }
 
                 double s = (-d_prev).dot(d_cand);
-                if (s > score) {
-                    score = s;
-                    best_it = it;
-                }
+                if (s > score) { score = s; best_it = it; }
             }
 
             // CCW 候補が無ければチェーン終了
@@ -197,32 +176,37 @@ inline void face_cutting(
             if (cur == sta) break;
         }
 
+        bool flag = false;
+        for (auto& p: poly) if (p.i0 == 0 && p.i1 == 0) flag = true;
+
+
+        if (flag) {
+            std::cout << "poly: ";
+            for (auto& p: poly) std::cout << p.i0 << ",  ";
+            std::cout << std::endl;
+        }
+
         /// 4: Calc simple ear clipping for convex polygon.
-        ///    Find out the starting vertex not to generate 0 size area
-        int start_idx = 0;
+        ///    Find the starting vertex not to generate 0 size area
+        int i = 0;
+        int n = (int)poly.size();
 
-        while (true) {
-            bool flag = true;
-            for (int j = 1; j < poly.size() - 1; ++j) {
-                auto poly0 = poly[start_idx];
-                auto poly1 = poly[(start_idx + j    ) % poly.size()];
-                auto poly2 = poly[(start_idx + j + 1) % poly.size()];
-                Row3d& p0 = vpos[poly0.i0];
-                Row3d& p1 = vpos[poly1.i0];
-                Row3d& p2 = vpos[poly2.i0];
-                double area = f.normal().dot((p1 - p0).cross(p2 - p0));
-                if (abs(area) < EPS) { flag = false; break; }
-            }
-            if (flag) { break; }
-            start_idx++;
+        for (; i < n; ++i) {
+            bool valid = rg::all_of(vw::iota(1, n - 1), [&](int j) {
+                Row3d& p0 = pos[poly[i].i0];
+                Row3d& p1 = pos[poly[(i + j    ) % n].i0];
+                Row3d& p2 = pos[poly[(i + j + 1) % n].i0];
+                return std::abs(f.normal().dot((p1 - p0).cross(p2 - p0))) >= EPS;
+            });
+            if (valid) break;
         }
 
-        for (int j = 1; j < poly.size() - 1; ++j) {
-            auto poly0 = poly[start_idx];
-            auto poly1 = poly[(start_idx + j    ) % poly.size()];
-            auto poly2 = poly[(start_idx + j + 1) % poly.size()];
-            f_auxs.emplace_back(std::array{poly0, poly1, poly2});
-        }
+        for (int j = 1; j < n - 1; ++j)
+            f_auxs.emplace_back(std::array{
+                poly[i],
+                poly[(i + j    ) % n],
+                poly[(i + j + 1) % n]
+            });
     }
 }
 
@@ -235,102 +219,106 @@ inline void face_cutting(
 // positions of each tedges are consistent as the whole graph.
 // OR, snap a segment-edge vertex for hmesh vertex if the distance is less than epsilon (now used)
 inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
-    const Hmesh& hm,         // input hmesh
-    const Tmesh& tm,         // input tmesh
-    const VecXc& cf,         // input corner function of naive parameterization
-    const vec<bool>& seam0,  //
-          vec<bool>& seam1,  //
-    std::set<HalfData>& data //
+    const Hmesh& hm,           // input hmesh
+    const Tmesh& tm,           // input tmesh
+    const VecXc& cf,           // input corner function of naive parameterization
+    const vec<bool>& seam0,    //
+          vec<bool>& seam1,    //
+    std::set<HalfData>& h_data //
 ) {
+    h_data.clear();
     std::map<int, vec<AuxSgmt>> cuts; // face id & aux segment data
 
     for (const auto& th: tm.thalfs) {
         if (!th.cano) continue;
         const auto& te = th.edge();
         const auto r = te.len;
-        const auto n = (int)te.segs.size();
-        auto sum = 0.;
-        auto ord = 0;
+        const auto n = (int)te.segs.size() - 1;
+        auto v = 0.;
+        auto i = 0;
         for (const auto& s: te.segs) {
             auto l = abs(s.tvTo.uv - s.tvFr.uv);
-            auto v0 = sum / r; sum += l;
-            auto v1 = sum / r;
-            bool f0 = ord == 0 && te.isBgn;
-            bool b1 = ord == n - 1 && te.isEnd;
-            cuts[s.face.id].emplace_back(AuxSgmt{s, th, ord, n - ord - 1, {v0, v1}, {1 - v1, 1 - v0}, f0, b1});
-            ord++;
+            auto j = n - i;
+            auto v0 = v / r; v += l;
+            auto v1 = v / r;
+            bool f0 = i == 0 && te.isBgn;
+            bool b1 = i == n && te.isEnd;
+            cuts[s.face.id].emplace_back(AuxSgmt{s, th, i, j, {v0, v1}, {1 - v1, 1 - v0}, f0, b1});
+            i++;
         }
     }
 
-    vec h_aux(hm.nH, AuxHalf1{});
+    vec h_aux(hm.nH, AuxHalf{});
     vec f_aux(hm.nF, AuxFace{});
 
-    vec<Row3d> vpos;
-    for (auto p: hm.pos.rowwise()) { vpos.emplace_back(p); }
+    vec<Row3d> pos;
+    for (auto p: hm.pos.rowwise()) pos.emplace_back(p);
+    for (auto f: hm.faces) face_cutting(tm, hm, f, cf, cuts[f.id], pos, f_aux[f.id], h_aux);
 
-    for (Face f: hm.faces) { face_cutting(tm, f, cf, cuts[f.id], vpos, f_aux[f.id], h_aux); }
+    MatXd V(pos.size(), 3);
+    MatXi F(rg::distance(f_aux | vw::join), 3);
 
-    int count = 0;
-    for (const auto& hs: f_aux) { count += (int)hs.size(); }
+    for (int i = 0; i < pos.size(); i++) V.row(i) = pos[i];
 
-    MatXi face_info(count, 3);
-    MatXd vert_info(vpos.size(), 3);
+    int c = 0;
+    for (const auto& d : f_aux | vw::join)  F.row(c++) << d[0].i0, d[1].i0, d[2].i0;
 
-    for (int i = 0; i < vpos.size(); i++) { vert_info.row(i) = vpos[i]; }
+    auto hmC = std::make_unique<Hmesh>(V, F);
+    seam1 = vec(hmC->nE, false);
 
-    int count2 = 0;
-    for (const auto& fd1: f_aux) {
-    for (auto& fd2: fd1) {
-        face_info.row(count2) << fd2[0].i0, fd2[1].i0, fd2[2].i0;
-        count2++;
+    auto find_half = [&](int v0, int v1) -> Half {
+        for (Half h: hmC->verts[v0].adjHalfs()) if (h.head().id == v1) return h;
+        throw std::runtime_error("half not found");
+    };
+
+    std::vector<glm::vec3> ns;
+    std::vector<std::array<size_t, 2>> es;
+    std::vector<double> val1;
+    size_t count = 0;
+
+    int counter = 0;
+    for (const auto& a: f_aux | vw::join) {
+    for (const auto& [i0, i1, ori, d]: a) {
+        if (i0 == i1) {
+            std::cout << "===========" << std::endl;
+            for (int i = 0; i < 3; i++) {
+                Row3d p1 = hmC->verts[a[i].i0].pos();
+                Row3d p2 = hmC->verts[a[i].i1].pos();
+                std::cout << "i0: " << a[i].i0  << ", i1: " << a[i].i1 << ", norm: " << (p1 - p2).norm() << std::endl;
+                ns.emplace_back(p1.x(), p1.y(), p1.z());
+                ns.emplace_back(p2.x(), p2.y(), p2.z());
+                es.emplace_back(std::array{count, count + 1});
+                val1.emplace_back(count / 2);
+                count += 2;
+            }
+        }
+        counter++;
     }}
 
-    auto hm_cut = std::make_unique<Hmesh>(vert_info, face_info);
-    auto h_data = std::set<HalfData>();
-    seam1 = std::vector(hm_cut->nE, false);
+    auto cv = polyscope::registerCurveNetwork("i0 == i1 tris", ns, es);
+    cv->addEdgeScalarQuantity("order", val1);
+    cv->resetTransform();
+    cv->setRadius(0.002);
 
-    struct EdgeKey {
-        int tail;
-        int head;
-        bool operator==(const EdgeKey& o) const noexcept { return tail == o.tail && head == o.head; }
-    };
+    //for (const auto& [i0, i1, o, d]: f_aux | vw::join | vw::join) {
+    //    Half h = find_half(i0, i1);
+    //    if (o.has_value() && seam0[o->edge().id]) seam1[h.edge().id] = true;
+    //    if (d.has_value()) {
+    //        HalfData hd = d.value();
+    //        hd.half = h;
+    //        h_data.insert(hd);
+    //    }
+    //}
 
-    struct EdgeKeyHash {
-        std::size_t operator()(const EdgeKey& k) const noexcept {
-            return (static_cast<std::size_t>(k.tail) << 32) ^ static_cast<std::size_t>(k.head);
-        }
-    };
 
-    std::unordered_map<EdgeKey, Half, EdgeKeyHash> half_by_verts;
-    half_by_verts.reserve(hm_cut->nH * 2);
 
-    for (Half h: hm_cut->halfs) {
-        half_by_verts.insert({EdgeKey{h.tail().id, h.head().id}, h});
-    }
 
-    for (const auto& fd1: f_aux) {
-    for (const auto& fd2: fd1) {
-    for (int i = 0; i < 3; i++) {
-        const auto& [i0, i1, original, data] = fd2[i];
-        auto it = half_by_verts.find({i0, i1});
+    //auto temp = vec(h_data.begin(), h_data.end());
+    //for (auto& hd: temp)
+    //    for (int i = 0; i < temp.size(); i++)
+    //        if (hd.half.twin() == temp[i].half) hd.twin = i;
 
-        if (original.has_value() && seam0[original.value().edge().id]) { seam1[it->second.edge().id] = true; }
-
-        if (data.has_value()) {
-            const auto& v = data.value();
-            h_data.emplace(HalfData{it->second, v.v0, v.v1, v.thid, v.tqid, -1, v.order, v.first, v.crash});
-        }
-    }}}
-
-    data = h_data;
-
-    auto temp = std::vector(h_data.begin(), h_data.end());
-    for (auto& hd0: temp) {
-    for (int i = 0; i < temp.size(); i++)
-        if (hd0.half.twin() == temp[i].half) { hd0.twin = i; }
-    }
-
-    return hm_cut;
+    return hmC;
 }
 }
 #endif
