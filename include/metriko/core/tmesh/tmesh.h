@@ -10,8 +10,6 @@
 #include <complex>
 
 namespace metriko {
-template <class T> using vec = std::vector<T>;
-using complex = std::complex<double>;
 
 struct Tmesh;
 
@@ -19,7 +17,7 @@ struct Tedge {
     int id;
     int fr_nid;
     int to_nid;
-    int curv_id;
+    int crv_id;
     bool isBgn;
     bool isEnd;
     double len = 0;
@@ -27,13 +25,13 @@ struct Tedge {
 };
 
 struct Thalf {
-    const Tmesh* tm;
-    int id;
-    int twid;
-    int teid;
+    const Tmesh* tm = nullptr;
+    int id     = -1;
+    int twid   = -1;
+    int teid   = -1;
     int nxt_id = -1;
     int prv_id = -1;
-    bool cano;
+    bool cano  = false;
 
     const Thalf& twin() const;
     const Thalf& next() const;
@@ -67,13 +65,13 @@ struct Tmesh {
     size_t nTE;
     size_t nTH;
 
-    explicit Tmesh(const mc::MotorcycleGraph& mg) {
+    explicit Tmesh(const mc::Mgrph& mg) {
         //===== 1. Extract Thalfs and Tedges =====
-        for (const auto& mc : mg.mcurvs) {
+        for (const auto& mc: mg.mcurvs) {
             vec<mc::Msgmt> sgs;
             int bgn_nid = mc.sgmts.front().fr_nid;
 
-            for (auto& sg : mc.sgmts) {
+            for (auto& sg: mc.sgmts) {
                 sgs.push_back(sg);
 
                 if (mg.mnodes[sg.to_nid].jt != mc::JunctionType::None) {
@@ -82,7 +80,7 @@ struct Tmesh {
                     int end_nid = sg.to_nid;
 
                     double len = 0;
-                    for (const auto& s : sgs) {
+                    for (const auto& s: sgs) {
                         auto fr = mc::get_face_uv(mg.mnodes[s.fr_nid], s.face_id, mg.hm, mg.cf);
                         auto to = mc::get_face_uv(mg.mnodes[s.to_nid], s.face_id, mg.hm, mg.cf);
                         len += std::abs(to - fr);
@@ -91,14 +89,14 @@ struct Tmesh {
                     thalfs.push_back({.tm = this, .id = thid,     .twid = thid + 1, .teid = teid, .cano = true });
                     thalfs.push_back({.tm = this, .id = thid + 1, .twid = thid,     .teid = teid, .cano = false});
                     tedges.push_back({
-                        .id      = teid,
-                        .fr_nid  = bgn_nid,
-                        .to_nid  = end_nid,
-                        .curv_id = mc.id,
-                        .isBgn   = mg.mnodes[bgn_nid].jt == mc::JunctionType::F,
-                        .isEnd   = mg.mnodes[end_nid].jt == mc::JunctionType::T,
-                        .len     = len,
-                        .segs    = std::move(sgs)
+                        .id     = teid,
+                        .fr_nid = bgn_nid,
+                        .to_nid = end_nid,
+                        .crv_id = mc.id,
+                        .isBgn  = mg.mnodes[bgn_nid].jt == mc::JunctionType::F,
+                        .isEnd  = mg.mnodes[end_nid].jt == mc::JunctionType::T,
+                        .len    = len,
+                        .segs   = std::move(sgs)
                     });
 
                     bgn_nid = end_nid;
@@ -122,7 +120,7 @@ struct Tmesh {
                 return std::distance(mn.adj.begin(), it);
             };
 
-            rg::sort(outgoing, [&](Thalf* a, Thalf* b) { return get_rank(a) < get_rank(b); });
+            rg::sort(outgoing, [&](const Thalf* a, const Thalf* b) { return get_rank(a) < get_rank(b); });
 
             int n = outgoing.size();
             for (int i = 0; i < n; ++i) {
@@ -152,23 +150,23 @@ struct Tmesh {
                 visited[curr_thid] = true;
                 auto& curr_th = thalfs[curr_thid];
                 auto& next_th = thalfs[curr_th.nxt_id];
-                if (curr_th.edge().curv_id != next_th.edge().curv_id) curr_side = (curr_side + 1) % 4;
+                if (curr_th.edge().crv_id != next_th.edge().crv_id) curr_side = (curr_side + 1) % 4;
                 curr_thid = next_th.id;
             } while (curr_thid != i);
 
             // Rotate until sides data is sequential
             auto& fst_th = thalfs[tq.thids.front()];
             auto& lst_th = thalfs[tq.thids.back()];
-            if (fst_th.edge().curv_id == lst_th.edge().curv_id) {
+            if (fst_th.edge().crv_id == lst_th.edge().crv_id) {
                 int f = tq.sides.front();
                 int n = rg::distance(tq.sides | vw::take_while([=](int x) { return x == f; }));
                 rg::rotate(tq.sides, tq.sides.begin() + n);
                 rg::rotate(tq.thids, tq.thids.begin() + n);
 
                 int s = 0;
-                int last_c = thalfs[tq.thids[0]].edge().curv_id;
+                int last_c = thalfs[tq.thids[0]].edge().crv_id;
                 for (int j = 0; j < tq.thids.size(); ++j) {
-                    int this_c = thalfs[tq.thids[j]].edge().curv_id;
+                    int this_c = thalfs[tq.thids[j]].edge().crv_id;
                     if (this_c != last_c) s = (s + 1) % 4;
                     tq.sides[j] = s;
                     last_c = this_c;

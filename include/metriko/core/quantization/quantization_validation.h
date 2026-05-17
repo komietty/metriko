@@ -9,7 +9,7 @@
 
 namespace metriko {
 inline bool compute_validation(
-    const mc::MotorcycleGraph &mg,
+    const mc::Mgrph &mg,
     const Tmesh &tm,
     const VecXd &X
 ) {

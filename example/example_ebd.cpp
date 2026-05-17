@@ -9,6 +9,10 @@
 #include "common.h"
 #include "igl/upsample.h"
 #include "metriko/core/subdivide.h"
+#include "metriko/core/tmesh/emesh_collapse_util.h"
+#include "metriko/core/tmesh/emesh_collapse_ehalf.h"
+#include "metriko/core/tmesh/emesh_collapse_equad.h"
+#include "metriko/core/tmesh/emesh_subdivide.h"
 
 using namespace metriko;
 int N = 4;
@@ -78,7 +82,7 @@ int main(int argc, char** argv) {
         const auto surf = polyscope::registerSurfaceMesh("mesh", hm->pos, hm->idx);
         const auto prms = surf->addParameterizationQuantity("params", uv1);
         surf->setEdgeWidth(0.7);
-        //surf->setEnabled(false);
+        surf->setEnabled(false);
         //visualizer::visualize_frosy_field(surf, *hm, *rawf, *cmbf, N);
         prms->setStyle(polyscope::ParamVizStyle::GRID);
         prms->setCheckerSize(1);
@@ -101,7 +105,7 @@ int main(int argc, char** argv) {
         }
         auto c = polyscope::registerCurveNetwork("seam", ns, es);
         c->addEdgeScalarQuantity("matching", ms);
-        //c->setEnabled(false);
+        c->setEnabled(false);
         c->resetTransform();
         c->setRadius(0.001);
     }
@@ -117,26 +121,87 @@ int main(int argc, char** argv) {
     //}
 
     ///--- gen mport, medge ---///
-    auto mg = mc::MotorcycleGraph(*hm, uv2, cmbf->matching, cmbf->singular);
-    visualizer::visualize_motorcycle_graph(mg, uv2);
-    visualizer::visualize_node_adjacency(mg, uv2);
+    auto mg = mc::Mgrph(*hm, uv2, cmbf->matching, cmbf->singular);
+    //visualizer::visualize_motorcycle_graph(mg, uv2);
+    //visualizer::visualize_node_adjacency(mg, uv2);
     auto tm = Tmesh(mg);
     VecXd X = compute_quantization(tm, mg);
     //validate_quantization(tmesh, X);
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     //visualizer::visualize_tedge(tm, mg, uv2);
-    visualizer::debug_tquad_sides(tm, mg, uv2);
+    //visualizer::debug_tquad_sides(tm, mg, uv2);
 
-    //std::set<tutte::HalfData> half_set;
-    //std::vector<bool> seam_cut;
-    //auto hm1 = tutte::compute_embedding_cut_hmesh(*hm, tmesh, uv2, seam, seam_cut, half_set);
-    //auto em1 = tutte::Emesh(*hm1, tmesh, half_set, X);
-    //{ /// ---- visualize mesh ---- ///
-    //    const auto surf = polyscope::registerSurfaceMesh("cut mesh", hm1->pos, hm1->idx);
-    //    surf->setEnabled(false);
-    //    surf->setEdgeWidth(1);
-    //    surf->setEnabled(true);
-    //}
+    auto sdiv_data = compute_midpoint_subdivision(*hm, uv2, 2);
+    visualizer::visualize_tracked_mesh(sdiv_data, *hm, uv2, "sdiv_data (Level 2)");
+
+
+
+    // =======================================================================
+    // 2. 3D座標の再構築と、高解像度 Hmesh のインスタンス化
+    // =======================================================================
+    std::vector<Row3d> dense_pos_vec(sdiv_data.num_verts);
+    std::vector<bool> visited(sdiv_data.num_verts, false);
+
+    for (size_t i = 0; i < sdiv_data.polygons.size(); ++i) {
+        int parent_fid = sdiv_data.face2parent[i];
+        for (size_t j = 0; j < 3; ++j) {
+            int vid = sdiv_data.polygons[i][j];
+            if (!visited[vid]) {
+                dense_pos_vec[vid] = conversion_2d_3d(hm->faces[parent_fid], uv2, sdiv_data.uvs[i][j]);
+                visited[vid] = true;
+            }
+        }
+    }
+
+    MatXd dense_V(sdiv_data.num_verts, 3);
+    MatXi dense_F(sdiv_data.polygons.size(), 3);
+
+    for (int i = 0; i < sdiv_data.num_verts; ++i)       { dense_V.row(i) = dense_pos_vec[i]; }
+    for (int i = 0; i < sdiv_data.polygons.size(); ++i) { dense_F.row(i) << sdiv_data.polygons[i][0], sdiv_data.polygons[i][1], sdiv_data.polygons[i][2]; }
+    auto dense_hm = std::make_unique<Hmesh>(dense_V, dense_F);
+
+    // =======================================================================
+    // 3. Mnode -> dense_vid のマッピング辞書の自動構築 (安全版)
+    // =======================================================================
+    std::map<int, int> mnode2dense_v;
+    for (const auto& te : tm.tedges) {
+        auto map_node = [&](int nid, int fid) {
+            if (mnode2dense_v.contains(nid)) return;
+            complex target_uv = mc::get_face_uv(mg.mnodes[nid], fid, *hm, uv2);
+
+            int best_vid = -1;
+            double min_dist = 1e9;
+            for (size_t i = 0; i < sdiv_data.polygons.size(); ++i) {
+                if (sdiv_data.face2parent[i] != fid) continue;
+                for (int j = 0; j < 3; ++j) {
+                    double d = std::abs(sdiv_data.uvs[i][j] - target_uv);
+                    if (d < min_dist) { min_dist = d; best_vid = sdiv_data.polygons[i][j]; }
+                }
+            }
+            assert(best_vid != -1 && "Corresponding dense vertex not found!");
+            mnode2dense_v[nid] = best_vid;
+        };
+        map_node(te.fr_nid, te.segs.front().face_id);
+        map_node(te.to_nid, te.segs.back().face_id);
+    }
+
+    // =======================================================================
+    // 4. Emesh の構築と可視化
+    // =======================================================================
+    std::cout << "[Info] Constructing Emesh (Running Dijkstra)..." << std::endl;
+    Emesh em(tm, mg, *dense_hm, sdiv_data, mnode2dense_v, X);
+    verts_inside(em.equads[9], em, *dense_hm);
+    //em.collapse_ehalf(85);
+    em.collapse_equad(9);
+    //verts_inside(em.equads[0], em, *dense_hm);
+    //verts_inside(em.equads[16], em, *dense_hm);
+
+    //visualizer::visualize_eedge(em, X, "emesh_");
+    for (const auto& eq : em.equads) {
+        if (eq.id == -1) continue;
+        visualizer::visualize_equad(em, eq);
+    }
+
 
     polyscope::show();
     return 0;

@@ -10,12 +10,11 @@
 #include "./common.h"
 
 namespace metriko::mc {
-
-struct MotorcycleGraph;
-
 constexpr double TOLERANCE_HALF = 1e-6; //
 constexpr double TOLERANCE_CRNR = 2e-6; //
-constexpr double TOLERANCE_EDGE = 0.;    // tolerance on two curvs crash close to an edge
+constexpr double TOLERANCE_EDGE = 0.;   // tolerance on two curvs crash close to an edge
+
+struct Mgrph;
 
 struct Mport {
     complex uv;
@@ -31,13 +30,7 @@ struct OnEdge { int eid; double r;   bool operator==(const OnEdge&) const = defa
 struct OnFace { int fid; complex uv; bool operator==(const OnFace&) const = default; };
 using MnodeLoc = std::variant<std::monostate, OnVert, OnEdge, OnFace>;
 enum class JunctionType { None, F, T };
-enum class JunctionSide {
-    None,
-    B, // bottom
-    L, // left
-    R, // right
-    T, // top
-};
+enum class JunctionSide { None, B, L, R, T };
 
 struct Asgmt {
     int curv_id;
@@ -51,8 +44,6 @@ struct Mnode {
 };
 
 struct Msgmt {
-    JunctionSide fr_js = JunctionSide::None; // if fr side is crashing, assign side
-    JunctionSide to_js = JunctionSide::None; // if to side is crashing, assign side
     int fr_nid  = -1;
     int to_nid  = -1;
     int curv_id = -1;
@@ -74,7 +65,7 @@ struct Mbuff {
 };
 
 struct Mcurv {
-    MotorcycleGraph *mg = nullptr;
+    Mgrph *mg = nullptr;
     int id = -1;
     vec<Msgmt> sgmts = {};
     Mbuff buff = {};
@@ -182,14 +173,14 @@ complex get_face_uv(const Mnode& mn, int fid, const Hmesh& hm, const VecXc& cf) 
 }
 
 
-struct  MotorcycleGraph {
+struct  Mgrph {
     const Hmesh &hm;
     const VecXc &cf;
     vec<Mport> mports;
     vec<Mnode> mnodes;
     vec<Mcurv> mcurvs;
 
-    MotorcycleGraph(
+    Mgrph(
         const Hmesh &hm,
         const VecXc &cf,
         const VecXi &matching,
@@ -229,7 +220,7 @@ struct  MotorcycleGraph {
 }
 
 namespace metriko::mc {
-inline void MotorcycleGraph::gen_ports(const VecXi &singular) {
+inline void Mgrph::gen_ports(const VecXi &singular) {
     for (Vert v: hm.verts) {
         if (singular[v.id] == 0) continue;
         vec<Mport> buff0 {}; // the outer scope buffer to assign next/prev
@@ -273,7 +264,7 @@ inline void MotorcycleGraph::gen_ports(const VecXi &singular) {
     }
 }
 
-inline void MotorcycleGraph::collect_node_adjacency() {
+inline void Mgrph::collect_node_adjacency() {
     for (auto& mn : mnodes) { mn.adj.clear(); }
     for (auto& mc : mcurvs) {
         for (int i = 0; i < mc.sgmts.size(); ++i) {
@@ -285,7 +276,7 @@ inline void MotorcycleGraph::collect_node_adjacency() {
     }
 }
 
-inline void MotorcycleGraph::sort_node_adjacency() {
+inline void Mgrph::sort_node_adjacency() {
     for (int nid = 0; nid < mnodes.size(); ++nid) {
         auto& mn = mnodes[nid];
         if (mn.adj.size() < 3) continue;
@@ -474,7 +465,7 @@ inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
                 auto nid = mg->mnodes.size() - 1;
 
                 sg.to_nid = nid;
-                sg.to_js  = JunctionSide::B;
+                //sg.to_js  = JunctionSide::B;
                 sgmts.push_back(sg);
 
                 auto& cv = mg->mcurvs[s0.curv_id];
@@ -482,9 +473,9 @@ inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
 
                 Msgmt s1   = *it;
                 s1.fr_nid  = nid;
-                s1.fr_js   = JunctionSide::R; // todo: need to check direction
+                //s1.fr_js   = JunctionSide::R; // todo: need to check direction
                 it->to_nid = nid;
-                it->to_js  = JunctionSide::L; // same
+                //it->to_js  = JunctionSide::L; // same
 
                 cv.sgmts.insert(it + 1, s1);
             }

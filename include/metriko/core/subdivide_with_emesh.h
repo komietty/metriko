@@ -7,7 +7,7 @@
 
 #include <unordered_map>
 #include <memory>
-#include "./tutte/emesh.h"
+#include "./tutte_buk/emesh.h"
 
 namespace metriko::tutte {
 

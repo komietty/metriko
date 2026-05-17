@@ -10,9 +10,6 @@
 #include "../hmesh/hmesh.h"
 
 namespace metriko::mc {
-
-template <class T> using vec = std::vector<T>;
-
 // case 1
 inline std::optional<Half> try_get_opposite_half_from_half(
     const Half h0,   // half came in

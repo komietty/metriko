@@ -5,7 +5,6 @@
 #include "compute_dijkstra.h"
 
 namespace metriko::tutte {
-template <class T> using vec = std::vector<T>;
 template <class T> using set = std::set<T>;
 
 struct HalfData {

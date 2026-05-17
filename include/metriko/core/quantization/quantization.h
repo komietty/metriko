@@ -25,7 +25,7 @@ namespace metriko {
         }
     }
 
-    inline VecXd compute_quantization(const Tmesh& tmesh, const mc::MotorcycleGraph& mg) {
+    inline VecXd compute_quantization(const Tmesh& tmesh, const mc::Mgrph& mg) {
 
         VecXd R(tmesh.nTE);
         for (int i = 0; i < tmesh.nTE; i++) R[i] = tmesh.tedges[i].len;

@@ -40,9 +40,7 @@ using TripD = Eigen::Triplet<double>;
 using TripC = Eigen::Triplet <std::complex<double>>;
 namespace rg = std::ranges;
 namespace vw = std::views;
-
-//template <class T>
-//using vec = std::vector<T>;
+template <class T> using vec = std::vector<T>;
 }
 
 #endif

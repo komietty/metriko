@@ -88,6 +88,11 @@ endif()
 
 add_library(${PROJECT_NAME} INTERFACE
         include/metriko/core/quantization/quantization.h
+        include/metriko/core/tmesh/emesh_subdivide.h
+        include/metriko/core/tmesh/emesh.h
+        include/metriko/core/tmesh/emesh_collapse_util.h
+        include/metriko/core/tmesh/emesh_collapse_ehalf.h
+        include/metriko/core/tmesh/emesh_collapse_equad.h
 )
 
 target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
