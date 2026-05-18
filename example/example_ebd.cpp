@@ -161,7 +161,9 @@ int main(int argc, char** argv) {
     for (int i = 0; i < sdiv_data.polygons.size(); ++i) { dense_F.row(i) << sdiv_data.polygons[i][0], sdiv_data.polygons[i][1], sdiv_data.polygons[i][2]; }
     auto dense_hm = std::make_unique<Hmesh>(dense_V, dense_F);
     //auto dense_sm = compute_dense_seam(*hm, seam, *dense_hm, sdiv_data);
-    vec<bool> dense_sm = vec(dense_hm->nE, false);
+    //vec<bool> dense_sm = vec(dense_hm->nE, false);
+
+    std::vector<bool> dense_sm = compute_dense_seam(seam, *dense_hm, sdiv_data);
 
     {
 
@@ -222,7 +224,7 @@ int main(int argc, char** argv) {
     //visualizer::visualize_eedge(em, X, "emesh_");
     for (const auto& eq : em.equads) {
         if (eq.id == -1) continue;
-        if (eq.id != 7) continue;
+        //if (eq.id != 7) continue;
         visualizer::visualize_equad(em, eq);
     }
 
@@ -236,7 +238,7 @@ int main(int argc, char** argv) {
     tutte::compute_tutte_parameterization(*dense_hm, em, dense_sm, half_data, dense_uv);
     visualizer::visualize_mesh_with_uv(dense_hm->pos, dense_hm->idx, dense_uv, "result");
 
-    if (false) {
+     {
         auto hm3 = compute_cut_mesh(*dense_hm, dense_sm);
         std::vector<int> b_;
         std::vector<Row2d> bc_;
@@ -279,7 +281,6 @@ int main(int argc, char** argv) {
             // 2Dの符号付き面積（外積のZ成分）
             double area = (p1.x() - p0.x()) * (p2.y() - p0.y()) - (p1.y() - p0.y()) * (p2.x() - p0.x());
 
-            // 判定を細かく分ける
             if (area < -1e-10) {
                 flipped_triangles++;
 
@@ -301,28 +302,47 @@ int main(int argc, char** argv) {
                 c->setRadius(0.001);
 
                 std::cout << "[Bad Triangle] FID: " << i << ", Area (Negative): " << area << std::endl;
-            } else if (area <= 1e-10) {
-                // 非常に薄い、または面積ゼロ
+            } else if (area < 1e-12) {
                 degenerate_triangles++;
+
+                std::vector<glm::vec3> ns;
+                std::vector<std::array<size_t, 2>> es;
+                size_t counter = 0;
+                for (Half h: f.adjHalfs()) {
+                    Row3d p1 = h.tail().pos();
+                    Row3d p2 = h.head().pos();
+                    ns.emplace_back(p1.x(), p1.y(), p1.z());
+                    ns.emplace_back(p2.x(), p2.y(), p2.z());
+                    es.emplace_back(std::array{counter, counter + 1});
+                    counter += 2;
+                }
+
+                auto c = polyscope::registerCurveNetwork("degenerated uv face " + std::to_string(f.id), ns, es);
+                c->setEnabled(true);
+                c->resetTransform();
+                c->setRadius(0.001);
+
                 std::cout << "[Bad Triangle] FID: " << i << ", Area (Zero): " << area << std::endl;
             }
         }
         std::cout << "[SLIM Check] Flipped: " << flipped_triangles << ", Degenerate (Zero): " << degenerate_triangles << std::endl;
 
-        igl::SLIMData sData;
-        sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
+        if (true) {
+            igl::SLIMData sData;
+            sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
 
-        slim_precompute(hm3->pos, hm3->idx, uv_init, sData, sData.slim_energy, b, bc, soft_const_p);
-        slim_solve(sData, 50);
+            slim_precompute(hm3->pos, hm3->idx, uv_init, sData, sData.slim_energy, b, bc, soft_const_p);
+            slim_solve(sData, 10);
 
-        //std::cout << "compute success: slim result: " << (sData.V_o - uv_init).norm() << std::endl;
+            std::cout << "compute success: slim result: " << (sData.V_o - uv_init).norm() << std::endl;
 
-        //auto surf = polyscope::registerSurfaceMesh("slim result", hm3->pos, hm3->idx);
-        //auto prms = surf->addVertexParameterizationQuantity("uv", sData.V_o);
-        //surf->setEdgeWidth(0.7);
-        //prms->setEnabled(true);
-        //prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-        //prms->setCheckerSize(1);
+            auto surf = polyscope::registerSurfaceMesh("slim result", hm3->pos, hm3->idx);
+            auto prms = surf->addVertexParameterizationQuantity("uv", sData.V_o);
+            surf->setEdgeWidth(0.7);
+            prms->setEnabled(true);
+            prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+            prms->setCheckerSize(1);
+        }
     }
 
     polyscope::show();

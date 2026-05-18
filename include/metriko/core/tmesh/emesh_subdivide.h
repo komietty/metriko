@@ -18,6 +18,7 @@ struct TrackedDenseMesh {
     vec<vec<int>> polygons; // 新しいメッシュを構築するためのFaceごとの頂点IDリスト (CCW順)
     vec<vec<complex>> uvs;  // 各Faceの各コーナーのUV座標（親FaceのローカルUV空間における座標）
     vec<int> face2parent;   // 新しいFace ID -> 元の(Level 0)親Face ID. Dijkstra探索時に「今元のメッシュのどこにいるか」を知るための最強の道標
+    std::map<std::pair<int, int>, int> edge_to_old_id;
     int num_verts = -1;     // 新しいメッシュの総頂点数
 };
 
@@ -49,6 +50,11 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
         return std::pair<int, int>(std::min(v1, v2), std::max(v1, v2));
     };
 
+    for (int i = 0; i < base_hm.nE; ++i) {
+        auto e = base_hm.edges[i];
+        curr.edge_to_old_id[get_key(e.vert0().id, e.vert1().id)] = i;
+    }
+
     // ==========================================
     // 2. 指定レベルだけ 1-to-4 の再帰的細分化
     // ==========================================
@@ -64,7 +70,7 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
 
             assert(poly.size() == 3 && "Only triangle meshes are supported for midpoint subdivision.");
 
-            int v0 = poly[0], v1 = poly[1], v2 = poly[2];
+            int     v0 = poly[0],  v1 = poly[1],  v2 = poly[2];
             complex u0 = f_uvs[0], u1 = f_uvs[1], u2 = f_uvs[2];
 
             // 各エッジの中点頂点IDを取得または新規作成
@@ -106,6 +112,24 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
             next.polygons.push_back({m01, m12, m20});
             next.uvs.push_back({mu01, mu12, mu20});
             next.face2parent.push_back(parent_fid);
+
+            // 【新設計】subdivide.h のように、親エッジが存在する場合のみ、分割後の2本のエッジにIDを引き継ぐ
+            if (curr.edge_to_old_id.contains(k01)) {
+                int old_id = curr.edge_to_old_id[k01];
+                next.edge_to_old_id[get_key(v0, m01)] = old_id;
+                next.edge_to_old_id[get_key(m01, v1)] = old_id;
+            }
+            if (curr.edge_to_old_id.contains(k12)) {
+                int old_id = curr.edge_to_old_id[k12];
+                next.edge_to_old_id[get_key(v1, m12)] = old_id;
+                next.edge_to_old_id[get_key(m12, v2)] = old_id;
+            }
+            if (curr.edge_to_old_id.contains(k20)) {
+                int old_id = curr.edge_to_old_id[k20];
+                next.edge_to_old_id[get_key(v2, m20)] = old_id;
+                next.edge_to_old_id[get_key(m20, v0)] = old_id;
+            }
+
         }
         curr = std::move(next);
     }
@@ -136,6 +160,31 @@ inline std::vector<Row3d> reconstruct_3d_positions(
         }
     }
     return dense_pos;
+}
+
+// subdivide.h と全く同じロジックで seam を写像する
+inline std::vector<bool> compute_dense_seam(
+    const std::vector<bool>& base_seam,
+    const Hmesh& dense_hm,
+    const TrackedDenseMesh& sdiv_data
+) {
+    std::vector<bool> dense_seam(dense_hm.nE, false);
+    auto make_edge_key = [](int a, int b) {
+        return std::make_pair(std::min(a, b), std::max(a, b));
+    };
+
+    for (int i = 0; i < dense_hm.nE; ++i) {
+        auto e = dense_hm.edges[i];
+        auto key = make_edge_key(e.vert0().id, e.vert1().id);
+
+        if (sdiv_data.edge_to_old_id.find(key) != sdiv_data.edge_to_old_id.end()) {
+            int old_id = sdiv_data.edge_to_old_id.at(key);
+            if (!base_seam.empty() && base_seam[old_id]) {
+                dense_seam[i] = true;
+            }
+        }
+    }
+    return dense_seam;
 }
 
 }
