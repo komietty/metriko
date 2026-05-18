@@ -160,6 +160,29 @@ int main(int argc, char** argv) {
     for (int i = 0; i < sdiv_data.num_verts; ++i)       { dense_V.row(i) = dense_pos_vec[i]; }
     for (int i = 0; i < sdiv_data.polygons.size(); ++i) { dense_F.row(i) << sdiv_data.polygons[i][0], sdiv_data.polygons[i][1], sdiv_data.polygons[i][2]; }
     auto dense_hm = std::make_unique<Hmesh>(dense_V, dense_F);
+    //auto dense_sm = compute_dense_seam(*hm, seam, *dense_hm, sdiv_data);
+    vec<bool> dense_sm = vec(dense_hm->nE, false);
+
+    {
+
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        size_t counter = 0;
+        for (auto e: dense_hm->edges) {
+            if (dense_sm[e.id]) {
+                Row3d p1 = e.half().tail().pos();
+                Row3d p2 = e.half().head().pos();
+                ns.emplace_back(p1.x(), p1.y(), p1.z());
+                ns.emplace_back(p2.x(), p2.y(), p2.z());
+                es.emplace_back(std::array{counter, counter + 1});
+                counter += 2;
+            }
+        }
+        auto c = polyscope::registerCurveNetwork("dense seam", ns, es);
+        c->setEnabled(true);
+        c->resetTransform();
+        c->setRadius(0.001);
+    }
 
     // =======================================================================
     // 3. Mnode -> dense_vid のマッピング辞書の自動構築 (安全版)
@@ -191,19 +214,116 @@ int main(int argc, char** argv) {
     // =======================================================================
     std::cout << "[Info] Constructing Emesh (Running Dijkstra)..." << std::endl;
     Emesh em(tm, mg, *dense_hm, sdiv_data, mnode2dense_v, X);
-    auto half_data = tutte::compute_half_data(em);
     verts_inside(em.equads[9], em, *dense_hm);
-    //em.collapse_ehalf(85);
     em.collapse_equad(9);
+    em.collapse_ehalf(85);
     //verts_inside(em.equads[0], em, *dense_hm);
     //verts_inside(em.equads[16], em, *dense_hm);
-
     //visualizer::visualize_eedge(em, X, "emesh_");
     for (const auto& eq : em.equads) {
         if (eq.id == -1) continue;
+        if (eq.id != 7) continue;
         visualizer::visualize_equad(em, eq);
     }
 
+
+    auto half_data = tutte::compute_half_data(em);
+
+    int debug_tqid = 7;
+    visualizer::visualize_half_data(half_data, debug_tqid, "HalfData (tqid=" + std::to_string(debug_tqid) + ")");
+
+    MatXd dense_uv;
+    tutte::compute_tutte_parameterization(*dense_hm, em, dense_sm, half_data, dense_uv);
+    visualizer::visualize_mesh_with_uv(dense_hm->pos, dense_hm->idx, dense_uv, "result");
+
+    if (false) {
+        auto hm3 = compute_cut_mesh(*dense_hm, dense_sm);
+        std::vector<int> b_;
+        std::vector<Row2d> bc_;
+        VecXi b;
+        MatXd bc;
+
+        for (auto v: hm3->verts) {
+            if (v.isBoundary()) {
+                Row2d val = dense_uv.row(v.half().next().crnr().id);
+                b_.push_back(v.id);
+                bc_.push_back(val);
+            }
+        }
+
+        b = Eigen::Map<VecXi>(b_.data(), b_.size());
+        bc.resize(bc_.size(), 2);
+
+
+        for (int i = 0; i < bc_.size(); ++i) { bc.row(i) = bc_[i]; }
+        double soft_const_p = 1e5;
+        MatXd uv_init(hm3->nV, 2);
+        for (auto v: hm3->verts) {
+            uv_init.row(v.id) = dense_uv.row(v.half().next().crnr().id);
+        }
+
+        int flipped_triangles = 0;
+        int degenerate_triangles = 0;
+
+        for (int i = 0; i < hm3->nF; ++i) {
+            auto f = hm3->faces[i];
+            auto h0 = f.half();
+            int v0 = h0.tail().id;
+            int v1 = h0.next().tail().id;
+            int v2 = h0.prev().tail().id;
+
+            Vec2d p0 = uv_init.row(v0);
+            Vec2d p1 = uv_init.row(v1);
+            Vec2d p2 = uv_init.row(v2);
+
+            // 2Dの符号付き面積（外積のZ成分）
+            double area = (p1.x() - p0.x()) * (p2.y() - p0.y()) - (p1.y() - p0.y()) * (p2.x() - p0.x());
+
+            // 判定を細かく分ける
+            if (area < -1e-10) {
+                flipped_triangles++;
+
+                std::vector<glm::vec3> ns;
+                std::vector<std::array<size_t, 2>> es;
+                size_t counter = 0;
+                for (Half h: f.adjHalfs()) {
+                    Row3d p1 = h.tail().pos();
+                    Row3d p2 = h.head().pos();
+                    ns.emplace_back(p1.x(), p1.y(), p1.z());
+                    ns.emplace_back(p2.x(), p2.y(), p2.z());
+                    es.emplace_back(std::array{counter, counter + 1});
+                    counter += 2;
+                }
+
+                auto c = polyscope::registerCurveNetwork("flipped uv face " + std::to_string(f.id), ns, es);
+                c->setEnabled(true);
+                c->resetTransform();
+                c->setRadius(0.001);
+
+                std::cout << "[Bad Triangle] FID: " << i << ", Area (Negative): " << area << std::endl;
+            } else if (area <= 1e-10) {
+                // 非常に薄い、または面積ゼロ
+                degenerate_triangles++;
+                std::cout << "[Bad Triangle] FID: " << i << ", Area (Zero): " << area << std::endl;
+            }
+        }
+        std::cout << "[SLIM Check] Flipped: " << flipped_triangles << ", Degenerate (Zero): " << degenerate_triangles << std::endl;
+
+        igl::SLIMData sData;
+        sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
+
+        slim_precompute(hm3->pos, hm3->idx, uv_init, sData, sData.slim_energy, b, bc, soft_const_p);
+        slim_solve(sData, 50);
+
+        //std::cout << "compute success: slim result: " << (sData.V_o - uv_init).norm() << std::endl;
+
+        //auto surf = polyscope::registerSurfaceMesh("slim result", hm3->pos, hm3->idx);
+        //auto prms = surf->addVertexParameterizationQuantity("uv", sData.V_o);
+        //surf->setEdgeWidth(0.7);
+        //prms->setEnabled(true);
+        //prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+        //prms->setCheckerSize(1);
+    }
 
     polyscope::show();
     return 0;

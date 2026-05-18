@@ -140,6 +140,18 @@ inline bool Emesh::collapse_equad(const int eqid) {
         auto inside = verts_inside(eq, *this, hm);
         for (int vid: inside) { allow_verts[vid] = true; }
 
+        // points in the collapse side a and b are not allowed to pass by
+        for (auto ehids: {ehids_p, ehids_q}) {
+            for (int ehid: ehids) {
+                for (Half h: ehalfs[ehid].halfs) {
+                    allow_verts[h.tail().id] = false;
+                    allow_verts[h.head().id] = false;
+                }
+            }
+        }
+        allow_verts[v0.id] = true;
+        allow_verts[v1.id] = true;
+
         auto path = compute_dijkstra(hm, visit, allow_verts, v0, v1);
         vec<Half> path0;
         vec<Half> path1;

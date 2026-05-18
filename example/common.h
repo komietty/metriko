@@ -421,6 +421,109 @@ inline void visualize_equad(
     c->setMaterial("flat");
 }
 
+template <typename Container>
+inline void visualize_half_data(
+    const Container& half_data_list,
+    int target_tqid = -1, // -1 を指定するとすべての tqid を表示
+    const std::string& name = "half_data"
+) {
+    std::vector<glm::vec3> nodes;
+    std::vector<std::array<size_t, 2>> edges;
+
+    // エッジ（線分）に紐づくデータ
+    std::vector<double> thids;
+    std::vector<double> tqids;
+    std::vector<double> orders;
+    std::vector<double> is_first;
+    std::vector<double> is_crash;
+
+    // ノード（頂点）に紐づくデータ (v0, v1)
+    std::vector<double> v_vals;
+
+    size_t counter = 0;
+
+    for (const auto& data : half_data_list) {
+        // ターゲットの tqid でフィルタリング
+        if (target_tqid != -1 && data.tqid != target_tqid) continue;
+
+        // Hmeshのハーフエッジから両端の3D座標を取得
+        Row3d p1 = data.half.tail().pos();
+        Row3d p2 = data.half.head().pos();
+
+        nodes.emplace_back(p1.x(), p1.y(), p1.z());
+        nodes.emplace_back(p2.x(), p2.y(), p2.z());
+        edges.push_back({counter, counter + 1});
+
+        // スカラー値の記録
+        thids.push_back(data.thid);
+        tqids.push_back(data.tqid);
+        orders.push_back(data.order);
+        is_first.push_back(data.first ? 1.0 : 0.0);
+        is_crash.push_back(data.crash ? 1.0 : 0.0);
+
+        // 始点(tail)に v0、終点(head)に v1 を割り当てる
+        v_vals.push_back(data.v0);
+        v_vals.push_back(data.v1);
+
+        counter += 2;
+    }
+
+    if (nodes.empty()) {
+        std::cout << "[visualizer] No HalfData found for tqid: " << target_tqid << std::endl;
+        return;
+    }
+
+    // Polyscope への登録
+    auto* net = polyscope::registerCurveNetwork(name, nodes, edges);
+    net->setRadius(0.001); // 見やすいように少し太め
+
+    // エッジアトリビュートの追加
+    net->addEdgeScalarQuantity("thid", thids);
+    net->addEdgeScalarQuantity("tqid", tqids);
+    net->addEdgeScalarQuantity("order", orders);
+    net->addEdgeScalarQuantity("is_first", is_first);
+
+    // crash しているエッジは赤色系のカラーマップにして目立たせる
+    auto* q_crash = net->addEdgeScalarQuantity("is_crash", is_crash);
+    q_crash->setColorMap("reds");
+
+    // ノードアトリビュートの追加 (Polyscope が v0 から v1 へ自動で色を補間してくれます)
+    net->addNodeScalarQuantity("v_val (v0->v1)", v_vals);
+
+    std::cout << "[visualizer] Rendered " << (nodes.size() / 2)
+              << " HalfData segments for tqid: " << target_tqid << std::endl;
+}
+
+/**
+ * @brief Polyscope上でメッシュとUVパラメータ化を同時に表示する関数
+ * @param pos  頂点座標データ (std::vector<Row3d> や Eigen::MatrixXd など)
+ * @param idx  面のインデックスデータ (std::vector<std::array<...>> や Eigen::MatrixXi など)
+ * @param uv   UV座標データ (nF*3 x 2 のコーナーUV、または nV x 2 の頂点UV行列)
+ */
+template <typename PosType, typename IdxType, typename UvType>
+void visualize_mesh_with_uv(
+    const PosType& pos,
+    const IdxType& idx,
+    const UvType& uv,
+    const std::string& mesh_name = "mesh_with_uv",
+    const bool show = true
+) {
+    // 1. メッシュ (pos, idx) をPolyscopeに登録
+    auto* surf = polyscope::registerSurfaceMesh(mesh_name, pos, idx);
+
+    // 2. パラメータ化 (UV) を追加
+    // ※ 配列のサイズが [頂点数 x 2] なら頂点UV、[面数*3 x 2] ならコーナーUVとして自動認識されます
+    auto* prms = surf->addParameterizationQuantity("uv_param", uv);
+
+    // 3. デフォルトで綺麗にグリッド（チェッカー）が見えるように見た目を初期設定
+    prms->setStyle(polyscope::ParamVizStyle::GRID); // または CHECKER
+    prms->setCheckerSize(1.0);                      // グリッドの細かさ
+    prms->setEnabled(true);                         // 自動でUVレイヤーをアクティブにする
+
+    surf->setEdgeWidth(0.7);
+    surf->setEnabled(show);
+}
+
 }
 
 #endif

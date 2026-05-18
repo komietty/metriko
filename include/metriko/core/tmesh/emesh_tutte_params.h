@@ -193,7 +193,7 @@ inline vec<int> sequential_mapping(
 // try to multiply rotation until halfedge coner values corresponds
 // need to consider: is there any possibility of flip?
 inline bool apply_transition(
-    const bool flag,
+    const bool verbose,
     const Half h,    // the halfedge of unfixed side
     const SprsD& m0, // the fixed uv information
           SprsD& m1  // the unfixed adjacent uv information
@@ -212,7 +212,7 @@ inline bool apply_transition(
         std::cout << "[Scale Mismatch] len0: " << len0 << ", len1: " << len1 << " (diff: " << std::abs(len0 - len1) << ")" << std::endl;
     }
 
-    if (flag) {
+    if (verbose) {
         std::cout << "h0 tail: " << h0.tail().id << std::endl;
         std::cout << "h0 head: " << h0.head().id << std::endl;
         std::cout << "h1 tail: " << h1.tail().id << std::endl;
@@ -222,7 +222,7 @@ inline bool apply_transition(
     }
 
 
-    if (flag) {
+    if (verbose) {
         std::cout << "uv0 : " <<  uv0.transpose()  << std::endl;
         std::cout << "uv0a: " <<  uv0a.transpose() << std::endl;
         std::cout << "uv1 : " <<  uv1.transpose()  << std::endl;
@@ -236,7 +236,7 @@ inline bool apply_transition(
 
         if ((v1 - v2).norm() < 1e-5) {
 
-            if (flag) {
+            if (verbose) {
                 std::cout << "rot : " <<  rot  << std::endl;
                 std::cout << "v1: " <<  v1.transpose() << std::endl;
                 std::cout << "v2: " <<  v2.transpose()  << std::endl;
@@ -306,6 +306,7 @@ inline bool compute_tutte_parameterization(
     //    uv.resize(hm.nC, 2);
     //    uv.setZero();
     //    for (int i = 0; i < tm.equads.size(); i++) {
+    //        if (i != 7) continue;
     //        if (tm.equads[i].id != -1) {
     //            std::cout << "tutte params tqid: " << i << std::endl;
     //            MatXd uv_ = embedding_tutte_for_tquad(i, data, hm, tm);
@@ -360,16 +361,14 @@ inline bool compute_tutte_parameterization(
 
         auto curr = it->second;
         SprsD& uv_curr = uv_tq[curr->tqid];
-        //bool res = apply_transition(h.id == 24665, h, uv.sparseView(), uv_curr);
-        //if (h.id == 24665) return false;
-        //if (h.id == 28260) return false;
-        //success &= res;
+        bool res = apply_transition(false, h, uv.sparseView(), uv_curr);
+        success &= res;
 
         vec b(hm.nH, false);
         for (auto& d: data) { if (d.tqid == curr->tqid) b[d.half.id] = true; }
         for (auto nh: sequential_mapping(hm, uv_curr, h, b, seam, flag, uv)) stack.emplace(nh);
 
-        //if (!success) return false;
+        if (!success) return false;
     }
     return success;
 }
