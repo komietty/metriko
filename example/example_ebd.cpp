@@ -8,11 +8,12 @@
 #include "metriko/core/quantization/quantization.h"
 #include "common.h"
 #include "igl/upsample.h"
-#include "metriko/core/subdivide.h"
+#include "metriko/core/tmesh/emesh_subdivide.h"
 #include "metriko/core/tmesh/emesh_collapse_util.h"
 #include "metriko/core/tmesh/emesh_collapse_ehalf.h"
 #include "metriko/core/tmesh/emesh_collapse_equad.h"
-#include "metriko/core/tmesh/emesh_subdivide.h"
+#include "metriko/core/tmesh/emesh_postprocess.h"
+#include "metriko/core/tmesh/emesh_tutte_params.h"
 
 using namespace metriko;
 int N = 4;
@@ -190,6 +191,7 @@ int main(int argc, char** argv) {
     // =======================================================================
     std::cout << "[Info] Constructing Emesh (Running Dijkstra)..." << std::endl;
     Emesh em(tm, mg, *dense_hm, sdiv_data, mnode2dense_v, X);
+    auto half_data = tutte::compute_half_data(em);
     verts_inside(em.equads[9], em, *dense_hm);
     //em.collapse_ehalf(85);
     em.collapse_equad(9);
