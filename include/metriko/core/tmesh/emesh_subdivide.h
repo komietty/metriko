@@ -113,7 +113,6 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
             next.uvs.push_back({mu01, mu12, mu20});
             next.face2parent.push_back(parent_fid);
 
-            // 【新設計】subdivide.h のように、親エッジが存在する場合のみ、分割後の2本のエッジにIDを引き継ぐ
             if (curr.edge_to_old_id.contains(k01)) {
                 int old_id = curr.edge_to_old_id[k01];
                 next.edge_to_old_id[get_key(v0, m01)] = old_id;
@@ -162,7 +161,6 @@ inline std::vector<Row3d> reconstruct_3d_positions(
     return dense_pos;
 }
 
-// subdivide.h と全く同じロジックで seam を写像する
 inline std::vector<bool> compute_dense_seam(
     const std::vector<bool>& base_seam,
     const Hmesh& dense_hm,
