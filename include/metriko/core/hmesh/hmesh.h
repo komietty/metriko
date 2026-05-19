@@ -493,8 +493,17 @@ inline Hmesh::Hmesh(
     // set up vertex orthogonal coordinate
     for (int iF = 0; iF < nF; ++iF) {
         for (int iP = 0; iP < nP; iP++) {
-            vertNormal.row(idx(iF, iP)).array()
-                    += faceNormal.row(iF).array() * faceArea[iF];
+            int i_curr = idx(iF, iP);
+            int i_next = idx(iF, (iP + nP + 1) % nP);
+            int i_prev = idx(iF, (iP + nP - 1) % nP);
+            Row3d d0 = (pos.row(i_next) - pos.row(i_curr)).normalized();
+            Row3d d1 = (pos.row(i_prev) - pos.row(i_curr)).normalized();
+            double d = d1.dot(d0);
+            double phi;
+            if      (d >=  1) phi = 0;
+            else if (d <= -1) phi = PI;
+            else              phi = acos(d);
+            vertNormal.row(idx(iF, iP)).array() += faceNormal.row(iF).array() * phi;
         }
     }
     vertNormal.rowwise().normalize();
@@ -509,10 +518,7 @@ inline Hmesh::Hmesh(
 
     // set up a dihedral angle for each halfedge
     for (Half h: halfs) {
-        if (h.edge().isBoundary()) {
-            dihedralArg[h.id] = 0;
-            continue;
-        }
+        if (h.edge().isBoundary()) { dihedralArg[h.id] = 0; continue; }
         Row3d n1 = faceNormal.row(h.face().id);
         Row3d n2 = faceNormal.row(h.twin().face().id);
         Row3d v = h.vec() / h.len();
@@ -522,10 +528,7 @@ inline Hmesh::Hmesh(
 
     // set up halfedge cotan and edge cotan
     for (Half h: halfs) {
-        if (h.isBoundary()) {
-            halfCotan[h.id] = 0.;
-            continue;
-        }
+        if (h.isBoundary()) { halfCotan[h.id] = 0.; continue; }
         Row3d vn = h.next().vec();
         Row3d vp = h.prev().vec() * -1;
         halfCotan[h.id] = vp.dot(vn) / vp.cross(vn).norm();
