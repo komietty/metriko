@@ -12,7 +12,7 @@ inline void visualize_frosy_field(
     const FaceRosyField& rawf,
     const FaceRosyField& cmbf,
     const int rosyN = 4
-    ) {
+) {
     MatXd rawInt(hm.nF, 2);
     MatXd cmbInt(hm.nF, 2);
     MatXd rawExt(hm.nF, 3 * rosyN);
@@ -51,6 +51,7 @@ inline void visualize_motorcycle_graph(
     const VecXc& uv,
     bool show = true
 ) {
+    std::vector<glm::vec3> zero_length_edge;
     std::vector<glm::vec3> ns;
     std::vector<std::array<size_t, 2>> es;
     std::vector<double> mcids;
@@ -58,9 +59,11 @@ inline void visualize_motorcycle_graph(
 
     for (auto& c: graph.mcurvs) {
         for (auto& s: c.sgmts) {
-            Row3d p1 = conversion_2d_3d(graph.hm.faces[s.face_id], uv, mc::get_face_uv(graph.mnodes[s.fr_nid], s.face_id, graph.hm, graph.cf));
-            Row3d p2 = conversion_2d_3d(graph.hm.faces[s.face_id], uv, mc::get_face_uv(graph.mnodes[s.to_nid], s.face_id, graph.hm, graph.cf));
-
+            complex uv1 = mc::get_face_uv(graph.mnodes[s.fr_nid], s.face_id, graph.hm, graph.cf);
+            complex uv2 = mc::get_face_uv(graph.mnodes[s.to_nid], s.face_id, graph.hm, graph.cf);
+            Row3d p1 = conversion_2d_3d(graph.hm.faces[s.face_id], uv, uv1);
+            Row3d p2 = conversion_2d_3d(graph.hm.faces[s.face_id], uv, uv2);
+            if (abs(uv1 - uv2) < 1e-8) { zero_length_edge.emplace_back(p1.x(), p1.y(), p1.z()); }
             ns.emplace_back(p1.x(), p1.y(), p1.z());
             ns.emplace_back(p2.x(), p2.y(), p2.z());
             es.emplace_back(std::array{counter, counter + 1});
@@ -69,7 +72,11 @@ inline void visualize_motorcycle_graph(
         }
     }
 
-    auto c = polyscope::registerCurveNetwork("motor cycle graph", ns, es);
+    auto pc = polyscope::registerPointCloud("motorcycle zero length edge", zero_length_edge);
+    pc->setEnabled(show);
+    pc->setPointRadius(0.008);
+
+    auto c = polyscope::registerCurveNetwork("motorcycle graph", ns, es);
     c->setColor(glm::vec4(.0, .0, .0, 1.));
     auto v_mcid = c->addEdgeScalarQuantity("mcid", mcids);
     v_mcid->setEnabled(true);

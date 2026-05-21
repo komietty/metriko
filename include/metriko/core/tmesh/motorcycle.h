@@ -145,7 +145,7 @@ inline void update_to_oppo(const Hmesh& hm, const VecXc& cf, Mbuff& buff) {
     throw std::runtime_error("Not implemented yet");
 }
 
-complex get_face_uv(const Mnode& mn, int fid, const Hmesh& hm, const VecXc& cf) {
+inline complex get_face_uv(const Mnode& mn, int fid, const Hmesh& hm, const VecXc& cf) {
 
     auto on_crnr_uv = [&](Face f, Vert v) {
         for (auto h: f.adjHalfs())
@@ -191,14 +191,31 @@ struct  Mgrph {
         for (auto v: hm.verts | vw::filter([&](auto& v) { return singular[v.id]; }))
             mnodes.push_back({.jt = JunctionType::F, .loc = OnVert{v.id}});
 
-        //1: Add the first segment for each curve
+        // 1: Add the first segment for each curve
         mcurvs.reserve(mports.size());
         for (const auto& p : mports) {
+            if (
+                p.this_id == 162 ||
+                p.this_id == 6 ||
+                p.this_id == 16
+                ) {
+                std::cout << "--------------------------------" << std::endl;
+                std::println("p.this_id: {}", p.this_id);
+                std::cout << "p.uv: " << p.uv << std::endl;
+                std::cout << "p.dr: " << p.dr << std::endl;
+                std::println("p.crnr_id: {}", p.crnr_id);
+                std::println("p.prev_id: {}", p.prev_id);
+                std::println("p.next_id: {}", p.next_id);
+                std::cout << "p.prev: " << mports[p.prev_id].uv << std::endl;
+                std::cout << "p.next: " << mports[p.next_id].uv << std::endl;
+                std::println("p.prev_crnr_id: {}", mports[p.prev_id].crnr_id);
+                std::println("p.next_crnr_id: {}", mports[p.next_id].crnr_id);
+            }
             mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.uv = p.uv, .dr = p.dr, .cid = p.crnr_id, .bgn = true}});
             mcurvs.back().add_segment(hm, cf);
         }
 
-        //2: Add further segments until every curve crash to another curve
+        // 2: Add further segments until every curve crash to another curve
         while (rg::any_of(mcurvs, [](auto &c) { return !c.buff.end; })) {
             for (auto &mc: mcurvs) {
                 if (mc.buff.end) continue;
@@ -328,6 +345,17 @@ inline void Mgrph::sort_node_adjacency() {
             auto fr  = s.fr_nid == nid;
             auto uvA = get_face_uv(mnodes[s.fr_nid], s.face_id, hm, cf);
             auto uvB = get_face_uv(mnodes[s.to_nid], s.face_id, hm, cf);
+            //if (abs(uvA - uvB) < 1e-6) std::println("curv id : {}", as.curv_id);
+            if (abs(uvA - uvB) < 1e-8) {
+
+                std::println("curv id: {}, sgmt id: {}, : is bgn {}, is end {}, curv sgmts size: {}",
+                    s.curv_id,
+                    s.this_id,
+                    mnodes[s.fr_nid].jt == JunctionType::F,
+                    mnodes[s.to_nid].jt == JunctionType::T,
+                    mcurvs[s.curv_id].sgmts.size()
+                );
+            }
             return fr ? uvB - uvA : uvA - uvB;
         };
 
@@ -392,8 +420,12 @@ inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     vec<std::tuple<double, double, Msgmt>> candidates;
 
     auto sgs = vw::all(mg->mcurvs) |
-               vw::filter([&](const auto &e) { return e.id != id; }) |
-               vw::transform([](const auto &e) -> const auto& { return e.sgmts; }) |
+               vw::filter([&](const Mcurv &c) { return c.id != id; }) |
+               vw::filter([&](const Mcurv &c) {
+                   if (bgn) return hm.crnrs[mg->mports[c.id].crnr_id].vert() != hm.crnrs[mg->mports[id].crnr_id].vert();
+                   return true;
+               }) |
+               vw::transform([](const Mcurv &c) -> const auto& { return c.sgmts; }) |
                vw::join |
                vw::filter([&](const auto &s) { return s.face_id == fid; });
 
@@ -455,6 +487,8 @@ inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     }
     // intersection happens
     else {
+        std::println("find intersection curv id: {}", sg.curv_id);
+
         auto [ab, cd, s0] = rg::min(candidates, [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
 
         if (cd >= TOLERANCE_EDGE && cd <= 1 - TOLERANCE_EDGE) {
