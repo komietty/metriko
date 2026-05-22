@@ -390,7 +390,7 @@ inline void visualize_eedge(
     c->setEnabled(show);
     c->resetTransform();
 
-    c->setRadius(0.0003);
+    c->setRadius(0.0006);
     c->setMaterial("flat");
 }
 

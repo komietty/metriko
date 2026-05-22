@@ -271,14 +271,8 @@ inline void dcel(
     HV.conservativeResize(numH);
     VH.conservativeResize(EV.maxCoeff() + 1);
     for (int i = 0; i < EV.rows(); i++) {
-        if (EH(i, 0) != -1) {
-            HV(EH(i, 0)) = EV(i, 0);
-            VH(EV(i, 0)) = EH(i, 0);
-        }
-        if (EH(i, 1) != -1) {
-            HV(EH(i, 1)) = EV(i, 1);
-            VH(EV(i, 1)) = EH(i, 1);
-        }
+        if (EH(i, 0) != -1) { HV(EH(i, 0)) = EV(i, 0); VH(EV(i, 0)) = EH(i, 0); }
+        if (EH(i, 1) != -1) { HV(EH(i, 1)) = EV(i, 1); VH(EV(i, 1)) = EH(i, 1); }
     }
 
     twinH = Eigen::VectorXi::Constant(numH, -1);
@@ -291,14 +285,8 @@ inline void dcel(
     FH.resize(F.rows(), F.cols());
     HF.resize(numH);
     for (int i = 0; i < EF.rows(); i++) {
-        if (EF(i, 0) != -1) {
-            FH(EF(i, 0), EFi(i, 0)) = EH(i, 0);
-            HF(EH(i, 0)) = EF(i, 0);
-        }
-        if (EF(i, 1) != -1) {
-            FH(EF(i, 1), EFi(i, 1)) = EH(i, 1);
-            HF(EH(i, 1)) = EF(i, 1);
-        }
+        if (EF(i, 0) != -1) { FH(EF(i, 0), EFi(i, 0)) = EH(i, 0); HF(EH(i, 0)) = EF(i, 0); }
+        if (EF(i, 1) != -1) { FH(EF(i, 1), EFi(i, 1)) = EH(i, 1); HF(EH(i, 1)) = EF(i, 1); }
     }
 
     nextH.conservativeResize(HE.rows());

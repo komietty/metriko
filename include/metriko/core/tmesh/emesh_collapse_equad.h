@@ -141,7 +141,7 @@ inline bool Emesh::collapse_equad(const int eqid) {
         for (int vid: inside) { allow_verts[vid] = true; }
 
         // points in the collapse side a and b are not allowed to pass by
-        for (auto ehids: {ehids_p, ehids_q}) {
+        for (const auto& ehids: {ehids_p, ehids_q}) {
             for (int ehid: ehids) {
                 for (Half h: ehalfs[ehid].halfs) {
                     allow_verts[h.tail().id] = false;

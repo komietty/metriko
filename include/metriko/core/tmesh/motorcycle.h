@@ -194,23 +194,6 @@ struct  Mgrph {
         // 1: Add the first segment for each curve
         mcurvs.reserve(mports.size());
         for (const auto& p : mports) {
-            if (
-                p.this_id == 162 ||
-                p.this_id == 6 ||
-                p.this_id == 16
-                ) {
-                std::cout << "--------------------------------" << std::endl;
-                std::println("p.this_id: {}", p.this_id);
-                std::cout << "p.uv: " << p.uv << std::endl;
-                std::cout << "p.dr: " << p.dr << std::endl;
-                std::println("p.crnr_id: {}", p.crnr_id);
-                std::println("p.prev_id: {}", p.prev_id);
-                std::println("p.next_id: {}", p.next_id);
-                std::cout << "p.prev: " << mports[p.prev_id].uv << std::endl;
-                std::cout << "p.next: " << mports[p.next_id].uv << std::endl;
-                std::println("p.prev_crnr_id: {}", mports[p.prev_id].crnr_id);
-                std::println("p.next_crnr_id: {}", mports[p.next_id].crnr_id);
-            }
             mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.uv = p.uv, .dr = p.dr, .cid = p.crnr_id, .bgn = true}});
             mcurvs.back().add_segment(hm, cf);
         }
@@ -345,17 +328,7 @@ inline void Mgrph::sort_node_adjacency() {
             auto fr  = s.fr_nid == nid;
             auto uvA = get_face_uv(mnodes[s.fr_nid], s.face_id, hm, cf);
             auto uvB = get_face_uv(mnodes[s.to_nid], s.face_id, hm, cf);
-            //if (abs(uvA - uvB) < 1e-6) std::println("curv id : {}", as.curv_id);
-            if (abs(uvA - uvB) < 1e-8) {
-
-                std::println("curv id: {}, sgmt id: {}, : is bgn {}, is end {}, curv sgmts size: {}",
-                    s.curv_id,
-                    s.this_id,
-                    mnodes[s.fr_nid].jt == JunctionType::F,
-                    mnodes[s.to_nid].jt == JunctionType::T,
-                    mcurvs[s.curv_id].sgmts.size()
-                );
-            }
+            assert(abs(uvA - uvB) > 1e-8);
             return fr ? uvB - uvA : uvA - uvB;
         };
 
@@ -487,8 +460,6 @@ inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     }
     // intersection happens
     else {
-        std::println("find intersection curv id: {}", sg.curv_id);
-
         auto [ab, cd, s0] = rg::min(candidates, [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
 
         if (cd >= TOLERANCE_EDGE && cd <= 1 - TOLERANCE_EDGE) {

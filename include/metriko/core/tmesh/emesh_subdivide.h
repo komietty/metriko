@@ -67,7 +67,6 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
             const auto& poly = curr.polygons[i];
             const auto& f_uvs = curr.uvs[i];
             int parent_fid = curr.face2parent[i]; // 親の血統を引き継ぐ
-
             assert(poly.size() == 3 && "Only triangle meshes are supported for midpoint subdivision.");
 
             int     v0 = poly[0],  v1 = poly[1],  v2 = poly[2];
@@ -75,17 +74,9 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
 
             // 各エッジの中点頂点IDを取得または新規作成
             int m01, m12, m20;
-            auto k01 = get_key(v0, v1);
-            if (edge2mid.contains(k01)) m01 = edge2mid[k01];
-            else { m01 = next.num_verts++; edge2mid[k01] = m01; }
-
-            auto k12 = get_key(v1, v2);
-            if (edge2mid.contains(k12)) m12 = edge2mid[k12];
-            else { m12 = next.num_verts++; edge2mid[k12] = m12; }
-
-            auto k20 = get_key(v2, v0);
-            if (edge2mid.contains(k20)) m20 = edge2mid[k20];
-            else { m20 = next.num_verts++; edge2mid[k20] = m20; }
+            auto k01 = get_key(v0, v1); if (edge2mid.contains(k01)) m01 = edge2mid[k01]; else { m01 = next.num_verts++; edge2mid[k01] = m01; }
+            auto k12 = get_key(v1, v2); if (edge2mid.contains(k12)) m12 = edge2mid[k12]; else { m12 = next.num_verts++; edge2mid[k12] = m12; }
+            auto k20 = get_key(v2, v0); if (edge2mid.contains(k20)) m20 = edge2mid[k20]; else { m20 = next.num_verts++; edge2mid[k20] = m20; }
 
             // 中点のUVを親FaceのローカルUV空間で線形補間
             complex mu01 = (u0 + u1) * 0.5;
@@ -93,42 +84,15 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
             complex mu20 = (u2 + u0) * 0.5;
 
             // 4つの新しいFaceをCCW順で追加し、すべて同じ親FaceIDを割り当てる
-            // Face 1: 角0
-            next.polygons.push_back({v0, m01, m20});
-            next.uvs.push_back({u0, mu01, mu20});
-            next.face2parent.push_back(parent_fid);
+            // Face 1: 角0, Face 2: 角1, Face 3: 角2, Face 4: 中央
+            next.polygons.push_back({v0, m01, m20});  next.uvs.push_back({u0, mu01, mu20});   next.face2parent.push_back(parent_fid);
+            next.polygons.push_back({v1, m12, m01});  next.uvs.push_back({u1, mu12, mu01});   next.face2parent.push_back(parent_fid);
+            next.polygons.push_back({v2, m20, m12});  next.uvs.push_back({u2, mu20, mu12});   next.face2parent.push_back(parent_fid);
+            next.polygons.push_back({m01, m12, m20}); next.uvs.push_back({mu01, mu12, mu20}); next.face2parent.push_back(parent_fid);
 
-            // Face 2: 角1
-            next.polygons.push_back({v1, m12, m01});
-            next.uvs.push_back({u1, mu12, mu01});
-            next.face2parent.push_back(parent_fid);
-
-            // Face 3: 角2
-            next.polygons.push_back({v2, m20, m12});
-            next.uvs.push_back({u2, mu20, mu12});
-            next.face2parent.push_back(parent_fid);
-
-            // Face 4: 中央
-            next.polygons.push_back({m01, m12, m20});
-            next.uvs.push_back({mu01, mu12, mu20});
-            next.face2parent.push_back(parent_fid);
-
-            if (curr.edge_to_old_id.contains(k01)) {
-                int old_id = curr.edge_to_old_id[k01];
-                next.edge_to_old_id[get_key(v0, m01)] = old_id;
-                next.edge_to_old_id[get_key(m01, v1)] = old_id;
-            }
-            if (curr.edge_to_old_id.contains(k12)) {
-                int old_id = curr.edge_to_old_id[k12];
-                next.edge_to_old_id[get_key(v1, m12)] = old_id;
-                next.edge_to_old_id[get_key(m12, v2)] = old_id;
-            }
-            if (curr.edge_to_old_id.contains(k20)) {
-                int old_id = curr.edge_to_old_id[k20];
-                next.edge_to_old_id[get_key(v2, m20)] = old_id;
-                next.edge_to_old_id[get_key(m20, v0)] = old_id;
-            }
-
+            if (curr.edge_to_old_id.contains(k01)) { int old_id = curr.edge_to_old_id[k01]; next.edge_to_old_id[get_key(v0, m01)] = old_id; next.edge_to_old_id[get_key(m01, v1)] = old_id; }
+            if (curr.edge_to_old_id.contains(k12)) { int old_id = curr.edge_to_old_id[k12]; next.edge_to_old_id[get_key(v1, m12)] = old_id; next.edge_to_old_id[get_key(m12, v2)] = old_id; }
+            if (curr.edge_to_old_id.contains(k20)) { int old_id = curr.edge_to_old_id[k20]; next.edge_to_old_id[get_key(v2, m20)] = old_id; next.edge_to_old_id[get_key(m20, v0)] = old_id; }
         }
         curr = std::move(next);
     }
