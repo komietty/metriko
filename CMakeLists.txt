@@ -86,7 +86,8 @@ if (ENABLE_OPENMP)
 endif()
 #========== Done finding OpenMp ========================================================================================
 
-add_library(${PROJECT_NAME} INTERFACE
+add_library(${PROJECT_NAME} STATIC
+        include/metriko/core/tmesh/emesh_embedding.cpp
         include/metriko/core/quantization/quantization.h
         include/metriko/core/tmesh/emesh_subdivide.h
         include/metriko/core/tmesh/emesh.h
@@ -95,10 +96,10 @@ add_library(${PROJECT_NAME} INTERFACE
         include/metriko/core/tmesh/emesh_collapse_equad.h
 )
 
-target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
+target_compile_definitions(${PROJECT_NAME} PUBLIC NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
 
-target_link_libraries(${PROJECT_NAME} INTERFACE igl::core)
-target_include_directories(${PROJECT_NAME} INTERFACE include)
+target_link_libraries(${PROJECT_NAME} PUBLIC igl::core)
+target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 if(GC_HAVE_SUITESPARSE)
     target_compile_definitions(${PROJECT_NAME} INTERFACE GC_HAVE_SUITESPARSE)
