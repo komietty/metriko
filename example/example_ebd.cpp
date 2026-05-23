@@ -123,8 +123,11 @@ int main(int argc, char** argv) {
     //visualizer::visualize_tedge(tm, mg, uv2);
     //visualizer::debug_tquad_sides(tm, mg, uv2);
 
-    auto sdiv_data = compute_midpoint_subdivision(*hm, uv2, 3);
-    visualizer::visualize_tracked_mesh(sdiv_data, *hm, uv2, "sdiv_data (Level 2)");
+    //auto sdiv_data = compute_midpoint_subdivision(*hm, uv2, 4);
+    auto sdiv_data = generate_tracked_data(*hm, uv2);
+    compute_midpoint_subdivision(sdiv_data, 4);
+    //compute_barycentric_subdivision(sdiv_data, 1);
+    visualizer::visualize_tracked_mesh(sdiv_data, *hm, uv2, "sdiv_data");
 
 
 
@@ -151,9 +154,6 @@ int main(int argc, char** argv) {
     for (int i = 0; i < sdiv_data.num_verts; ++i)       { dense_V.row(i) = dense_pos_vec[i]; }
     for (int i = 0; i < sdiv_data.polygons.size(); ++i) { dense_F.row(i) << sdiv_data.polygons[i][0], sdiv_data.polygons[i][1], sdiv_data.polygons[i][2]; }
     auto dense_hm = std::make_unique<Hmesh>(dense_V, dense_F);
-    //auto dense_sm = compute_dense_seam(*hm, seam, *dense_hm, sdiv_data);
-    //vec<bool> dense_sm = vec(dense_hm->nE, false);
-
     std::vector<bool> dense_sm = compute_dense_seam(seam, *dense_hm, sdiv_data);
 
     {
@@ -176,11 +176,12 @@ int main(int argc, char** argv) {
         c->setRadius(0.001);
     }
 
+
     // =======================================================================
-    // 3. Mnode -> dense_vid のマッピング辞書の自動構築 (安全版)
+    // 3. Mnode -> dense_vid
     // =======================================================================
     std::map<int, int> mnode2dense_v;
-    vec<bool> occupied_v(sdiv_data.num_verts, false);
+    vec occupied_v(sdiv_data.num_verts, false);
 
     auto map_node = [&](int nid, int fid) {
         if (mnode2dense_v.contains(nid)) return;
@@ -224,6 +225,7 @@ int main(int argc, char** argv) {
     //em.collapse_ehalf(85);
     //verts_inside(em.equads[0], em, *dense_hm);
     //verts_inside(em.equads[16], em, *dense_hm);
+    visualizer::visualize_mapped_mnodes(mnode2dense_v, *dense_hm);
     visualizer::visualize_eedge(em, X, "emesh_");
     //for (const auto& eq : em.equads) {
     //    if (eq.id == -1) continue;

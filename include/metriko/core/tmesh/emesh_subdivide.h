@@ -22,23 +22,20 @@ struct TrackedDenseMesh {
     int num_verts = -1;     // 新しいメッシュの総頂点数
 };
 
-inline TrackedDenseMesh compute_midpoint_subdivision(
-    const Hmesh& base_hm,
-    const VecXc& base_cf,
-    const int levels
+
+inline TrackedDenseMesh generate_tracked_data(
+    const Hmesh& hm,
+    const VecXc& cf
 ) {
     TrackedDenseMesh curr;
-    curr.num_verts = base_hm.verts.size();
+    curr.num_verts = hm.verts.size();
 
-    // ==========================================
-    // 1. Level 0 (元のメッシュ) の情報を抽出
-    // ==========================================
-    for (const auto& f : base_hm.faces) {
+    for (const auto& f : hm.faces) {
         vec<int> poly;
         vec<complex> f_uvs;
         for (auto h : f.adjHalfs()) {
             poly.push_back(h.crnr().vert().id);
-            f_uvs.push_back(base_cf[h.crnr().id]);
+            f_uvs.push_back(cf[h.crnr().id]);
         }
         curr.polygons.push_back(poly);
         curr.uvs.push_back(f_uvs);
@@ -46,14 +43,19 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
     }
 
     // エッジの重複分割を防ぐための無向エッジキー
-    auto get_key = [](int v1, int v2) {
-        return std::pair<int, int>(std::min(v1, v2), std::max(v1, v2));
-    };
+    auto get_key = [](int v1, int v2) { return std::pair(std::min(v1, v2), std::max(v1, v2)); };
 
-    for (int i = 0; i < base_hm.nE; ++i) {
-        auto e = base_hm.edges[i];
+    for (int i = 0; i < hm.nE; ++i) {
+        auto e = hm.edges[i];
         curr.edge_to_old_id[get_key(e.vert0().id, e.vert1().id)] = i;
     }
+
+    return curr;
+}
+
+inline void compute_midpoint_subdivision(TrackedDenseMesh& curr, int levels) {
+    // エッジの重複分割を防ぐための無向エッジキー
+    auto get_key = [](int v1, int v2) { return std::pair(std::min(v1, v2), std::max(v1, v2)); };
 
     // ==========================================
     // 2. 指定レベルだけ 1-to-4 の再帰的細分化
@@ -93,6 +95,47 @@ inline TrackedDenseMesh compute_midpoint_subdivision(
             if (curr.edge_to_old_id.contains(k01)) { int old_id = curr.edge_to_old_id[k01]; next.edge_to_old_id[get_key(v0, m01)] = old_id; next.edge_to_old_id[get_key(m01, v1)] = old_id; }
             if (curr.edge_to_old_id.contains(k12)) { int old_id = curr.edge_to_old_id[k12]; next.edge_to_old_id[get_key(v1, m12)] = old_id; next.edge_to_old_id[get_key(m12, v2)] = old_id; }
             if (curr.edge_to_old_id.contains(k20)) { int old_id = curr.edge_to_old_id[k20]; next.edge_to_old_id[get_key(v2, m20)] = old_id; next.edge_to_old_id[get_key(m20, v0)] = old_id; }
+        }
+        curr = std::move(next);
+    }
+}
+
+inline TrackedDenseMesh compute_barycentric_subdivision(TrackedDenseMesh& curr, int levels) {
+
+    // エッジトラッキング用の無向エッジキー
+    auto get_key = [](int v1, int v2) { return std::pair(std::min(v1, v2), std::max(v1, v2)); };
+
+    // ==========================================
+    // 2. 指定レベルだけ 1-to-3 の再帰的重心分割
+    // ==========================================
+    for (int lvl = 0; lvl < levels; ++lvl) {
+        TrackedDenseMesh next;
+        next.num_verts = curr.num_verts;
+
+        for (int i = 0; i < curr.polygons.size(); ++i) {
+            const auto& poly = curr.polygons[i];
+            const auto& f_uvs = curr.uvs[i];
+            int parent_fid = curr.face2parent[i];
+            assert(poly.size() == 3 && "Only triangle meshes are supported for barycentric subdivision.");
+
+            int     v0 = poly[0],  v1 = poly[1],  v2 = poly[2];
+            complex u0 = f_uvs[0], u1 = f_uvs[1], u2 = f_uvs[2];
+
+            int c = next.num_verts++;
+            complex uc = (u0 + u1 + u2) / 3.;
+
+            // 3. 3つの新しいFaceをCCW（反時計回り）順で追加
+            next.polygons.push_back({v0, v1, c}); next.uvs.push_back({u0, u1, uc}); next.face2parent.push_back(parent_fid); // Face 1: (v0, v1, c)
+            next.polygons.push_back({v1, v2, c}); next.uvs.push_back({u1, u2, uc}); next.face2parent.push_back(parent_fid); // Face 2: (v1, v2, c)
+            next.polygons.push_back({v2, v0, c}); next.uvs.push_back({u2, u0, uc}); next.face2parent.push_back(parent_fid); // Face 3: (v2, v0, c)
+
+            // 4. エッジのトラッキング情報の引き継ぎ
+            // 重心分割では「外周のエッジ」は分割されずにそのまま維持されるため、
+            // 新しい中点との組み合わせではなく、元の (v0, v1) のままIDを引き継ぎます。
+            // （新しく作られた内部エッジ (c, v0) 等は Level 0 に存在しないため追跡しません）
+            auto k01 = get_key(v0, v1); if (curr.edge_to_old_id.contains(k01)) { next.edge_to_old_id[k01] = curr.edge_to_old_id[k01]; }
+            auto k12 = get_key(v1, v2); if (curr.edge_to_old_id.contains(k12)) { next.edge_to_old_id[k12] = curr.edge_to_old_id[k12]; }
+            auto k20 = get_key(v2, v0); if (curr.edge_to_old_id.contains(k20)) { next.edge_to_old_id[k20] = curr.edge_to_old_id[k20]; }
         }
         curr = std::move(next);
     }

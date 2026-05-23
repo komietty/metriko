@@ -16,84 +16,6 @@ static double compute_point_to_segment_distance(complex p, complex a, complex b)
     return std::abs(p - proj);
 }
 
-
-void Emesh::assign_first_half(
-    const Tmesh& tm,
-    const Mgrph& mg,
-    const std::map<int, int>& mnode2dense_v,
-    const TrackedDenseMesh& data
-) {
-    for (int vid: sings) {
-        auto tgts = eedges | vw::filter([&](const auto& ee) { return mnode2dense_v.at(ee.fr_nid) == vid; });
-        auto v = hm.verts[vid];
-
-        struct Data {
-            Half h;   // current half
-            Face f;   // original face
-            int eeid; //
-            double dist;
-        };
-
-        vec<Data> ee_data;
-
-       // 1: assign closest half to each eedge with some overlaps
-        for (auto& ee: tgts) {
-            for (auto h: v.adjHalfs()) {
-                auto s = &tm.tedges[ee.id].segs.front();
-                Face f = h.face();
-                if (data.face2parent[f.id] == s->face_id) {
-                    auto uv = get_face_uv(mg.mnodes[s->to_nid], s->face_id, mg.hm, mg.cf);
-                    auto cA = h.crnr();
-                    auto cB = h.prev().crnr();
-                    auto dA = abs(data.uvs[cA.face().id][cA.vert().id] - uv);
-                    auto dB = abs(data.uvs[cB.face().id][cB.vert().id] - uv);
-                    ee_data.push_back(dB < dA ? Data{h, f, ee.id, dB} : Data{h.prev().twin(), f, ee.id, dA});
-                }
-            }
-        }
-
-        int count1 = 0;
-        int count2 = 0;
-        for (auto _: v.adjHalfs()) count1++;
-        for (auto _: tgts) count2++;
-        assert(count1 >= count2);
-
-
-        // 2: resolve overlaps
-        while (true) {
-            // if any ee in tgt overlaps, try switching to another side of half
-            bool flag = true;
-
-            for (auto h: v.adjHalfs()) {
-                vec<Data*> overlaps;
-                for (auto& d: ee_data) if (d.h == h) overlaps.push_back(&d);
-
-                if (overlaps.size() > 1) {
-                    assert(overlaps.size() == 2);
-                    bool in_face_0 = overlaps[0]->f == h.face();
-                    auto& d0 = in_face_0 ? overlaps[0] : overlaps[1]; // only ccw move is ok
-                    auto& d1 = in_face_0 ? overlaps[1] : overlaps[0]; // only cw move is ok
-                    if (d0->dist >= d1->dist) { d0->dist = -1; d0->h = h.prev().twin(); }
-                    else                      { d1->dist = -1; d1->h = h.twin().next(); }
-                    flag = false;
-                }
-            }
-
-            if (flag) { std::cout << "singular vid: " << vid << " done!" << std::endl; break; }
-        }
-
-        for (const Data& d : ee_data) { eedges[d.eeid].halfs.push_back(d.h); }
-    }
-}
-
-void Emesh::assign_last_half(
-    const Tmesh& tm,
-    const Mgrph& mg,
-    const std::map<int, int>& mnode2dense_v
-) {
-
-}
-
 static vec<Half> compute_dijkstra_snap(
     const Tedge& te,
     const Mgrph& mg,
@@ -192,5 +114,137 @@ static vec<Half> compute_dijkstra_snap(
     rg::reverse(path);
     return path;
 }
+
+
+void Emesh::assign_first_half(
+    const Tmesh& tm,
+    const Mgrph& mg,
+    const std::map<int, int>& mnode2dense_v,
+    const TrackedDenseMesh& data
+) {
+    for (int vid: sings) {
+        auto tgts = eedges | vw::filter([&](const auto& ee) {
+            return mnode2dense_v.at(ee.fr_nid) == vid
+            || mnode2dense_v.at(ee.to_nid) == vid;
+        });
+        auto v = hm.verts[vid];
+
+        struct Data {
+            Half h;   // current half
+            Face f;   // original face
+            int eeid; //
+            double dist;
+        };
+
+        vec<Data> ee_data;
+
+        // 1: assign closest half to each eedge with some overlaps
+        for (auto& ee: tgts) {
+            auto s = &tm.tedges[ee.id].segs.front();
+            auto uvFr = get_face_uv(mg.mnodes[s->fr_nid], s->face_id, mg.hm, mg.cf);
+            auto uvTo = get_face_uv(mg.mnodes[s->to_nid], s->face_id, mg.hm, mg.cf);
+
+            for (auto h: v.adjHalfs()) {
+                Face f = h.face();
+                assert(s->face_id >= 0);
+                if (data.face2parent[f.id] == s->face_id) {
+                    auto cL = h.crnr();
+                    auto cR = h.prev().crnr();
+                    auto uvL = data.uvs[f.id][cL.id % 3];
+                    auto uvR = data.uvs[f.id][cR.id % 3];
+                    auto dL = compute_point_to_segment_distance(uvL, uvFr, uvTo);
+                    auto dR = compute_point_to_segment_distance(uvR, uvFr, uvTo);
+                    if (is_points_into(uvFr, uvR, uvL, uvTo, 0)) {
+                        ee_data.push_back(dR < dL ? Data{h, f, ee.id, dL} : Data{h.prev().twin(), f, ee.id, dR});
+                    }
+                }
+            }
+        }
+
+        int count1 = 0;
+        int count2 = 0;
+        for (auto _: v.adjHalfs()) count1++;
+        for (auto _: tgts) count2++;
+        assert(count1 >= count2);
+
+
+        /*
+        // 2: resolve overlaps
+        while (true) {
+            // if any ee in tgt overlaps, try switching to another side of half
+            bool flag = true;
+
+            for (auto h: v.adjHalfs()) {
+                vec<Data*> overlaps;
+                for (auto& d: ee_data) if (d.h == h) overlaps.push_back(&d);
+
+                if (overlaps.size() > 1) {
+                    assert(overlaps.size() == 2);
+                    bool in_face_0 = overlaps[0]->f == h.face();
+                    auto& d0 = in_face_0 ? overlaps[0] : overlaps[1]; // only ccw move is ok
+                    auto& d1 = in_face_0 ? overlaps[1] : overlaps[0]; // only cw move is ok
+                    if (d0->dist >= d1->dist) { d0->dist = -1; d0->h = h.prev().twin(); }
+                    else                      { d1->dist = -1; d1->h = h.twin().next(); }
+                    flag = false;
+                }
+            }
+
+            if (flag) {
+                //std::cout << "singular vid: " << vid << " done!" << std::endl;
+                break;
+            }
+        }
+        */
+        for (const Data& d : ee_data) { eedges[d.eeid].halfs.push_back(d.h); }
+    }
+}
+
+void Emesh::assign_inter_half(
+    const Tmesh& tm,
+    const Mgrph& mg,
+    const std::map<int, int>& mnode2dense_v,
+    const TrackedDenseMesh& data
+) {
+    vec<bool> occupied_verts = vec(hm.verts.size(), false);
+
+    vec<const Tedge*> ptrs;
+    ptrs.reserve(tm.tedges.size());
+    for (const auto& te : tm.tedges) { ptrs.push_back(&te); }
+    rg::sort(ptrs, {}, [&](const auto* e) {
+        int priority = 2;
+        if (mg.mnodes[e->fr_nid].jt == JunctionType::F) priority = 0;
+        if (mg.mnodes[e->to_nid].jt == JunctionType::T) priority = 1;
+        return std::pair{priority, e->len};
+    });
+
+    // eedges from singular points first
+    for (const auto te: ptrs) {
+        auto& ee = eedges[te->id];
+        if (mg.mnodes[te->fr_nid].jt != JunctionType::F) continue;
+        int i0 = ee.halfs.back().head().id;
+        int i1 = mnode2dense_v.at(te->to_nid);
+        vec<Half> res = compute_dijkstra_snap(*te, mg, hm, data, occupied_verts, i0, i1);
+        ee.halfs.insert(ee.halfs.end(), res.begin(), res.end());
+    }
+
+    // other eedges
+    for (const auto te: ptrs) {
+        auto& ee = eedges[te->id];
+        if (mg.mnodes[te->fr_nid].jt == JunctionType::F) continue;
+        int i0 = mnode2dense_v.at(te->fr_nid);
+        int i1 = mnode2dense_v.at(te->to_nid);
+        vec<Half> res = compute_dijkstra_snap(*te, mg, hm, data, occupied_verts, i0, i1);
+        ee.halfs.insert(ee.halfs.end(), res.begin(), res.end());
+    }
+}
+
+void Emesh::assign_last_half(
+    const Tmesh& tm,
+    const Mgrph& mg,
+    const std::map<int, int>& mnode2dense_v
+) {
+
+}
+
 
 }

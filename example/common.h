@@ -149,11 +149,13 @@ inline void visualize_tedge(
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> distr(1, 30);
 
-    std::vector<double> vecX;
-    std::vector<double> vecR;
-    std::vector<double> difx;
-    std::vector<double> dify;
-    std::vector<double> count;
+    vec<double> vecX;
+    vec<double> vecR;
+    vec<double> uvX;
+    vec<double> uvY;
+    vec<double> difx;
+    vec<double> dify;
+    vec<double> count;
 
     for (int i = 0; i < tm.nTE; i++) {
         const auto& te = tm.tedges[i];
@@ -176,6 +178,12 @@ inline void visualize_tedge(
             es.emplace_back(std::array{counter, counter + 1});
 
             teids.emplace_back(i);
+
+            uvX.emplace_back(uvFr.real());
+            uvX.emplace_back(uvTo.real());
+            uvY.emplace_back(uvFr.imag());
+            uvY.emplace_back(uvTo.imag());
+
             difx.emplace_back(uvTo.real() - uvFr.real());
             dify.emplace_back(uvTo.imag() - uvFr.imag());
 
@@ -193,10 +201,12 @@ inline void visualize_tedge(
     c->addEdgeScalarQuantity("teid", teids);
     c->addEdgeScalarQuantity("R", vecR);
     if (X != nullptr) c->addEdgeScalarQuantity("X", vecX);
-    c->addEdgeScalarQuantity("difx", difx);
-    c->addEdgeScalarQuantity("dify", dify);
-    c->addEdgeScalarQuantity("random", randoms);
-    c->addEdgeScalarQuantity("count", count);
+    c->addNodeScalarQuantity("uv x", uvX);
+    c->addNodeScalarQuantity("uv y", uvY);
+    //c->addEdgeScalarQuantity("dif x", difx);
+    //c->addEdgeScalarQuantity("dif y", dify);
+    //c->addEdgeScalarQuantity("random", randoms);
+    //c->addEdgeScalarQuantity("count", count);
     c->setEnabled(show);
     c->resetTransform();
     c->setRadius(0.0004);
@@ -307,15 +317,16 @@ inline void debug_tquad_sides(
 // 1. 細分化された TrackedDenseMesh の可視化 (3D座標の再構築を含む)
 // =======================================================================
 inline void visualize_tracked_mesh(
-    const metriko::TrackedDenseMesh& dmesh,
-    const metriko::Hmesh& base_hm,
-    const metriko::VecXc& base_cf,
+    const TrackedDenseMesh& dmesh,
+    const Hmesh& base_hm,
+    const VecXc& base_cf,
     const std::string& name = "subdiv_mesh",
     bool show = true
 ) {
     // 1. 親FaceのローカルUVから、曲面上の正確な3D座標を復元する
-    std::vector<glm::vec3> pos(dmesh.num_verts, glm::vec3(0.0f));
-    std::vector<bool> visited(dmesh.num_verts, false);
+    std::vector pos(dmesh.num_verts, glm::vec3(0.0f));
+    std::vector visited(dmesh.num_verts, false);
+    MatXd uv(dmesh.polygons.size() * 3, 2);
 
     for (size_t i = 0; i < dmesh.polygons.size(); ++i) {
         const auto& poly = dmesh.polygons[i];
@@ -323,6 +334,8 @@ inline void visualize_tracked_mesh(
         int parent_fid = dmesh.face2parent[i];
 
         for (size_t j = 0; j < poly.size(); ++j) {
+            uv.row(i * poly.size() + j) << f_uvs[j].real(), f_uvs[j].imag();
+
             int vid = poly[j];
             if (!visited[vid]) {
                 // conversion_2d_3d を使ってUV平面から3D空間へ写像
@@ -346,8 +359,33 @@ inline void visualize_tracked_mesh(
     surf->setEdgeWidth(1.0f);
     surf->setEdgeColor(glm::vec3(0.2f, 0.2f, 0.2f));
     surf->setEnabled(show);
+
+    auto prms = surf->addParameterizationQuantity("uv", uv);
+    prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+    prms->setCheckerSize(1.);
+    prms->setEnabled(false);
 }
 
+// ---
+inline void visualize_mapped_mnodes(
+    const std::map<int, int>& mnode2dense_v,
+    const Hmesh& dense_hm,
+    const std::string& name = "mapped_mnodes"
+) {
+    std::vector<glm::vec3> pts;
+    std::vector<double> nid_vals;
+
+    for (const auto& [nid, dense_vid]: mnode2dense_v) {
+        auto p = dense_hm.verts[dense_vid].pos();
+        pts.emplace_back(p.x(), p.y(), p.z());
+        nid_vals.push_back(nid);
+    }
+
+    auto pc = polyscope::registerPointCloud(name, pts);
+    pc->addScalarQuantity("mnode_id", nid_vals);
+    pc->setPointRadius(0.002);
+    pc->setMaterial("flat");
+}
 
 // =======================================================================
 // 2. Dijkstraでスナップされた Emesh の経路 (Eedge) の可視化

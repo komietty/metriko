@@ -96,21 +96,21 @@ struct Emesh {
         }
 
         assign_first_half(tm, mg, mnode2dense_v, data);
-        assign_last_half(tm, mg, mnode2dense_v);
+        assign_inter_half(tm, mg, mnode2dense_v, data);
+        //assign_last_half(tm, mg, mnode2dense_v);
 
-        /*
-        vec<bool> occupied_verts = vec(hm.verts.size(), false);
-        for (const auto& te: tm.tedges) {
-            auto i0 = mnode2dense_v.at(te.fr_nid);
-            auto i1 = mnode2dense_v.at(te.to_nid);
-            eedges.push_back({
-                .id     = te.id,
-                .fr_nid = te.fr_nid,
-                .to_nid = te.to_nid,
-                .len    = te.len,
-                .halfs  = compute_dijkstra_snap(te, mg, hm, data, occupied_verts, i0, i1)
-            });
-        }
+        //vec<bool> occupied_verts = vec(hm.verts.size(), false);
+        //for (const auto& te: tm.tedges) {
+        //    auto i0 = mnode2dense_v.at(te.fr_nid);
+        //    auto i1 = mnode2dense_v.at(te.to_nid);
+        //    eedges.push_back({
+        //        .id     = te.id,
+        //        .fr_nid = te.fr_nid,
+        //        .to_nid = te.to_nid,
+        //        .len    = te.len,
+        //        .halfs  = compute_dijkstra_snap(te, mg, hm, data, occupied_verts, i0, i1)
+        //    });
+        //}
 
         ehalfs.resize(tm.thalfs.size());
         equads.resize(tm.tquads.size());
@@ -146,11 +146,10 @@ struct Emesh {
             equads[i] = { .id = id, .data = data_ };
         }
 
-        for (auto ee: eedges) {
-            if (mg.mnodes[ee.fr_nid].jt == mc::JunctionType::F) sings.insert(ee.halfs.front().tail().id);
-            if (mg.mnodes[ee.to_nid].jt == mc::JunctionType::F) sings.insert(ee.halfs.back().head().id);
-        }
-        */
+        //for (auto ee: eedges) {
+        //    if (mg.mnodes[ee.fr_nid].jt == mc::JunctionType::F) sings.insert(ee.halfs.front().tail().id);
+        //    if (mg.mnodes[ee.to_nid].jt == mc::JunctionType::F) sings.insert(ee.halfs.back().head().id);
+        //}
     }
 
     bool collapse_equad(int eqid);
@@ -162,6 +161,14 @@ struct Emesh {
         const std::map<int, int>& mnode2dense_v,
         const TrackedDenseMesh& data
     );
+
+    void assign_inter_half(
+        const Tmesh& tm,
+        const mc::Mgrph& mg,
+        const std::map<int, int>& mnode2dense_v,
+        const TrackedDenseMesh& data
+    );
+
     void assign_last_half (
         const Tmesh& tm,
         const mc::Mgrph& mg,
