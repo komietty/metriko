@@ -122,9 +122,6 @@ int Mcurv::resolve_bgn_node(const Hmesh& hm, const bool bgn, const int cid) cons
     return std::distance(mg->mnodes.begin(), i);
 }
 
-constexpr double TOLERANCE_EDGE_AB = 1e-2; // tolerance on two curvs crash close to an edge
-constexpr double TOLERANCE_EDGE_CD = 1e-1; // tolerance on two curvs crash close to an edge
-
 void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     auto uv0 = buff.uv;
     auto cid = buff.cid;
@@ -201,13 +198,9 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     // intersection happens
     else {
         auto [ab, cd, sg_cd] = rg::min(candidates, [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
-        bool ab_bgn_snappable = ab < TOLERANCE_EDGE_AB;
+        if (ab < TOLERANCE_EDGE_AB) throw std::runtime_error("Not implemented yet");
         bool cd_bgn_snappable = cd < TOLERANCE_EDGE_CD;
-        bool ab_end_snappable = ab > 1 - TOLERANCE_EDGE_AB;
         bool cd_end_snappable = cd > 1 - TOLERANCE_EDGE_CD;
-
-        if (ab_bgn_snappable) throw std::runtime_error("Not implemented yet");
-        if (ab_end_snappable) throw std::runtime_error("Not implemented yet");
 
         auto& cv = mg->mcurvs[sg_cd.curv_id];
         auto  it = rg::find(cv.sgmts, sg_cd);
