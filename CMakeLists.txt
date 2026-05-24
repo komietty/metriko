@@ -87,13 +87,15 @@ endif()
 #========== Done finding OpenMp ========================================================================================
 
 add_library(${PROJECT_NAME} STATIC
+        include/metriko/core/tmesh/motorcycle.cpp
         include/metriko/core/tmesh/emesh_embedding.cpp
-        include/metriko/core/quantization/quantization.h
+        include/metriko/core/tmesh/motorcycle.h
         include/metriko/core/tmesh/emesh_subdivide.h
         include/metriko/core/tmesh/emesh.h
         include/metriko/core/tmesh/emesh_collapse_util.h
         include/metriko/core/tmesh/emesh_collapse_ehalf.h
         include/metriko/core/tmesh/emesh_collapse_equad.h
+        include/metriko/core/quantization/quantization.h
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)

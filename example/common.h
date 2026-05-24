@@ -47,34 +47,69 @@ inline void visualize_frosy_field(
 }
 
 inline void visualize_motorcycle_graph(
-    const mc::Mgrph& graph,
+    const mc::Mgrph& mg,
     const VecXc& uv,
     bool show = true
 ) {
-    std::vector<glm::vec3> zero_length_edge;
-    std::vector<glm::vec3> ns;
-    std::vector<std::array<size_t, 2>> es;
-    std::vector<double> mcids;
+    vec<glm::vec3> l0;
+    vec<glm::vec3> mnodes;
+    vec<glm::vec3> ns;
+    vec<std::array<size_t, 2>> es;
+    vec<double> mcids;
+    vec<double> modes_val;
+    vec<bool> mnodes_reserved = vec(mg.mnodes.size(), false);
     size_t counter = 0;
 
-    for (auto& c: graph.mcurvs) {
-        for (auto& s: c.sgmts) {
-            complex uv1 = mc::get_face_uv(graph.mnodes[s.fr_nid], s.face_id, graph.hm, graph.cf);
-            complex uv2 = mc::get_face_uv(graph.mnodes[s.to_nid], s.face_id, graph.hm, graph.cf);
-            Row3d p1 = conversion_2d_3d(graph.hm.faces[s.face_id], uv, uv1);
-            Row3d p2 = conversion_2d_3d(graph.hm.faces[s.face_id], uv, uv2);
-            if (abs(uv1 - uv2) < 1e-8) { zero_length_edge.emplace_back(p1.x(), p1.y(), p1.z()); }
-            ns.emplace_back(p1.x(), p1.y(), p1.z());
-            ns.emplace_back(p2.x(), p2.y(), p2.z());
-            es.emplace_back(std::array{counter, counter + 1});
-            mcids.emplace_back(c.id);
-            counter += 2;
+    auto get_loc_type_value = [](const mc::MnodeLoc& loc) -> double {
+        if (std::holds_alternative<mc::OnVert>(loc)) return 1.;
+        if (std::holds_alternative<mc::OnEdge>(loc)) return 2.;
+        if (std::holds_alternative<mc::OnFace>(loc)) return 3.;
+        return 0.0; // monostate (未定義など)
+    };
+
+    for (const auto& c: mg.mcurvs) {
+    for (const auto& s: c.sgmts) {
+        auto iFr = s.fr_nid;
+        auto iTo = s.to_nid;
+        auto nFr = mg.mnodes[iFr];
+        auto nTo = mg.mnodes[iTo];
+        auto uv1 = mc::get_face_uv(nFr, s.face_id, mg.hm, mg.cf);
+        auto uv2 = mc::get_face_uv(nTo, s.face_id, mg.hm, mg.cf);
+        Row3d p1 = conversion_2d_3d(mg.hm.faces[s.face_id], uv, uv1);
+        Row3d p2 = conversion_2d_3d(mg.hm.faces[s.face_id], uv, uv2);
+        if (abs(uv1 - uv2) < EPS) { l0.emplace_back(p1.x(), p1.y(), p1.z()); }
+
+        if (!mnodes_reserved[iFr]) {
+            mnodes.emplace_back(p1.x(), p1.y(), p1.z());
+            modes_val.emplace_back(get_loc_type_value(nFr.loc));
+            mnodes_reserved[iFr] = true;
         }
+
+        if (!mnodes_reserved[iTo]) {
+            mnodes.emplace_back(p2.x(), p2.y(), p2.z());
+            modes_val.emplace_back(get_loc_type_value(nTo.loc));
+            mnodes_reserved[iTo] = true;
+        }
+
+        ns.emplace_back(p1.x(), p1.y(), p1.z());
+        ns.emplace_back(p2.x(), p2.y(), p2.z());
+        es.emplace_back(std::array{counter, counter + 1});
+        mcids.emplace_back(c.id);
+        counter += 2;
+    }}
+
+    {
+        auto p = polyscope::registerPointCloud("zero len edge", l0);
+        p->setMaterial("flat");
+        p->setPointRadius(0.003);
     }
 
-    auto pc = polyscope::registerPointCloud("motorcycle zero length edge", zero_length_edge);
-    pc->setEnabled(show);
-    pc->setPointRadius(0.008);
+    {
+        auto p = polyscope::registerPointCloud("mnodes", mnodes);
+        p->addScalarQuantity("type", modes_val);
+        p->setMaterial("flat");
+        p->setPointRadius(0.003);
+    }
 
     auto c = polyscope::registerCurveNetwork("motorcycle graph", ns, es);
     c->setColor(glm::vec4(.0, .0, .0, 1.));
@@ -428,7 +463,7 @@ inline void visualize_eedge(
     c->setEnabled(show);
     c->resetTransform();
 
-    c->setRadius(0.0006);
+    c->setRadius(0.0009);
     c->setMaterial("flat");
 }
 
@@ -539,34 +574,33 @@ inline void visualize_half_data(
               << " HalfData segments for tqid: " << target_tqid << std::endl;
 }
 
-/**
- * @brief Polyscope上でメッシュとUVパラメータ化を同時に表示する関数
- * @param pos  頂点座標データ (std::vector<Row3d> や Eigen::MatrixXd など)
- * @param idx  面のインデックスデータ (std::vector<std::array<...>> や Eigen::MatrixXi など)
- * @param uv   UV座標データ (nF*3 x 2 のコーナーUV、または nV x 2 の頂点UV行列)
- */
 template <typename PosType, typename IdxType, typename UvType>
-void visualize_mesh_with_uv(
+polyscope::SurfaceMesh* visualize_mesh_with_uv(
     const PosType& pos,
     const IdxType& idx,
     const UvType& uv,
-    const std::string& mesh_name = "mesh_with_uv",
+    const std::string& name = "mesh",
     const bool show = true
 ) {
-    // 1. メッシュ (pos, idx) をPolyscopeに登録
-    auto* surf = polyscope::registerSurfaceMesh(mesh_name, pos, idx);
-
-    // 2. パラメータ化 (UV) を追加
-    // ※ 配列のサイズが [頂点数 x 2] なら頂点UV、[面数*3 x 2] ならコーナーUVとして自動認識されます
+    auto* surf = polyscope::registerSurfaceMesh(name, pos, idx);
     auto* prms = surf->addParameterizationQuantity("uv_param", uv);
-
-    // 3. デフォルトで綺麗にグリッド（チェッカー）が見えるように見た目を初期設定
-    prms->setStyle(polyscope::ParamVizStyle::GRID); // または CHECKER
-    prms->setCheckerSize(1.0);                      // グリッドの細かさ
-    prms->setEnabled(true);                         // 自動でUVレイヤーをアクティブにする
+    prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+    prms->setCheckerSize(1.);
+    prms->setEnabled(false);
 
     surf->setEdgeWidth(0.7);
     surf->setEnabled(show);
+
+    vec<glm::vec3> f_col(surf->nFaces(), glm::vec3(0.8, 0.8, 0.8));
+
+    f_col[18]  = glm::vec3(1, 0, 0);
+    f_col[27]  = glm::vec3(1, 0, 0);
+    f_col[258] = glm::vec3(1, 0, 0);
+    f_col[933] = glm::vec3(1, 0, 0);
+    f_col[177] = glm::vec3(1, 0, 0);
+    surf->addFaceColorQuantity("face color", f_col);
+
+    return surf;
 }
 
 }

@@ -1,12 +1,7 @@
-//
-// Created by saki on 2026/05/22.
-//
-
 #include "./emesh.h"
 using namespace metriko::mc;
 
 namespace metriko {
-
 static double compute_point_to_segment_distance(complex p, complex a, complex b) {
     complex ab = b - a;
     complex ap = p - a;
@@ -124,8 +119,7 @@ void Emesh::assign_first_half(
 ) {
     for (int vid: sings) {
         auto tgts = eedges | vw::filter([&](const auto& ee) {
-            return mnode2dense_v.at(ee.fr_nid) == vid
-            || mnode2dense_v.at(ee.to_nid) == vid;
+            return mnode2dense_v.at(ee.fr_nid) == vid || mnode2dense_v.at(ee.to_nid) == vid;
         });
         auto v = hm.verts[vid];
 
@@ -241,9 +235,49 @@ void Emesh::assign_inter_half(
 void Emesh::assign_last_half(
     const Tmesh& tm,
     const Mgrph& mg,
-    const std::map<int, int>& mnode2dense_v
+    const std::map<int, int>& mnode2dense_v,
+    const TrackedDenseMesh& data
 ) {
+    for (int vid: crashes) {
+        auto tgts = eedges | vw::filter([&](const auto& ee) {
+            return mnode2dense_v.at(ee.fr_nid) == vid || mnode2dense_v.at(ee.to_nid) == vid;
+        });
+        auto v = hm.verts[vid];
 
+        struct Data {
+            Half h;   // current half
+            Face f;   // original face
+            int eeid; //
+            double dist;
+        };
+
+        vec<Data> ee_data;
+
+        // 1: assign closest half to each eedge with some overlaps
+        for (auto& ee: tgts) {
+            auto s = &tm.tedges[ee.id].segs.back();
+            auto uvFr = get_face_uv(mg.mnodes[s->to_nid], s->face_id, mg.hm, mg.cf); // todo: use to_nid temp
+            auto uvTo = get_face_uv(mg.mnodes[s->fr_nid], s->face_id, mg.hm, mg.cf); // todo: use fr_nid temp
+
+            for (auto h: v.adjHalfs()) {
+                Face f = h.face();
+                assert(s->face_id >= 0);
+                if (data.face2parent[f.id] == s->face_id) {
+                    auto cL = h.crnr();
+                    auto cR = h.prev().crnr();
+                    auto uvL = data.uvs[f.id][cL.id % 3];
+                    auto uvR = data.uvs[f.id][cR.id % 3];
+                    auto dL = compute_point_to_segment_distance(uvL, uvFr, uvTo);
+                    auto dR = compute_point_to_segment_distance(uvR, uvFr, uvTo);
+                    if (is_points_into(uvFr, uvR, uvL, uvTo, 0)) {
+                        ee_data.push_back(dR < dL ? Data{h, f, ee.id, dL} : Data{h.prev().twin(), f, ee.id, dR});
+                    }
+                }
+            }
+        }
+
+        for (const Data& d : ee_data) { eedges[d.eeid].halfs.push_back(d.h); }
+    }
 }
 
 

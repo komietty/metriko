@@ -78,14 +78,8 @@ int main(int argc, char** argv) {
 
 
     { /// ---- visualize mesh ---- ///
-        const auto surf = polyscope::registerSurfaceMesh("mesh", hm->pos, hm->idx);
-        const auto prms = surf->addParameterizationQuantity("params", uv1);
-        surf->setEdgeWidth(0.7);
-        surf->setEnabled(false);
+        visualizer::visualize_mesh_with_uv(hm->pos, hm->idx, uv1, "base_mesh");
         //visualizer::visualize_frosy_field(surf, *hm, *rawf, *cmbf, N);
-        prms->setStyle(polyscope::ParamVizStyle::GRID);
-        prms->setCheckerSize(1);
-        prms->setEnabled(true);
 
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
@@ -112,9 +106,8 @@ int main(int argc, char** argv) {
 
     ///--- gen mport, medge ---///
     auto mg = mc::Mgrph(*hm, uv2, cmbf->matching, cmbf->singular);
-    //visualizer::visualize_motorcycle_graph(mg, uv2);
+    visualizer::visualize_motorcycle_graph(mg, uv2);
     //visualizer::visualize_node_adjacency(mg, uv2);
-
 
     auto tm = Tmesh(mg);
     VecXd X = compute_quantization(tm, mg);
@@ -123,12 +116,16 @@ int main(int argc, char** argv) {
     //visualizer::visualize_tedge(tm, mg, uv2);
     //visualizer::debug_tquad_sides(tm, mg, uv2);
 
+    // todo: early return!
+    polyscope::show(); return 0;
+
     //auto sdiv_data = compute_midpoint_subdivision(*hm, uv2, 4);
     auto sdiv_data = generate_tracked_data(*hm, uv2);
-    compute_midpoint_subdivision(sdiv_data, 4);
+    compute_midpoint_subdivision(sdiv_data, 1);
+    //compute_barycentric_subdivision(sdiv_data, 1);
+    compute_midpoint_subdivision(sdiv_data, 3);
     //compute_barycentric_subdivision(sdiv_data, 1);
     visualizer::visualize_tracked_mesh(sdiv_data, *hm, uv2, "sdiv_data");
-
 
 
     // =======================================================================
@@ -233,9 +230,6 @@ int main(int argc, char** argv) {
     //    visualizer::visualize_equad(em, eq);
     //}
 
-    // todo: early return!
-    polyscope::show(); return 0;
-
 
     auto half_data = tutte::compute_half_data(em);
 
@@ -244,7 +238,7 @@ int main(int argc, char** argv) {
 
     MatXd dense_uv;
     tutte::compute_tutte_parameterization(*dense_hm, em, dense_sm, half_data, dense_uv);
-    visualizer::visualize_mesh_with_uv(dense_hm->pos, dense_hm->idx, dense_uv, "result");
+    visualizer::visualize_mesh_with_uv(dense_hm->pos, dense_hm->idx, dense_uv, "result_mesh");
 
      {
         auto hm3 = compute_cut_mesh(*dense_hm, dense_sm);
