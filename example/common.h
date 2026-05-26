@@ -11,7 +11,8 @@ inline void visualize_frosy_field(
     const Hmesh& hm,
     const FaceRosyField& rawf,
     const FaceRosyField& cmbf,
-    const int rosyN = 4
+    const int rosyN = 4,
+    const bool show = true
 ) {
     MatXd rawInt(hm.nF, 2);
     MatXd cmbInt(hm.nF, 2);
@@ -40,8 +41,8 @@ inline void visualize_frosy_field(
     }
     auto rawFQ = surf->addFaceVectorQuantity("raw ext", rawExt.block(0, 0, rawExt.rows(), 3));
     auto cmbFQ = surf->addFaceVectorQuantity("cmb ext", cmbExt.block(0, 0, cmbExt.rows(), 3));
-    rawFQ->setEnabled(false);
-    cmbFQ->setEnabled(true);
+    rawFQ->setEnabled(show);
+    cmbFQ->setEnabled(show);
     rawFQ->setVectorLengthScale(0.004);
     cmbFQ->setVectorLengthScale(0.004);
 }
@@ -55,7 +56,8 @@ inline void visualize_motorcycle_graph(
     vec<glm::vec3> mnodes;
     vec<glm::vec3> ns;
     vec<std::array<size_t, 2>> es;
-    vec<double> mcids;
+    vec<double> mcid;
+    vec<double> mnid;
     vec<double> modes_val;
     vec<bool> mnodes_reserved = vec(mg.mnodes.size(), false);
     size_t counter = 0;
@@ -64,7 +66,7 @@ inline void visualize_motorcycle_graph(
         if (std::holds_alternative<mc::OnVert>(loc)) return 1.;
         if (std::holds_alternative<mc::OnEdge>(loc)) return 2.;
         if (std::holds_alternative<mc::OnFace>(loc)) return 3.;
-        return 0.0; // monostate (未定義など)
+        return 0.;
     };
 
     for (const auto& c: mg.mcurvs) {
@@ -82,19 +84,21 @@ inline void visualize_motorcycle_graph(
         if (!mnodes_reserved[iFr]) {
             mnodes.emplace_back(p1.x(), p1.y(), p1.z());
             modes_val.emplace_back(get_loc_type_value(nFr.loc));
+            mnid.emplace_back(iFr);
             mnodes_reserved[iFr] = true;
         }
 
         if (!mnodes_reserved[iTo]) {
             mnodes.emplace_back(p2.x(), p2.y(), p2.z());
             modes_val.emplace_back(get_loc_type_value(nTo.loc));
+            mnid.emplace_back(iTo);
             mnodes_reserved[iTo] = true;
         }
 
         ns.emplace_back(p1.x(), p1.y(), p1.z());
         ns.emplace_back(p2.x(), p2.y(), p2.z());
         es.emplace_back(std::array{counter, counter + 1});
-        mcids.emplace_back(c.id);
+        mcid.emplace_back(c.id);
         counter += 2;
     }}
 
@@ -107,13 +111,14 @@ inline void visualize_motorcycle_graph(
     {
         auto p = polyscope::registerPointCloud("mnodes", mnodes);
         p->addScalarQuantity("type", modes_val);
+        p->addScalarQuantity("mnid", mnid);
         p->setMaterial("flat");
         p->setPointRadius(0.003);
     }
 
     auto c = polyscope::registerCurveNetwork("motorcycle graph", ns, es);
     c->setColor(glm::vec4(.0, .0, .0, 1.));
-    auto v_mcid = c->addEdgeScalarQuantity("mcid", mcids);
+    auto v_mcid = c->addEdgeScalarQuantity("mcid", mcid);
     v_mcid->setEnabled(true);
     v_mcid->setColorMap("magma");
     c->setEnabled(show);
@@ -433,12 +438,19 @@ inline void visualize_eedge(
 ) {
     vec<glm::vec3> ns;
     vec<std::array<size_t, 2>> es;
-    vec<double> eeids;
+    vec<double> eeid;
+    vec<double> flag;
     vec<double> r;
     vec<double> x;
     size_t counter = 0;
 
-    // すべての Eedge (スナップされた物理ハーフエッジパス) を走査
+    vec flag_idcs = {
+        25,
+        26,
+        57,
+        //164,
+    };
+
     for (const auto& ee: em.eedges) {
         for (Half h: ee.halfs) {
             Row3d p1 = h.tail().pos();
@@ -448,7 +460,8 @@ inline void visualize_eedge(
             ns.emplace_back(p2.x(), p2.y(), p2.z());
             es.emplace_back(std::array{counter, counter + 1});
 
-            eeids.emplace_back(ee.id);
+            eeid.emplace_back(ee.id);
+            flag.emplace_back(rg::contains(flag_idcs, ee.id) ? 1 : 0);
             r.emplace_back(ee.len);
             x.emplace_back(X[ee.id]);
             counter += 2;
@@ -457,7 +470,8 @@ inline void visualize_eedge(
 
     auto c = polyscope::registerCurveNetwork(prefix + "emesh_edges", ns, es);
     c->setColor(glm::vec4(1.0, 0.15, 0.15, 1.0));
-    c->addEdgeScalarQuantity("eeid", eeids);
+    c->addEdgeScalarQuantity("eeid", eeid);
+    c->addEdgeScalarQuantity("flag", flag)->setEnabled(true);
     c->addEdgeScalarQuantity("R", r);
     c->addEdgeScalarQuantity("X", x);
     c->setEnabled(show);
@@ -601,6 +615,36 @@ polyscope::SurfaceMesh* visualize_mesh_with_uv(
     surf->addFaceColorQuantity("face color", f_col);
 
     return surf;
+}
+
+inline void visualize_seam(
+    const Hmesh& hm,
+    const vec<bool>& seam,
+    const std::string& name = "seam",
+    const VecXi& matching = VecXi(),
+    const bool show = true
+) {
+    bool use_matching = matching.rows() > 0;
+    vec<glm::vec3> ns;
+    vec<std::array<size_t, 2>> es;
+    vec<double> ms;
+    size_t counter = 0;
+    for (auto e: hm.edges) {
+        if (seam[e.id]) {
+            Row3d p1 = e.half().tail().pos();
+            Row3d p2 = e.half().head().pos();
+            ns.emplace_back(p1.x(), p1.y(), p1.z());
+            ns.emplace_back(p2.x(), p2.y(), p2.z());
+            es.emplace_back(std::array{counter, counter + 1});
+            if (use_matching) ms.emplace_back(matching[e.id]);
+            counter += 2;
+        }
+    }
+    auto c = polyscope::registerCurveNetwork(name, ns, es);
+    if(use_matching) c->addEdgeScalarQuantity("matching", ms);
+    c->setEnabled(show);
+    c->resetTransform();
+    c->setRadius(0.001);
 }
 
 }

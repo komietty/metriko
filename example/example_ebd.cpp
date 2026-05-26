@@ -77,31 +77,11 @@ int main(int argc, char** argv) {
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
 
 
-    { /// ---- visualize mesh ---- ///
-        visualizer::visualize_mesh_with_uv(hm->pos, hm->idx, uv1, "base_mesh");
-        //visualizer::visualize_frosy_field(surf, *hm, *rawf, *cmbf, N);
-
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2>> es;
-        std::vector<double> ms;
-        size_t counter = 0;
-        for (auto e: hm->edges) {
-            if (seam[e.id]) {
-                Row3d p1 = e.half().tail().pos();
-                Row3d p2 = e.half().head().pos();
-                ns.emplace_back(p1.x(), p1.y(), p1.z());
-                ns.emplace_back(p2.x(), p2.y(), p2.z());
-                int m = cmbf->matching[e.id];
-                es.emplace_back(std::array{counter, counter + 1});
-                ms.emplace_back(m);
-                counter += 2;
-            }
-        }
-        auto c = polyscope::registerCurveNetwork("seam", ns, es);
-        c->addEdgeScalarQuantity("matching", ms);
-        c->setEnabled(false);
-        c->resetTransform();
-        c->setRadius(0.001);
+    /// ---- visualize mesh ---- ///
+    {
+        auto s = visualizer::visualize_mesh_with_uv(hm->pos, hm->idx, uv1, "base_mesh", false);
+        //visualizer::visualize_seam(*hm, seam, "base_seam", cmbf->matching);
+        //visualizer::visualize_frosy_field(s, *hm, *rawf, *cmbf, N);
     }
 
     ///--- gen mport, medge ---///
@@ -111,19 +91,15 @@ int main(int argc, char** argv) {
 
     auto tm = Tmesh(mg);
     VecXd X = compute_quantization(tm, mg);
-    //validate_quantization(tmesh, X);
+    validate_quantization(tm, X);
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     //visualizer::visualize_tedge(tm, mg, uv2);
     //visualizer::debug_tquad_sides(tm, mg, uv2);
 
-    // todo: early return!
-    polyscope::show(); return 0;
-
-    //auto sdiv_data = compute_midpoint_subdivision(*hm, uv2, 4);
     auto sdiv_data = generate_tracked_data(*hm, uv2);
-    compute_midpoint_subdivision(sdiv_data, 1);
+    //compute_midpoint_subdivision(sdiv_data, 1);
     //compute_barycentric_subdivision(sdiv_data, 1);
-    compute_midpoint_subdivision(sdiv_data, 3);
+    compute_midpoint_subdivision(sdiv_data, 2);
     //compute_barycentric_subdivision(sdiv_data, 1);
     visualizer::visualize_tracked_mesh(sdiv_data, *hm, uv2, "sdiv_data");
 
@@ -131,8 +107,8 @@ int main(int argc, char** argv) {
     // =======================================================================
     // 2. 3D座標の再構築と、高解像度 Hmesh のインスタンス化
     // =======================================================================
-    std::vector<Row3d> dense_pos_vec(sdiv_data.num_verts);
-    std::vector<bool> visited(sdiv_data.num_verts, false);
+    vec dense_pos_vec(sdiv_data.num_verts, Row3d());
+    vec visited(sdiv_data.num_verts, false);
 
     for (size_t i = 0; i < sdiv_data.polygons.size(); ++i) {
         int parent_fid = sdiv_data.face2parent[i];
@@ -145,90 +121,26 @@ int main(int argc, char** argv) {
         }
     }
 
-    MatXd dense_V(sdiv_data.num_verts, 3);
-    MatXi dense_F(sdiv_data.polygons.size(), 3);
+    MatXd dV(sdiv_data.num_verts, 3);
+    MatXi dF(sdiv_data.polygons.size(), 3);
+    for (int i = 0; i < sdiv_data.num_verts; ++i)       { dV.row(i) = dense_pos_vec[i]; }
+    for (int i = 0; i < sdiv_data.polygons.size(); ++i) { dF.row(i) << sdiv_data.polygons[i][0], sdiv_data.polygons[i][1], sdiv_data.polygons[i][2]; }
+    auto dense_hm = std::make_unique<Hmesh>(dV, dF);
+    auto dense_sm = compute_dense_seam(seam, *dense_hm, sdiv_data);
+    //visualizer::visualize_seam(*dense_hm, dense_sm, "dense_seam", VecXi(), false);
 
-    for (int i = 0; i < sdiv_data.num_verts; ++i)       { dense_V.row(i) = dense_pos_vec[i]; }
-    for (int i = 0; i < sdiv_data.polygons.size(); ++i) { dense_F.row(i) << sdiv_data.polygons[i][0], sdiv_data.polygons[i][1], sdiv_data.polygons[i][2]; }
-    auto dense_hm = std::make_unique<Hmesh>(dense_V, dense_F);
-    std::vector<bool> dense_sm = compute_dense_seam(seam, *dense_hm, sdiv_data);
-
-    {
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2>> es;
-        size_t counter = 0;
-        for (auto e: dense_hm->edges) {
-            if (dense_sm[e.id]) {
-                Row3d p1 = e.half().tail().pos();
-                Row3d p2 = e.half().head().pos();
-                ns.emplace_back(p1.x(), p1.y(), p1.z());
-                ns.emplace_back(p2.x(), p2.y(), p2.z());
-                es.emplace_back(std::array{counter, counter + 1});
-                counter += 2;
-            }
-        }
-        auto c = polyscope::registerCurveNetwork("dense seam", ns, es);
-        c->setEnabled(false);
-        c->resetTransform();
-        c->setRadius(0.001);
-    }
-
-
-    // =======================================================================
-    // 3. Mnode -> dense_vid
-    // =======================================================================
-    std::map<int, int> mnode2dense_v;
-    vec occupied_v(sdiv_data.num_verts, false);
-
-    auto map_node = [&](int nid, int fid) {
-        if (mnode2dense_v.contains(nid)) return;
-        complex target_uv = mc::get_face_uv(mg.mnodes[nid], fid, *hm, uv2);
-
-        int best_vid = -1;
-        double min_dist = 1e9;
-        for (size_t i = 0; i < sdiv_data.polygons.size(); ++i) {
-            if (sdiv_data.face2parent[i] != fid) continue;
-            for (int j = 0; j < 3; ++j) {
-                double d = std::abs(sdiv_data.uvs[i][j] - target_uv);
-                if (d < min_dist && !occupied_v[sdiv_data.polygons[i][j]]) {
-                    min_dist = d;
-                    best_vid = sdiv_data.polygons[i][j];
-                }
-            }
-        }
-        assert(best_vid != -1 && "Corresponding dense vertex not found!");
-        mnode2dense_v[nid] = best_vid;
-        occupied_v[best_vid] = true;
-    };
-
-
-    for (const auto& te : tm.tedges) {
-        if (mg.mnodes[te.fr_nid].jt == mc::JunctionType::F) map_node(te.fr_nid, te.segs.front().face_id);
-        if (mg.mnodes[te.to_nid].jt == mc::JunctionType::F) map_node(te.to_nid, te.segs.back().face_id);
-    }
-
-    for (const auto& te : tm.tedges) {
-        if (mg.mnodes[te.fr_nid].jt != mc::JunctionType::F) map_node(te.fr_nid, te.segs.front().face_id);
-        if (mg.mnodes[te.to_nid].jt != mc::JunctionType::F) map_node(te.to_nid, te.segs.back().face_id);
-    }
-
-    // =======================================================================
-    // 4. Emesh の構築と可視化
-    // =======================================================================
+    // 4. Emesh
     std::cout << "[Info] Constructing Emesh (Running Dijkstra)..." << std::endl;
-    Emesh em(tm, mg, *dense_hm, sdiv_data, mnode2dense_v, X);
-    //verts_inside(em.equads[9], em, *dense_hm);
+    auto m2dv = mnode2dense_v(tm, mg, *hm, uv2, sdiv_data);
+    Emesh em(tm, mg, *dense_hm, sdiv_data, m2dv, X);
     //em.collapse_equad(9);
     //em.collapse_ehalf(85);
-    //verts_inside(em.equads[0], em, *dense_hm);
-    //verts_inside(em.equads[16], em, *dense_hm);
-    visualizer::visualize_mapped_mnodes(mnode2dense_v, *dense_hm);
+    visualizer::visualize_mapped_mnodes(m2dv, *dense_hm);
     visualizer::visualize_eedge(em, X, "emesh_");
-    //for (const auto& eq : em.equads) {
-    //    if (eq.id == -1) continue;
-    //    //if (eq.id != 7) continue;
-    //    visualizer::visualize_equad(em, eq);
-    //}
+
+    // todo: early return!
+    polyscope::show(); return 0;
+
 
 
     auto half_data = tutte::compute_half_data(em);

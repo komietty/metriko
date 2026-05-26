@@ -13,7 +13,8 @@
 
 namespace metriko {
 
-// 細分化されたメッシュと、その履歴（トラッキング情報）を保持する構造体
+inline std::pair<int, int> get_key(int v1, int v2) { return {std::min(v1, v2), std::max(v1, v2)}; }
+
 struct TrackedDenseMesh {
     vec<vec<int>> polygons; // 新しいメッシュを構築するためのFaceごとの頂点IDリスト (CCW順)
     vec<vec<complex>> uvs;  // 各Faceの各コーナーのUV座標（親FaceのローカルUV空間における座標）
@@ -33,17 +34,14 @@ inline TrackedDenseMesh generate_tracked_data(
     for (const auto& f : hm.faces) {
         vec<int> poly;
         vec<complex> f_uvs;
-        for (auto h : f.adjHalfs()) {
+        for (auto h: f.adjHalfs()) {
             poly.push_back(h.crnr().vert().id);
             f_uvs.push_back(cf[h.crnr().id]);
         }
         curr.polygons.push_back(poly);
         curr.uvs.push_back(f_uvs);
-        curr.face2parent.push_back(f.id); // 初期は自分自身が親
+        curr.face2parent.push_back(f.id);
     }
-
-    // エッジの重複分割を防ぐための無向エッジキー
-    auto get_key = [](int v1, int v2) { return std::pair(std::min(v1, v2), std::max(v1, v2)); };
 
     for (int i = 0; i < hm.nE; ++i) {
         auto e = hm.edges[i];
@@ -54,12 +52,6 @@ inline TrackedDenseMesh generate_tracked_data(
 }
 
 inline void compute_midpoint_subdivision(TrackedDenseMesh& curr, int levels) {
-    // エッジの重複分割を防ぐための無向エッジキー
-    auto get_key = [](int v1, int v2) { return std::pair(std::min(v1, v2), std::max(v1, v2)); };
-
-    // ==========================================
-    // 2. 指定レベルだけ 1-to-4 の再帰的細分化
-    // ==========================================
     for (int lvl = 0; lvl < levels; ++lvl) {
         TrackedDenseMesh next;
         next.num_verts = curr.num_verts;
@@ -101,13 +93,6 @@ inline void compute_midpoint_subdivision(TrackedDenseMesh& curr, int levels) {
 }
 
 inline TrackedDenseMesh compute_barycentric_subdivision(TrackedDenseMesh& curr, int levels) {
-
-    // エッジトラッキング用の無向エッジキー
-    auto get_key = [](int v1, int v2) { return std::pair(std::min(v1, v2), std::max(v1, v2)); };
-
-    // ==========================================
-    // 2. 指定レベルだけ 1-to-3 の再帰的重心分割
-    // ==========================================
     for (int lvl = 0; lvl < levels; ++lvl) {
         TrackedDenseMesh next;
         next.num_verts = curr.num_verts;
@@ -124,15 +109,10 @@ inline TrackedDenseMesh compute_barycentric_subdivision(TrackedDenseMesh& curr, 
             int c = next.num_verts++;
             complex uc = (u0 + u1 + u2) / 3.;
 
-            // 3. 3つの新しいFaceをCCW（反時計回り）順で追加
             next.polygons.push_back({v0, v1, c}); next.uvs.push_back({u0, u1, uc}); next.face2parent.push_back(parent_fid); // Face 1: (v0, v1, c)
             next.polygons.push_back({v1, v2, c}); next.uvs.push_back({u1, u2, uc}); next.face2parent.push_back(parent_fid); // Face 2: (v1, v2, c)
             next.polygons.push_back({v2, v0, c}); next.uvs.push_back({u2, u0, uc}); next.face2parent.push_back(parent_fid); // Face 3: (v2, v0, c)
 
-            // 4. エッジのトラッキング情報の引き継ぎ
-            // 重心分割では「外周のエッジ」は分割されずにそのまま維持されるため、
-            // 新しい中点との組み合わせではなく、元の (v0, v1) のままIDを引き継ぎます。
-            // （新しく作られた内部エッジ (c, v0) 等は Level 0 に存在しないため追跡しません）
             auto k01 = get_key(v0, v1); if (curr.edge_to_old_id.contains(k01)) { next.edge_to_old_id[k01] = curr.edge_to_old_id[k01]; }
             auto k12 = get_key(v1, v2); if (curr.edge_to_old_id.contains(k12)) { next.edge_to_old_id[k12] = curr.edge_to_old_id[k12]; }
             auto k20 = get_key(v2, v0); if (curr.edge_to_old_id.contains(k20)) { next.edge_to_old_id[k20] = curr.edge_to_old_id[k20]; }
@@ -143,13 +123,45 @@ inline TrackedDenseMesh compute_barycentric_subdivision(TrackedDenseMesh& curr, 
     return curr;
 }
 
-inline std::vector<Row3d> reconstruct_3d_positions(
+
+inline TrackedDenseMesh compute_barycentric_subdivision(
+    TrackedDenseMesh& curr,
+    const std::map<int, int>& mnode2dense_v,
+    const Hmesh& dense_hm
+) {
+    TrackedDenseMesh next;
+    next.num_verts = curr.num_verts;
+
+    for (int i = 0; i < curr.polygons.size(); ++i) {
+        const auto& poly = curr.polygons[i];
+        const auto& f_uvs = curr.uvs[i];
+        int parent_fid = curr.face2parent[i];
+
+        int     v0 = poly[0],  v1 = poly[1],  v2 = poly[2];
+        complex u0 = f_uvs[0], u1 = f_uvs[1], u2 = f_uvs[2];
+
+        int c = next.num_verts++;
+        complex uc = (u0 + u1 + u2) / 3.;
+
+        next.polygons.push_back({v0, v1, c}); next.uvs.push_back({u0, u1, uc}); next.face2parent.push_back(parent_fid); // Face 1: (v0, v1, c)
+        next.polygons.push_back({v1, v2, c}); next.uvs.push_back({u1, u2, uc}); next.face2parent.push_back(parent_fid); // Face 2: (v1, v2, c)
+        next.polygons.push_back({v2, v0, c}); next.uvs.push_back({u2, u0, uc}); next.face2parent.push_back(parent_fid); // Face 3: (v2, v0, c)
+
+        auto k01 = get_key(v0, v1); if (curr.edge_to_old_id.contains(k01)) { next.edge_to_old_id[k01] = curr.edge_to_old_id[k01]; }
+        auto k12 = get_key(v1, v2); if (curr.edge_to_old_id.contains(k12)) { next.edge_to_old_id[k12] = curr.edge_to_old_id[k12]; }
+        auto k20 = get_key(v2, v0); if (curr.edge_to_old_id.contains(k20)) { next.edge_to_old_id[k20] = curr.edge_to_old_id[k20]; }
+    }
+
+    return next;
+}
+
+inline vec<Row3d> reconstruct_3d_positions(
     const TrackedDenseMesh& dmesh,
     const Hmesh& base_hm,
     const VecXc& base_uv
 ) {
-    std::vector<Row3d> dense_pos(dmesh.num_verts);
-    std::vector<bool> visited(dmesh.num_verts, false);
+    vec dense_pos(dmesh.num_verts, Row3d());
+    vec visited(dmesh.num_verts, false);
 
     for (int i = 0; i < dmesh.polygons.size(); ++i) {
         const auto& poly = dmesh.polygons[i];
@@ -168,25 +180,20 @@ inline std::vector<Row3d> reconstruct_3d_positions(
     return dense_pos;
 }
 
-inline std::vector<bool> compute_dense_seam(
-    const std::vector<bool>& base_seam,
+inline vec<bool> compute_dense_seam(
+    const vec<bool>& base_seam,
     const Hmesh& dense_hm,
     const TrackedDenseMesh& sdiv_data
 ) {
-    std::vector<bool> dense_seam(dense_hm.nE, false);
-    auto make_edge_key = [](int a, int b) {
-        return std::make_pair(std::min(a, b), std::max(a, b));
-    };
+    vec dense_seam(dense_hm.nE, false);
 
     for (int i = 0; i < dense_hm.nE; ++i) {
         auto e = dense_hm.edges[i];
-        auto key = make_edge_key(e.vert0().id, e.vert1().id);
+        auto k = get_key(e.vert0().id, e.vert1().id);
 
-        if (sdiv_data.edge_to_old_id.find(key) != sdiv_data.edge_to_old_id.end()) {
-            int old_id = sdiv_data.edge_to_old_id.at(key);
-            if (!base_seam.empty() && base_seam[old_id]) {
-                dense_seam[i] = true;
-            }
+        if (sdiv_data.edge_to_old_id.contains(k)) {
+            int old_id = sdiv_data.edge_to_old_id.at(k);
+            if (!base_seam.empty() && base_seam[old_id]) dense_seam[i] = true;
         }
     }
     return dense_seam;

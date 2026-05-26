@@ -13,7 +13,7 @@ namespace metriko::mc {
 constexpr double TOLERANCE_HALF = 1e-6;    //
 constexpr double TOLERANCE_CRNR = 2e-6;    //
 constexpr double TOLERANCE_EDGE_AB = 1e-4; // tolerance on two curvs crash close to an edge
-constexpr double TOLERANCE_EDGE_CD = 1e-1; // tolerance on two curvs crash close to an edge
+constexpr double TOLERANCE_EDGE_CD = 0.2; // tolerance on two curvs crash close to an edge
 
 
 struct Mgrph;

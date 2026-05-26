@@ -89,6 +89,7 @@ endif()
 add_library(${PROJECT_NAME} STATIC
         include/metriko/core/tmesh/motorcycle.cpp
         include/metriko/core/tmesh/emesh_embedding.cpp
+        include/metriko/core/tmesh/emesh_embedding_node.cpp
         include/metriko/core/tmesh/motorcycle.h
         include/metriko/core/tmesh/emesh_subdivide.h
         include/metriko/core/tmesh/emesh.h

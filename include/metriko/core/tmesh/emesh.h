@@ -96,9 +96,9 @@ struct Emesh {
             });
         }
 
-        //assign_first_half(tm, mg, mnode2dense_v, data);
-        assign_last_half (tm, mg, mnode2dense_v, data);
-        //assign_inter_half(tm, mg, mnode2dense_v, data);
+        assign_first_half(tm, mg, mnode2dense_v, data);
+        //assign_last_half (tm, mg, mnode2dense_v, data);
+        assign_inter_half(tm, mg, mnode2dense_v, data);
 
         /*
         ehalfs.resize(tm.thalfs.size());
@@ -175,9 +175,7 @@ struct Emesh {
         const vec<int>& ext0, // ehids for extending next side of ehalfs
         const vec<int>& ext1  // ehids for extending prev side of ehalfs
     );
-
 };
-
 
 inline const Eedge& Ehalf::edge() const { return em->eedges[eeid]; }
 inline const Ehalf& Ehalf::twin() const { return em->ehalfs[twid]; }
@@ -185,5 +183,14 @@ inline const Ehalf& Ehalf::next() const { return em->ehalfs[nxt_id]; }
 inline const Ehalf& Ehalf::prev() const { return em->ehalfs[prv_id]; }
 inline Vert Ehalf::tail() const { return halfs.front().tail(); }
 inline Vert Ehalf::head() const { return halfs.back().head();  }
+
+// node_embedding
+std::map<int, int> mnode2dense_v(
+    const Tmesh& tm,
+    const mc::Mgrph& mg,
+    const Hmesh& hm,
+    const VecXc& uv2,
+    const TrackedDenseMesh& sdiv_data
+);
 }
 #endif

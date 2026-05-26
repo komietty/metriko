@@ -34,12 +34,11 @@ static vec<Half> compute_dijkstra_snap(
     std::priority_queue<Node, vec<Node>, std::greater<>> pq;
     vec min_cost(hm.verts.size(), std::numeric_limits<double>::infinity());
     vec came_from_hid(hm.verts.size(), -1);
-    vec came_from_vid(hm.verts.size(), -1);
 
     pq.push({bgn_vid, 0.});
     min_cost[bgn_vid] = 0.;
 
-    std::vector<int> valid_fids;
+    vec<int> valid_fids;
     for (const auto& sg : te.segs) {
         valid_fids.push_back(sg.face_id);
         for (auto h : mg.hm.faces[sg.face_id].adjHalfs()) valid_fids.push_back(h.twin().face().id);
@@ -53,21 +52,28 @@ static vec<Half> compute_dijkstra_snap(
         auto [curr_vid, curr_cost] = pq.top();
         pq.pop();
 
+        if (reached) break;
         if (curr_vid == end_vid) { reached = true; break; }
         if (curr_cost > min_cost[curr_vid]) continue;
 
         for (auto h : hm.verts[curr_vid].adjHalfs()) {
-            if (h.head().id != end_vid && occupied_verts[h.head().id]) continue;
-            int f_l = h.face().id;
-            int f_r = h.twin().face().id;
-            int p_l = data.face2parent[f_l];
-            int p_r = data.face2parent[f_r];
             int next_vid = h.head().id;
             int this_fid = -1;
             int prnt_fid = -1;
 
-            if      (rg::find(valid_fids, p_l) != valid_fids.end()) { this_fid = f_l; prnt_fid = p_l; }
-            else if (rg::find(valid_fids, p_r) != valid_fids.end()) { this_fid = f_r; prnt_fid = p_r; }
+            if (next_vid == end_vid) {
+                came_from_hid[next_vid] = h.id;
+                reached = true;
+            }
+
+            if (next_vid != end_vid && occupied_verts[next_vid]) continue;
+            int fL = h.face().id;
+            int fR = h.twin().face().id;
+            int pL = data.face2parent[fL];
+            int pR = data.face2parent[fR];
+
+            if      (rg::find(valid_fids, pL) != valid_fids.end()) { this_fid = fL; prnt_fid = pL; }
+            else if (rg::find(valid_fids, pR) != valid_fids.end()) { this_fid = fR; prnt_fid = pR; }
             else { continue; }
 
             auto curr_uv = get_uv(this_fid, curr_vid);
@@ -84,17 +90,13 @@ static vec<Half> compute_dijkstra_snap(
 
             if (c < min_cost[next_vid]) {
                 min_cost[next_vid] = c;
-                came_from_hid[next_vid] = h.id;
-                came_from_vid[next_vid] = curr_vid;
                 pq.push({next_vid, c});
+                came_from_hid[next_vid] = h.id;
             }
         }
     }
 
-    if (!reached) {
-        std::cout << "Dijkstra failed!" << std::endl;
-        return {};
-    }
+    if (!reached) { std::cout << "Dijkstra failed!" << std::endl; return {}; }
 
     vec<Half> path;
     int curr = end_vid;
@@ -104,7 +106,7 @@ static vec<Half> compute_dijkstra_snap(
         path.push_back(h_);
         occupied_verts[h_.tail().id] = true;
         occupied_verts[h_.head().id] = true;
-        curr = came_from_vid[curr];
+        curr = h_.tail().id;
     }
     rg::reverse(path);
     return path;

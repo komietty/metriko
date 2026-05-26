@@ -208,8 +208,8 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
 
         auto snap = [&](int nid) {
             auto jt = mg->mnodes[nid].jt;
-            // if (jt == JunctionType::None) return false;
             if (jt == JunctionType::F || jt == JunctionType::C) return false;
+            // if (jt == JunctionType::None) return false;
 
             for (const auto& c: mg->mcurvs) {
             for (const auto& s: c.sgmts) {
