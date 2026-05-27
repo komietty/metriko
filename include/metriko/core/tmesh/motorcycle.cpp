@@ -78,7 +78,6 @@ void Mgrph::sort_node_adjacency() {
                 std::unordered_map<int, int> ccw_rank;
                 int rank = 0;
                 for (Half h : hm.verts[v.vid].adjHalfs()) ccw_rank[h.face().id] = rank++;
-
                 rg::sort(mn.adj, [&](auto& a, auto& b) {
                     int rA = ccw_rank.at(get_fid(a));
                     int rB = ccw_rank.at(get_fid(b));
@@ -105,9 +104,7 @@ void Mgrph::sort_node_adjacency() {
                 });
             },
             [&](const OnFace& f) {
-                rg::sort(mn.adj, [&](auto& a, auto& b) {
-                    return std::arg(get_dir(a)) < std::arg(get_dir(b));
-                });
+                rg::sort(mn.adj, [&](auto& a, auto& b) { return std::arg(get_dir(a)) < std::arg(get_dir(b)); });
             },
             [](std::monostate) {}
         }, mn.loc);

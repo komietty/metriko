@@ -58,7 +58,16 @@ inline void visualize_motorcycle_graph(
     vec<std::array<size_t, 2>> es;
     vec<double> mcid;
     vec<double> mnid;
+    vec<double> mnid_flag;
     vec<double> modes_val;
+
+    vec<int> flag_ids = vec{
+        1085,
+        1091,
+        1110,
+        1115
+    };
+
     vec<bool> mnodes_reserved = vec(mg.mnodes.size(), false);
     size_t counter = 0;
 
@@ -85,6 +94,7 @@ inline void visualize_motorcycle_graph(
             mnodes.emplace_back(p1.x(), p1.y(), p1.z());
             modes_val.emplace_back(get_loc_type_value(nFr.loc));
             mnid.emplace_back(iFr);
+            mnid_flag.emplace_back(rg::contains(flag_ids, iFr) ? 1. : 0.);
             mnodes_reserved[iFr] = true;
         }
 
@@ -92,6 +102,7 @@ inline void visualize_motorcycle_graph(
             mnodes.emplace_back(p2.x(), p2.y(), p2.z());
             modes_val.emplace_back(get_loc_type_value(nTo.loc));
             mnid.emplace_back(iTo);
+            mnid_flag.emplace_back(rg::contains(flag_ids, iTo) ? 1. : 0.);
             mnodes_reserved[iTo] = true;
         }
 
@@ -111,6 +122,7 @@ inline void visualize_motorcycle_graph(
     {
         auto p = polyscope::registerPointCloud("mnodes", mnodes);
         p->addScalarQuantity("type", modes_val);
+        p->addScalarQuantity("flag", mnid_flag);
         p->addScalarQuantity("mnid", mnid);
         p->setMaterial("flat");
         p->setPointRadius(0.003);
@@ -445,10 +457,17 @@ inline void visualize_eedge(
     size_t counter = 0;
 
     vec flag_idcs = {
-        25,
-        26,
-        57,
+        7,
+        //25,
+        //26,
+        //57,
+        //82,
         //164,
+        230,
+        231,
+        211,
+        212,
+        12
     };
 
     for (const auto& ee: em.eedges) {

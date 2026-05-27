@@ -13,7 +13,7 @@ namespace metriko::mc {
 constexpr double TOLERANCE_HALF = 1e-6;    //
 constexpr double TOLERANCE_CRNR = 2e-6;    //
 constexpr double TOLERANCE_EDGE_AB = 1e-4; // tolerance on two curvs crash close to an edge
-constexpr double TOLERANCE_EDGE_CD = 0.2; // tolerance on two curvs crash close to an edge
+constexpr double TOLERANCE_EDGE_CD = 0.2;  // tolerance on two curvs crash close to an edge
 
 
 struct Mgrph;
@@ -32,7 +32,6 @@ struct OnEdge { int eid; double r;   bool operator==(const OnEdge&) const = defa
 struct OnFace { int fid; complex uv; bool operator==(const OnFace&) const = default; };
 using MnodeLoc = std::variant<std::monostate, OnVert, OnEdge, OnFace>;
 enum class JunctionType { None, F, T, C };
-enum class JunctionSide { None, B, L, R, T };
 
 struct Asgmt {
     int curv_id;

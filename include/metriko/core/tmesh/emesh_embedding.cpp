@@ -112,7 +112,6 @@ static vec<Half> compute_dijkstra_snap(
     return path;
 }
 
-
 void Emesh::assign_first_half(
     const Tmesh& tm,
     const Mgrph& mg,
@@ -120,9 +119,7 @@ void Emesh::assign_first_half(
     const TrackedDenseMesh& data
 ) {
     for (int vid: sings) {
-        auto tgts = eedges | vw::filter([&](const auto& ee) {
-            return mnode2dense_v.at(ee.fr_nid) == vid || mnode2dense_v.at(ee.to_nid) == vid;
-        });
+        auto tgts = eedges | vw::filter([&](const auto& ee) { return mnode2dense_v.at(ee.fr_nid) == vid; });
         auto v = hm.verts[vid];
 
         struct Data {
@@ -136,22 +133,33 @@ void Emesh::assign_first_half(
 
         // 1: assign closest half to each eedge with some overlaps
         for (auto& ee: tgts) {
-            auto s = &tm.tedges[ee.id].segs.front();
-            auto uvFr = get_face_uv(mg.mnodes[s->fr_nid], s->face_id, mg.hm, mg.cf);
-            auto uvTo = get_face_uv(mg.mnodes[s->to_nid], s->face_id, mg.hm, mg.cf);
+            auto& sgs = tm.tedges[ee.id].segs;
+            auto& sg  = sgs.front();
+            auto uvFr = get_face_uv(mg.mnodes[sg.fr_nid], sg.face_id, mg.hm, mg.cf);
+            auto uvTo = get_face_uv(mg.mnodes[sg.to_nid], sg.face_id, mg.hm, mg.cf);
+            auto viTo = mnode2dense_v.at(tm.tedges[ee.id].segs.back().to_nid);
 
             for (auto h: v.adjHalfs()) {
                 Face f = h.face();
-                assert(s->face_id >= 0);
-                if (data.face2parent[f.id] == s->face_id) {
+                Half h0 = h;               // half itself
+                Half h1 = h.prev().twin(); // the ccw next outgoing half
+                assert(sg.face_id >= 0);
+                if (data.face2parent[f.id] == sg.face_id) {
                     auto cL = h.crnr();
                     auto cR = h.prev().crnr();
                     auto uvL = data.uvs[f.id][cL.id % 3];
                     auto uvR = data.uvs[f.id][cR.id % 3];
+
+                    // If the eedge is just consist of one half, it must connect directly to viTo;
+                    // otherwise the eedge will have straight uv coord in one triangle
+                    if (cL.vert().id == viTo) { ee_data.push_back(Data{h1, f, ee.id, -1}); break; }
+                    if (cR.vert().id == viTo) { ee_data.push_back(Data{h0, f, ee.id, -1}); break; }
+
                     auto dL = compute_point_to_segment_distance(uvL, uvFr, uvTo);
                     auto dR = compute_point_to_segment_distance(uvR, uvFr, uvTo);
                     if (is_points_into(uvFr, uvR, uvL, uvTo, 0)) {
-                        ee_data.push_back(dR < dL ? Data{h, f, ee.id, dL} : Data{h.prev().twin(), f, ee.id, dR});
+                        ee_data.push_back(dR < dL ? Data{h0, f, ee.id, dL} : Data{h1, f, ee.id, dR});
+                        break;
                     }
                 }
             }

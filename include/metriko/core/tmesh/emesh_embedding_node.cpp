@@ -85,6 +85,31 @@ std::map<int, int> mnode2dense_v(
         unassigned_mnodes = std::move(next_unassigned);
     }
 
+    // Relaxation process.
+    // Move to another vert if a mnode is movable to other verts and if a vert is close to the bottom edge of the t-junction
+    for (auto& [id, vid] : mnode2dense_v) {
+        std::cout << "id: " << id << ", vid: " << vid << std::endl;
+        auto mn = mg.mnodes[id];
+        if (mn.jt == JunctionType::T && mn.adj.size() == 3) {
+
+            int cid = mn.adj[1].curv_id;
+            int sid = mn.adj[1].sgmt_id;
+            auto& s = mg.mcurvs[cid].sgmts[sid];
+            auto r = map_node(s.fr_nid, s.face_id);
+            if (r.has_value()) {
+                auto [vid_, dist] = r.value();
+                std::cout << "candidate " << vid_ << std::endl;
+                if (!occupied_v[vid_]) {
+                    std::cout << "moved to " << vid_ << std::endl;
+                    occupied_v[vid] = false;
+                    occupied_v[vid_] = true;
+                    mnode2dense_v[id] = vid_;
+                }
+            }
+        }
+    }
+
+
     return mnode2dense_v;
 }
 }
