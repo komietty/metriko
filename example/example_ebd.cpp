@@ -104,6 +104,9 @@ int main(int argc, char** argv) {
     visualizer::visualize_tracked_mesh(sdiv_data, *hm, uv2, "sdiv_data");
 
 
+    // todo: early return!
+    polyscope::show(); return 0;
+
     // =======================================================================
     // 2. 3D座標の再構築と、高解像度 Hmesh のインスタンス化
     // =======================================================================

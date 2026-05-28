@@ -118,6 +118,10 @@ void Emesh::assign_first_half(
     const std::map<int, int>& mnode2dense_v,
     const TrackedDenseMesh& data
 ) {
+
+    std::set<int> occupied;
+    for (const auto& vid: mnode2dense_v | vw::values) occupied.insert(vid);
+
     for (int vid: sings) {
         auto tgts = eedges | vw::filter([&](const auto& ee) { return mnode2dense_v.at(ee.fr_nid) == vid; });
         auto v = hm.verts[vid];
@@ -154,6 +158,9 @@ void Emesh::assign_first_half(
                     // otherwise the eedge will have straight uv coord in one triangle
                     if (cL.vert().id == viTo) { ee_data.push_back(Data{h1, f, ee.id, -1}); break; }
                     if (cR.vert().id == viTo) { ee_data.push_back(Data{h0, f, ee.id, -1}); break; }
+
+                    if (!occupied.contains(cL.vert().id) && occupied.contains(cR.vert().id)) {ee_data.push_back(Data{h1, f, ee.id, -1}); break;}
+                    if (!occupied.contains(cR.vert().id) && occupied.contains(cL.vert().id)) {ee_data.push_back(Data{h0, f, ee.id, -1}); break;}
 
                     auto dL = compute_point_to_segment_distance(uvL, uvFr, uvTo);
                     auto dR = compute_point_to_segment_distance(uvR, uvFr, uvTo);

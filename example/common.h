@@ -457,17 +457,19 @@ inline void visualize_eedge(
     size_t counter = 0;
 
     vec flag_idcs = {
-        7,
+        //7,
         //25,
         //26,
         //57,
         //82,
         //164,
-        230,
-        231,
-        211,
-        212,
-        12
+        //107,
+        114,
+        //230,
+        //231,
+        //211,
+        //212,
+        //12
     };
 
     for (const auto& ee: em.eedges) {

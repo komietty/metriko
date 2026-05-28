@@ -86,25 +86,85 @@ std::map<int, int> mnode2dense_v(
     }
 
     // Relaxation process.
-    // Move to another vert if a mnode is movable to other verts and if a vert is close to the bottom edge of the t-junction
-    for (auto& [id, vid] : mnode2dense_v) {
-        std::cout << "id: " << id << ", vid: " << vid << std::endl;
-        auto mn = mg.mnodes[id];
+    vec<vec<int>> dense_adj(sdiv_data.num_verts);
+    for (const auto& poly : sdiv_data.polygons) {
+        for (int i = 0; i < poly.size(); ++i) {
+            int v0 = poly[i];
+            int v1 = poly[(i + 1) % poly.size()];
+            dense_adj[v0].push_back(v1);
+            dense_adj[v1].push_back(v0);
+        }
+    }
+    for (auto& adj : dense_adj) { rg::sort(adj); adj.erase(rg::unique(adj).begin(), adj.end()); }
+
+    for (auto& [nid, vid] : mnode2dense_v) {
+        auto& mn = mg.mnodes[nid];
         if (mn.jt == JunctionType::T && mn.adj.size() == 3) {
 
-            int cid = mn.adj[1].curv_id;
-            int sid = mn.adj[1].sgmt_id;
-            auto& s = mg.mcurvs[cid].sgmts[sid];
-            auto r = map_node(s.fr_nid, s.face_id);
-            if (r.has_value()) {
-                auto [vid_, dist] = r.value();
-                std::cout << "candidate " << vid_ << std::endl;
-                if (!occupied_v[vid_]) {
-                    std::cout << "moved to " << vid_ << std::endl;
-                    occupied_v[vid] = false;
-                    occupied_v[vid_] = true;
-                    mnode2dense_v[id] = vid_;
+            // 3つの adj の中から、他の二つと直角なもの（branch）を選択
+            int branch_idx = -1;
+            double min_dot = 1e9;
+            for (int i = 0; i < 3; ++i) {
+                // i 番目以外の二つの間の角度（ドット積）を確認
+                int j = (i + 1) % 3;
+                int k = (i + 2) % 3;
+
+                auto get_v = [&](int idx) {
+                    auto& as = mn.adj[idx];
+                    auto& sg = mg.mcurvs[as.curv_id].sgmts[as.sgmt_id];
+                    int other = (sg.fr_nid == nid) ? sg.to_nid : sg.fr_nid;
+                    complex d = get_face_uv(mg.mnodes[other], sg.face_id, hm, uv2) - get_face_uv(
+                        mn, sg.face_id, hm, uv2);
+                    return d / std::abs(d);
+                };
+
+                double dot_jk = (get_v(j) * std::conj(get_v(k))).real();
+                if (dot_jk < min_dot) { // 最も反対方向（-1に近い）を向いているペアの「相方」が branch
+                    min_dot = dot_jk;
+                    branch_idx = i;
                 }
+            }
+
+            int cid = mn.adj[branch_idx].curv_id;
+            int sid = mn.adj[branch_idx].sgmt_id;
+            auto& s = mg.mcurvs[cid].sgmts[sid];
+
+            //int cid = mn.adj[1].curv_id;
+            //int sid = mn.adj[1].sgmt_id;
+            //auto& s = mg.mcurvs[cid].sgmts[sid];
+
+            auto uv0 = get_face_uv(mg.mnodes[s.to_nid], s.face_id, hm, uv2); // center
+            auto uv1 = get_face_uv(mg.mnodes[s.fr_nid], s.face_id, hm, uv2); // target
+            auto dir = (uv1 - uv0) / std::abs(uv1 - uv0);
+            auto best_vid = vid;
+            auto get_dist = [&](int v) -> double {
+                for (int i = 0; i < sdiv_data.polygons.size(); ++i) {
+                    if (sdiv_data.face2parent[i] != s.face_id) continue;
+                    for (int j = 0; j < 3; ++j) {
+                        if (sdiv_data.polygons[i][j] == v) {
+                            //auto uv = sdiv_data.uvs[i][j];
+                            //auto d2 = (uv - uv0) / std::abs(uv - uv0);
+                            //double dot = d2.real() * dir.real() + d2.imag() * dir.imag();
+                            //if (dot < 0) continue;
+                            //return dot;
+                            return std::abs(sdiv_data.uvs[i][j] - uv1);
+                        }
+                    }
+                }
+                return 1e18;
+            };
+
+            double min_dist = get_dist(vid);
+            for (int vid_ : dense_adj[vid]) {
+                if (occupied_v[vid_]) continue;
+                double d = get_dist(vid_);
+                if (d < min_dist) { min_dist = d; best_vid = vid_; }
+            }
+
+            if (best_vid != vid) {
+                occupied_v[vid] = false;
+                vid = best_vid;
+                occupied_v[vid] = true;
             }
         }
     }
