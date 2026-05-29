@@ -1,0 +1,4 @@
+#ifndef EXAMPLE_EBD_CPP_GEODESIC_H
+#define EXAMPLE_EBD_CPP_GEODESIC_H
+
+#endif
