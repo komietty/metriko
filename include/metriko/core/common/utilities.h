@@ -114,12 +114,12 @@ inline bool find_extended_intersection(
 }
 
 inline bool find_strict_intersection(
-    const complex &a,
-    const complex &b,
-    const complex &c,
-    const complex &d,
-    double &ratio_a2b,
-    double &ratio_c2d,
+    const complex &a,  // segment AB
+    const complex &b,  // segment AB
+    const complex &c,  // segment CD
+    const complex &d,  // segment CD
+    double &ratio_a2b, // ratio in AB
+    double &ratio_c2d, // ratio in CD
     const double eps = EPS
 ) {
     return find_extended_intersection(a, b, c, d, ratio_a2b, ratio_c2d) &&

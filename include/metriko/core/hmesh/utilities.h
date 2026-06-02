@@ -63,7 +63,6 @@ inline bool is_inside_face(
     return is_inside_triangle(uv1, uv2, uv3, uv);
 }
 
-//
 }
 
 #endif
