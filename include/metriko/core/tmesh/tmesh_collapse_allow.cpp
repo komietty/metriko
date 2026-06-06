@@ -2,6 +2,7 @@
 #include <queue>
 using namespace metriko;
 
+/*
 namespace metriko {
 
 // Extract the "allowed ranges" of hmesh edges that lie inside a Tquad.
@@ -151,3 +152,4 @@ umap<int, Row2d> allowed_ranges_in_tquad(
 }
 
 }
+*/

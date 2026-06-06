@@ -22,11 +22,11 @@ struct Tedge {
 
 struct Thalf {
     const Tmesh* tm = nullptr;
-    int id     = -1;
-    int twid   = -1;
-    int teid   = -1;
-    int nxt_id = -1;
-    int prv_id = -1;
+    int id   = -1;
+    int twid = -1;
+    int teid = -1;
+    int nxid = -1;
+    int pvid = -1;
     bool cano  = false;
 
     const Thalf& twin() const;
@@ -55,7 +55,6 @@ struct Tquad {
 };
 
 struct Tmesh {
-    const Hmesh& hm;
     vec<Tquad> tquads;
     vec<Thalf> thalfs;
     vec<Tedge> tedges;
@@ -66,7 +65,7 @@ struct Tmesh {
     size_t nTE;
     size_t nTH;
 
-    explicit Tmesh(const mc::Mgrph& mg): hm(mg.hm) {
+    explicit Tmesh(const mc::Mgrph& mg) {
         //===== 1. Extract Thalfs and Tedges =====
         for (const auto& mc: mg.mcurvs) {
             vec<mc::Msgmt> sgs;
@@ -128,8 +127,8 @@ struct Tmesh {
                 Thalf* th_out  = outgoing[i];
                 Thalf* th_in   = &thalfs[th_out->twid];
                 Thalf* th_next = outgoing[(i - 1 + n) % n];
-                th_in->nxt_id = th_next->id;
-                th_next->prv_id = th_in->id;
+                th_in->nxid = th_next->id;
+                th_next->pvid = th_in->id;
             }
         }
 
@@ -149,7 +148,7 @@ struct Tmesh {
                 tq.data.push_back({curr_thid, curr_side});
                 visited[curr_thid] = true;
                 auto& curr_th = thalfs[curr_thid];
-                auto& next_th = thalfs[curr_th.nxt_id];
+                auto& next_th = thalfs[curr_th.nxid];
                 if (curr_th.edge().crv_id != next_th.edge().crv_id) curr_side = (curr_side + 1) % 4;
                 curr_thid = next_th.id;
             } while (curr_thid != i);
@@ -164,10 +163,10 @@ struct Tmesh {
 
                 int s = 0;
                 int last_c = thalfs[tq.data[0].thid].edge().crv_id;
-                for (int j = 0; j < tq.data.size(); ++j) {
-                    int this_c = thalfs[tq.data[j].thid].edge().crv_id;
+                for (Tdata& td: tq.data) {
+                    int this_c = thalfs[td.thid].edge().crv_id;
                     if (this_c != last_c) s = (s + 1) % 4;
-                    tq.data[j].side = s;
+                    td.side = s;
                     last_c = this_c;
                 }
             }
@@ -188,9 +187,6 @@ struct Tmesh {
         nTH = thalfs.size();
         nTQ = tquads.size();
     }
-
-    bool collapse_ehalf(int thid);
-    bool collapse_equad(int tqid);
 };
 
 // tquad 内部に含まれる hmesh エッジの許可レンジ (eid -> [r0,r1]) を抽出する（tmesh_collapse_allow.cpp）
@@ -198,7 +194,7 @@ umap<int, Row2d> allowed_ranges_in_tquad(const Tquad& tq, const Tmesh& tm, const
 
 inline const Tedge& Thalf::edge() const { return tm->tedges[teid]; }
 inline const Thalf& Thalf::twin() const { return tm->thalfs[twid]; }
-inline const Thalf& Thalf::next() const { return tm->thalfs[nxt_id]; }
-inline const Thalf& Thalf::prev() const { return tm->thalfs[prv_id]; }
+inline const Thalf& Thalf::next() const { return tm->thalfs[nxid]; }
+inline const Thalf& Thalf::prev() const { return tm->thalfs[pvid]; }
 }
 #endif

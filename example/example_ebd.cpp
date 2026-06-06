@@ -15,6 +15,8 @@
 #include "metriko/core/tmesh/emesh_postprocess.h"
 #include "metriko/core/tmesh/emesh_tutte_params.h"
 #include "metriko/core/hmesh/hpath.h"
+#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/tmesh_mut_collapse_range.h"
 
 using namespace metriko;
 int N = 4;
@@ -100,14 +102,15 @@ int main(int argc, char** argv) {
     for (const Tquad& tq: tm.tquads) {
         for (const Tdata& td: tq.data) {
             int teid = tm.thalfs[td.thid].teid;
-            if (teid == 135) std::cout << "tqid " << tq.id << " teid " << teid << std::endl;
+            if (teid == 8) std::cout << "tqid " << tq.id << " teid " << teid << std::endl;
         }
     }
 
-    // ===== tquad 内で approx_shortest_path =====
+    // ===== tquad 内で approx_shortest_path（TmeshMut 版）=====
+    TmeshMut tmm(mg, tm);
     {
-        int tqid = std::min(53, (int)tm.nTQ - 1);
-        umap<int, Row2d> allowed = allowed_ranges_in_tquad(tm.tquads[tqid], tm, mg);
+        int tqid = std::min(9, (int)tmm.tquads.size() - 1);
+        umap<int, Row2d> allowed = allowed_ranges_in_tquad(tmm.tquads[tqid], tmm);
         std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
 
         // 許可レンジ（=領域）を可視化
