@@ -2,9 +2,11 @@
 #include <igl/cotmatrix.h>
 #include <igl/massmatrix.h>
 #include <polyscope/surface_mesh.h>
+#include <polyscope/curve_network.h>
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/geodesic/heat_method.h"
-#include "metriko/core/hmesh/hpath.h"
+#include "metriko/core/hmesh/hmloc.h"
+#include "polyscope/curve_network.h"
 
 using namespace metriko;
 
@@ -46,7 +48,7 @@ HmLoc compute_opposite_loc(
     const VecXc& grad, // #nF by 1: gradient vector on each face coord
     const HmLoc& loc
 ) {
-    std::visit(overloaded{
+    return std::visit(overloaded{
         [&](const HmLocOnH& l) -> HmLoc {
             Half h_ = hm.halfs[l.id].twin();
             complex o0 = xycf(h_.next().crnr().id);
@@ -57,8 +59,10 @@ HmLoc compute_opposite_loc(
                 complex b0 = xycf(h.next().crnr().id);
                 complex b1 = xycf(h.prev().crnr().id);
                 double r_ab, r_cd;
-                if (find_strict_intersection(a0, a1, b0, b1, r_ab, r_cd))
+                if (find_strict_intersection(a0, a1, b0, b1, r_ab, r_cd)) {
+                    std::cout << "hid: " << h.id << std::endl;
                     return HmLocOnH(h.id, r_cd);
+                }
             }
             throw std::runtime_error("");
         },
@@ -67,12 +71,13 @@ HmLoc compute_opposite_loc(
             for (Half h: f.adjHalfs()) {
                 complex a0 = l.xy;
                 complex a1 = l.xy + grad(l.id) * 100.;
-                std::cout << "grad: " << grad(l.id) << std::endl;
                 complex b0 = xycf(h.next().crnr().id);
                 complex b1 = xycf(h.prev().crnr().id);
                 double r_ab, r_cd;
-                if (find_strict_intersection(a0, a1, b0, b1, r_ab, r_cd))
+                if (find_strict_intersection(a0, a1, b0, b1, r_ab, r_cd)) {
+                    std::cout << "hid: " << h.id << std::endl;
                     return HmLocOnH(h.id, r_cd);
+                }
             }
             throw std::runtime_error("");
         },
@@ -94,7 +99,7 @@ vec<HmLoc> compute_geodesic(
             Face  f = hm.faces[f0.id];
             Vert  v = hm.verts[v1.id];
             HmLoc l = loc0;
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 0; i < 7; ++i) {
                 l = compute_opposite_loc(hm, xycf, grad, l);
                 path.push_back(l);
             }
@@ -136,7 +141,12 @@ int main(int argc, char** argv) {
     VecXc xycf = compute_crnr_coord_inface(hm);
 
     // compute geodesic
-    vec path = compute_geodesic(hm, xycf, grad, HmLocOnF(0, complex(0.5, 0.01)), HmLocOnV(0));
+    Face f = hm.faces[10];
+    complex c0 = xycf(f.half().crnr().id);
+    complex c1 = xycf(f.half().next().crnr().id);
+    complex c2 = xycf(f.half().prev().crnr().id);
+    complex center = c0 * 0.5 + c1 * 0.25 + c2 * 0.25;
+    vec path = compute_geodesic(hm, xycf, grad, HmLocOnF(f.id, center), HmLocOnV(0));
 
     // 3. Visualization
     MatXd G(hm.nF, 3);
@@ -157,6 +167,16 @@ int main(int argc, char** argv) {
     q_phi->setEnabled(true);
     q_phi->setVectorLengthScale(0.01, false);
     q_phi->setVectorColor({1.0, 0.5, 0.0}); // Orange
+
+    MatXd P(path.size(), 3);
+    for (size_t i = 0; i < path.size(); ++i) {
+        P.row(i) = get_ptloc_pos(hm, path[i]);   // hpath.h の変換関数
+    }
+    auto* psPath = polyscope::registerCurveNetworkLine("geodesic path", P);
+    psPath->setColor({1.0, 0.0, 0.0});   // 赤
+    psPath->setRadius(0.003);
+
+
     polyscope::show();
     return 0;
 }

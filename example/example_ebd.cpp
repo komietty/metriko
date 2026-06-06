@@ -32,7 +32,7 @@ MatXi F;
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     hm = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::CurvatureAligned);
+    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*hm  , seam);
@@ -96,6 +96,10 @@ int main(int argc, char** argv) {
     //visualizer::visualize_tedge(tm, mg, uv2);
     //visualizer::debug_tquad_sides(tm, mg, uv2);
 
+    // todo: early return!
+    polyscope::show(); return 0;
+
+
     auto sdiv_data = generate_tracked_data(*hm, uv2);
     //compute_midpoint_subdivision(sdiv_data, 1);
     //compute_barycentric_subdivision(sdiv_data, 1);
@@ -103,9 +107,6 @@ int main(int argc, char** argv) {
     //compute_barycentric_subdivision(sdiv_data, 1);
     visualizer::visualize_tracked_mesh(sdiv_data, *hm, uv2, "sdiv_data");
 
-
-    // todo: early return!
-    polyscope::show(); return 0;
 
     // =======================================================================
     // 2. 3D座標の再構築と、高解像度 Hmesh のインスタンス化

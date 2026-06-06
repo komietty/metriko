@@ -87,15 +87,9 @@ endif()
 #========== Done finding OpenMp ========================================================================================
 
 add_library(${PROJECT_NAME} STATIC
-        include/metriko/core/tmesh/motorcycle.cpp
-        include/metriko/core/tmesh/emesh_embedding.cpp
-        include/metriko/core/tmesh/emesh_embedding_node.cpp
         include/metriko/core/tmesh/motorcycle.h
-        include/metriko/core/tmesh/emesh_subdivide.h
-        include/metriko/core/tmesh/emesh.h
-        include/metriko/core/tmesh/emesh_collapse_util.h
-        include/metriko/core/tmesh/emesh_collapse_ehalf.h
-        include/metriko/core/tmesh/emesh_collapse_equad.h
+        include/metriko/core/tmesh/motorcycle.cpp
+        include/metriko/core/tmesh/tmesh_collapse_thalf.cpp
         include/metriko/core/quantization/quantization.h
         include/metriko/core/geodesic/heat_method.h
 )

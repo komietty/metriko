@@ -3,11 +3,7 @@
 //--- This Source Code Form is subject to the terms of the Mozilla Public License v.2.0.
 #ifndef METRIKO_TMESH_H
 #define METRIKO_TMESH_H
-
 #include "motorcycle.h"
-#include <vector>
-#include <cassert>
-#include <complex>
 
 namespace metriko {
 
@@ -189,6 +185,9 @@ struct Tmesh {
         nTH = thalfs.size();
         nTQ = tquads.size();
     }
+
+    void collapse_ehalf(int thid);
+    void collapse_equad(int tqid);
 };
 
 inline const Tedge& Thalf::edge() const { return tm->tedges[teid]; }
