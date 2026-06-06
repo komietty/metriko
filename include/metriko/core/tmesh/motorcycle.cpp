@@ -200,7 +200,7 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
         bool cd_end_snappable = cd > 1 - TOLERANCE_EDGE_CD;
 
         auto& cv = mg->mcurvs[sg_cd.curv_id];
-        auto  it = rg::find(cv.sgmts, sg_cd);
+        auto it = rg::find_if(cv.sgmts, [&](const Msgmt& s) { return s.fr_nid == sg_cd.fr_nid && s.to_nid == sg_cd.to_nid; });
         buff.end = true;
 
         auto snap = [&](int nid) {

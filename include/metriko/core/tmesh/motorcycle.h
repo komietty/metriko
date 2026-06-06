@@ -30,7 +30,7 @@ struct Mport {
 struct OnVert { int vid;             bool operator==(const OnVert&) const = default; };
 struct OnEdge { int eid; double r;   bool operator==(const OnEdge&) const = default; };
 struct OnFace { int fid; complex uv; bool operator==(const OnFace&) const = default; };
-using MnodeLoc = std::variant<std::monostate, OnVert, OnEdge, OnFace>;
+using MnodeLoc = std::variant<OnVert, OnEdge, OnFace>;
 enum class JunctionType { None, F, T, C };
 
 struct Asgmt {
@@ -47,20 +47,17 @@ struct Mnode {
 struct Msgmt {
     int fr_nid  = -1;
     int to_nid  = -1;
+    int this_id = -1;
     int curv_id = -1;
     int face_id = -1;
-    int this_id = -1;
-    int prev_id = -1;
-    int next_id = -1;
-    bool operator==(const Msgmt& s) const { return fr_nid == s.fr_nid && to_nid == s.to_nid; }
 };
 
 struct Mbuff {
     complex uv = {0, 0};
     complex dr = {0, 0};
-    int  cid = -1; // crnr id
-    int  hid = -1; // half id
-    double r = -1; // ratio
+    int  cid = -1; // crnr_id; better using variant
+    int  hid = -1; // half_id; better using variant
+    double r = -1; // ratio.
     bool bgn = false;
     bool end = false;
 };
@@ -72,18 +69,6 @@ struct Mcurv {
     Mbuff buff = {};
 
     bool operator==(const Mcurv &c) const { return id == c.id; }
-
-    void post_process() {
-        for (int i = 0; i < sgmts.size(); ++i) {
-            sgmts[i].curv_id = id;
-            sgmts[i].this_id  = i;
-        }
-        for (int i = 0; i < sgmts.size() - 1; ++i) {
-            sgmts[i].next_id = i + 1;
-            sgmts[i + 1].prev_id = i;
-        }
-    }
-
     void add_segment(const Hmesh& hm, const VecXc& cf);
     int resolve_bgn_node(const Hmesh& hm, bool bgn, int cid) const;
 };
@@ -158,8 +143,7 @@ inline complex get_face_uv(const Mnode& mn, int fid, const Hmesh& hm, const VecX
             if (h.edge() == e) {
                 auto uv0 = cf[h.next().crnr().id];
                 auto uv1 = cf[h.prev().crnr().id];
-                if ( h.isCanonical()) return lerp(uv0, uv1, r);
-                if (!h.isCanonical()) return lerp(uv1, uv0, r);
+                return lerp(uv0, uv1, h.isCanonical() ? r : 1 - r);
             }
         throw std::runtime_error("invalid arguments");
     };
@@ -168,7 +152,6 @@ inline complex get_face_uv(const Mnode& mn, int fid, const Hmesh& hm, const VecX
         [&](const OnVert& v) -> complex { return on_crnr_uv(hm.faces[fid], hm.verts[v.vid]); },
         [&](const OnEdge& e) -> complex { return on_edge_uv(hm.faces[fid], hm.edges[e.eid], e.r); },
         [&](const OnFace& f) -> complex { return f.uv; },
-        [](std::monostate)   -> complex { throw std::runtime_error("Invalid Mnode"); }
     }, mn.loc);
 }
 
@@ -210,7 +193,11 @@ struct  Mgrph {
         collect_node_adjacency();
         sort_node_adjacency();
 
-        for (auto &c: mcurvs) c.post_process();
+        for (auto &c: mcurvs) {
+        for (int i = 0; i < c.sgmts.size(); ++i) {
+            c.sgmts[i].curv_id = c.id;
+            c.sgmts[i].this_id  = i;
+        }}
     }
 
     void gen_ports(const VecXi& singular);
