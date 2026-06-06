@@ -285,7 +285,8 @@ inline void debug_tquad_sides(
 
     for (const auto& tq : tm.tquads) {
         // 1. Quadが持つ一意なsideを収集
-        std::set<int> unique_sides(tq.sides.begin(), tq.sides.end());
+        std::set<int> unique_sides;
+        for (const auto& d : tq.data) unique_sides.insert(d.side);
 
         // 0, 1, 2, 3 が全て揃っているかチェック
         bool valid = (unique_sides.size() == 4) &&
@@ -301,10 +302,10 @@ inline void debug_tquad_sides(
             std::cout << "\n";
 
             std::cout << "  -> Details (Index: thid [curv_id] = side):\n";
-            for (int i = 0; i < tq.thids.size(); ++i) {
-                int thid = tq.thids[i];
+            for (int i = 0; i < tq.data.size(); ++i) {
+                int thid = tq.data[i].thid;
                 int cid = tm.thalfs[thid].edge().crv_id;
-                int side = tq.sides[i];
+                int side = tq.data[i].side;
                 std::cout << "       [" << i << "]: Thalf " << thid
                           << " [Curv " << cid << "] = Side " << side << "\n";
             }
@@ -312,9 +313,9 @@ inline void debug_tquad_sides(
         }
 
         // 2. Polyscope用のジオメトリ構築 (visualize_tedge と同等)
-        for (int i = 0; i < tq.thids.size(); ++i) {
-            int thid = tq.thids[i];
-            int side = tq.sides[i];
+        for (int i = 0; i < tq.data.size(); ++i) {
+            int thid = tq.data[i].thid;
+            int side = tq.data[i].side;
             const auto& th = tm.thalfs[thid];
             const auto& te = th.edge();
 

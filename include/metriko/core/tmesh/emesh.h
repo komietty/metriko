@@ -129,10 +129,10 @@ struct Emesh {
         }
 
         for (size_t i = 0; i < tm.tquads.size(); ++i) {
-            const auto& [id, thids, sides] = tm.tquads[i];
+            const auto& tq = tm.tquads[i];
             vec<Edata> data_;
-            for (int j = 0; j < thids.size(); ++j) { data_.push_back({thids[j], sides[j]}); }
-            equads[i] = { .id = id, .data = data_ };
+            for (const Tdata& d : tq.data) { data_.push_back({d.thid, d.side}); }
+            equads[i] = { .id = tq.id, .data = data_ };
         }
         */
     }

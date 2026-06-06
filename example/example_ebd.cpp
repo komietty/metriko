@@ -14,6 +14,7 @@
 #include "metriko/core/tmesh/emesh_collapse_equad.h"
 #include "metriko/core/tmesh/emesh_postprocess.h"
 #include "metriko/core/tmesh/emesh_tutte_params.h"
+#include "metriko/core/hmesh/hpath.h"
 
 using namespace metriko;
 int N = 4;
@@ -79,14 +80,14 @@ int main(int argc, char** argv) {
 
     /// ---- visualize mesh ---- ///
     {
-        auto s = visualizer::visualize_mesh_with_uv(hm->pos, hm->idx, uv1, "base_mesh", false);
+        auto s = visualizer::visualize_mesh_with_uv(hm->pos, hm->idx, uv1, "base_mesh", true);
         //visualizer::visualize_seam(*hm, seam, "base_seam", cmbf->matching);
         //visualizer::visualize_frosy_field(s, *hm, *rawf, *cmbf, N);
     }
 
     ///--- gen mport, medge ---///
     auto mg = mc::Mgrph(*hm, uv2, cmbf->matching, cmbf->singular);
-    visualizer::visualize_motorcycle_graph(mg, uv2);
+    //visualizer::visualize_motorcycle_graph(mg, uv2);
     //visualizer::visualize_node_adjacency(mg, uv2);
 
     auto tm = Tmesh(mg);
@@ -95,6 +96,55 @@ int main(int argc, char** argv) {
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     //visualizer::visualize_tedge(tm, mg, uv2);
     //visualizer::debug_tquad_sides(tm, mg, uv2);
+
+    for (const Tquad& tq: tm.tquads) {
+        for (const Tdata& td: tq.data) {
+            int teid = tm.thalfs[td.thid].teid;
+            if (teid == 135) std::cout << "tqid " << tq.id << " teid " << teid << std::endl;
+        }
+    }
+
+    // ===== tquad 内で approx_shortest_path =====
+    {
+        int tqid = std::min(53, (int)tm.nTQ - 1);
+        umap<int, Row2d> allowed = allowed_ranges_in_tquad(tm.tquads[tqid], tm, mg);
+        std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
+
+        // 許可レンジ（=領域）を可視化
+        std::vector<glm::vec3> rns;
+        std::vector<std::array<size_t, 2>> res;
+        size_t rc = 0;
+        for (auto& [eid, rng] : allowed) {
+            Half h = hm->edges[eid].half();
+            Row3d p0 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, rng.x()}));
+            Row3d p1 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, rng.y()}));
+            rns.emplace_back(p0.x(), p0.y(), p0.z());
+            rns.emplace_back(p1.x(), p1.y(), p1.z());
+            res.push_back({rc, rc + 1});
+            rc += 2;
+        }
+        auto* reg = polyscope::registerCurveNetwork("tquad " + std::to_string(tqid) + " allowed region", rns, res);
+        reg->setColor({0.2, 0.6, 1.0});
+        reg->setRadius(0.0012);
+        reg->resetTransform();
+
+        // 許可エッジ2本を端点に approx_shortest_path
+        std::vector<int> eids;
+        for (auto& [eid, rng] : allowed) eids.push_back(eid);
+        if (eids.size() >= 2) {
+            HmLoc bgn = HmLoc(HmLocOnH{hm->edges[eids.front()].half().id, 0.5});
+            HmLoc end = HmLoc(HmLocOnH{hm->edges[eids.back()].half().id, 0.5});
+            vec<HmLoc> path = approx_shortest_path(8, *hm, bgn, end, allowed);
+            if (!path.empty()) {
+                MatXd P((int)path.size(), 3);
+                for (int i = 0; i < (int)path.size(); ++i) P.row(i) = get_ptloc_pos(*hm, path[i]);
+                auto* pc = polyscope::registerCurveNetworkLine("tquad " + std::to_string(tqid) + " steiner path", P);
+                pc->setColor({1.0, 0.0, 0.0});
+                pc->setRadius(0.003);
+                pc->resetTransform();
+            }
+        }
+    }
 
     // todo: early return!
     polyscope::show(); return 0;

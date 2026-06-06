@@ -37,20 +37,25 @@ struct Thalf {
     int nid_to() const { return cano ? edge().to_nid : edge().fr_nid; }
 };
 
+struct Tdata {
+    int thid;
+    int side;
+};
+
 struct Tquad {
     int id = -1;
-    vec<int> thids;
-    vec<int> sides;
+    vec<Tdata> data;
 
     vec<int> thids_by_side(int side) const {
-        return vw::zip(thids, sides)
-            | vw::filter([&](const auto& p) { return std::get<1>(p) == side; })
-            | vw::elements<0>
+        return data
+            | vw::filter([&](const Tdata& d) { return d.side == side; })
+            | vw::transform([](const Tdata& d) { return d.thid; })
             | rg::to<vec<int>>();
     }
 };
 
 struct Tmesh {
+    const Hmesh& hm;
     vec<Tquad> tquads;
     vec<Thalf> thalfs;
     vec<Tedge> tedges;
@@ -61,7 +66,7 @@ struct Tmesh {
     size_t nTE;
     size_t nTH;
 
-    explicit Tmesh(const mc::Mgrph& mg) {
+    explicit Tmesh(const mc::Mgrph& mg): hm(mg.hm) {
         //===== 1. Extract Thalfs and Tedges =====
         for (const auto& mc: mg.mcurvs) {
             vec<mc::Msgmt> sgs;
@@ -141,8 +146,7 @@ struct Tmesh {
 
             do {
                 if (visited[curr_thid]) break;
-                tq.thids.push_back(curr_thid);
-                tq.sides.push_back(curr_side);
+                tq.data.push_back({curr_thid, curr_side});
                 visited[curr_thid] = true;
                 auto& curr_th = thalfs[curr_thid];
                 auto& next_th = thalfs[curr_th.nxt_id];
@@ -151,20 +155,19 @@ struct Tmesh {
             } while (curr_thid != i);
 
             // Rotate until sides data is sequential
-            auto& fst_th = thalfs[tq.thids.front()];
-            auto& lst_th = thalfs[tq.thids.back()];
+            auto& fst_th = thalfs[tq.data.front().thid];
+            auto& lst_th = thalfs[tq.data.back().thid];
             if (fst_th.edge().crv_id == lst_th.edge().crv_id) {
-                int f = tq.sides.front();
-                int n = rg::distance(tq.sides | vw::take_while([=](int x) { return x == f; }));
-                rg::rotate(tq.sides, tq.sides.begin() + n);
-                rg::rotate(tq.thids, tq.thids.begin() + n);
+                int f = tq.data.front().side;
+                int n = rg::distance(tq.data | vw::take_while([=](const Tdata& d) { return d.side == f; }));
+                rg::rotate(tq.data, tq.data.begin() + n);
 
                 int s = 0;
-                int last_c = thalfs[tq.thids[0]].edge().crv_id;
-                for (int j = 0; j < tq.thids.size(); ++j) {
-                    int this_c = thalfs[tq.thids[j]].edge().crv_id;
+                int last_c = thalfs[tq.data[0].thid].edge().crv_id;
+                for (int j = 0; j < tq.data.size(); ++j) {
+                    int this_c = thalfs[tq.data[j].thid].edge().crv_id;
                     if (this_c != last_c) s = (s + 1) % 4;
-                    tq.sides[j] = s;
+                    tq.data[j].side = s;
                     last_c = this_c;
                 }
             }
@@ -174,11 +177,11 @@ struct Tmesh {
         th2quad.resize(thalfs.size());
         th2side.resize(thalfs.size());
         th2iter.resize(thalfs.size());
-        for (auto& [id, thids, sides] : tquads) {
-        for (int j = 0; j < thids.size(); ++j) {
-            th2quad[thids[j]] = id;
-            th2side[thids[j]] = sides[j];
-            th2iter[thids[j]] = j;
+        for (auto& tq : tquads) {
+        for (int j = 0; j < tq.data.size(); ++j) {
+            th2quad[tq.data[j].thid] = tq.id;
+            th2side[tq.data[j].thid] = tq.data[j].side;
+            th2iter[tq.data[j].thid] = j;
         }}
 
         nTE = tedges.size();
@@ -186,9 +189,12 @@ struct Tmesh {
         nTQ = tquads.size();
     }
 
-    void collapse_ehalf(int thid);
-    void collapse_equad(int tqid);
+    bool collapse_ehalf(int thid);
+    bool collapse_equad(int tqid);
 };
+
+// tquad 内部に含まれる hmesh エッジの許可レンジ (eid -> [r0,r1]) を抽出する（tmesh_collapse_allow.cpp）
+umap<int, Row2d> allowed_ranges_in_tquad(const Tquad& tq, const Tmesh& tm, const mc::Mgrph& mg);
 
 inline const Tedge& Thalf::edge() const { return tm->tedges[teid]; }
 inline const Thalf& Thalf::twin() const { return tm->thalfs[twid]; }
