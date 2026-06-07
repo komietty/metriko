@@ -7,7 +7,11 @@
 namespace metriko {
 struct TmeshMut;
 
-struct TedgeMut { vec<int> nids; };
+struct TedgeMut {
+    vec<int> nids;
+    void insert_locs_front(vec<int> locs) { nids.insert(nids.begin(), locs.begin(), locs.end()); }
+    void insert_locs_after(vec<int> locs) { nids.insert(nids.end()  , locs.begin(), locs.end()); }
+};
 
 struct ThalfMut {
     const TmeshMut* tm = nullptr;
@@ -21,6 +25,9 @@ struct ThalfMut {
     bool bgn  = false;
     bool end  = false;
     double x  = -1;
+
+    const HmLoc& loc_fr() const;
+    const HmLoc& loc_to() const;
 };
 
 struct TdataMut {
@@ -53,8 +60,7 @@ struct TmeshMut {
     ): hm(mg.hm) {
         const VecXc& cf = mg.cf;
 
-        // 1. nodes: MnodeLoc -> HmLoc (index は mnode id と一致させる)
-        //    OnFace は uv 空間の座標なので 3D 経由で面ローカル xy に直す
+        // 1. nodes: MnodeLoc -> HmLoc
         tnodes.reserve(mg.mnodes.size());
         for (const mc::Mnode& mn : mg.mnodes) {
             tnodes.push_back(std::visit(overloaded{
@@ -63,15 +69,14 @@ struct TmeshMut {
                 [&](const HmLocOnE& e) -> HmLoc { return HmLocOnE{e.id, e.r}; },
                 [&](const HmLocOnP& f) -> HmLoc {
                     Face  fc = hm.faces[f.id];
-                    Row3d p  = conversion_2d_3d(fc, cf, f.uv);           // uv -> 3D
-                    Row3d v  = p - fc.half().tail().pos();               // 面ローカル原点からの差
+                    Row3d p  = conversion_2d_3d(fc, cf, f.uv);
+                    Row3d v  = p - fc.half().tail().pos();
                     return HmLocOnF{f.id, complex(v.dot(fc.basisX()), v.dot(fc.basisY()))};
                 },
             }, mn.loc));
         }
 
         // 2. tedges: segs(Msgmt 列) -> 通過 node id の連鎖
-        //    seg[i].to_nid == seg[i+1].fr_nid なので「先頭の fr + 各 seg の to」で全 node が得られる
         tedges.reserve(tm.tedges.size());
         for (const Tedge& te : tm.tedges) {
             TedgeMut tem;
@@ -81,7 +86,7 @@ struct TmeshMut {
             tedges.push_back(std::move(tem));
         }
 
-        // 3. thalfs: Tmesh の thalf をミラー。quad id / bgn / end を half に載せる
+        // 3. thalfs: Tmesh の thalf をミラー。 quad id / bgn / end を half に載せる
         thalfs.reserve(tm.thalfs.size());
         for (const Thalf& th : tm.thalfs) {
             const Tedge& te = tm.tedges[th.teid];
@@ -96,7 +101,7 @@ struct TmeshMut {
                 .cano = th.cano,
                 .bgn  = th.cano && te.isBgn,
                 .end  = th.cano && te.isEnd,
-                // .x は quantization 由来。必要なら別途設定（ctor に X が無いので既定 -1）
+                .x    = tm.tedges[th.teid].len
             });
         }
 
@@ -110,7 +115,15 @@ struct TmeshMut {
             tquads.push_back(std::move(tqm));
         }
     }
+
+    bool collapse_tquad(int tqid);
+    bool collapse_thalf(int thid);
+    vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
+
 };
+
+inline const HmLoc& ThalfMut::loc_fr() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
+inline const HmLoc& ThalfMut::loc_to() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
 }
 
 #endif

@@ -16,7 +16,6 @@
 #include "metriko/core/tmesh/emesh_tutte_params.h"
 #include "metriko/core/hmesh/hpath.h"
 #include "metriko/core/tmesh/tmesh_mut.h"
-#include "metriko/core/tmesh/tmesh_mut_collapse_range.h"
 
 using namespace metriko;
 int N = 4;
@@ -110,17 +109,17 @@ int main(int argc, char** argv) {
     TmeshMut tmm(mg, tm);
     {
         int tqid = std::min(9, (int)tmm.tquads.size() - 1);
-        umap<int, Row2d> allowed = allowed_ranges_in_tquad(tmm.tquads[tqid], tmm);
+        auto allowed = tmm.allowed_range(tqid);  // vec<(eid, r0, r1)>
         std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
 
         // 許可レンジ（=領域）を可視化
         std::vector<glm::vec3> rns;
         std::vector<std::array<size_t, 2>> res;
         size_t rc = 0;
-        for (auto& [eid, rng] : allowed) {
+        for (auto& [eid, r0, r1] : allowed) {
             Half h = hm->edges[eid].half();
-            Row3d p0 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, rng.x()}));
-            Row3d p1 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, rng.y()}));
+            Row3d p0 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r0}));
+            Row3d p1 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r1}));
             rns.emplace_back(p0.x(), p0.y(), p0.z());
             rns.emplace_back(p1.x(), p1.y(), p1.z());
             res.push_back({rc, rc + 1});
@@ -133,7 +132,7 @@ int main(int argc, char** argv) {
 
         // 許可エッジ2本を端点に approx_shortest_path
         std::vector<int> eids;
-        for (auto& [eid, rng] : allowed) eids.push_back(eid);
+        for (auto& t : allowed) eids.push_back(std::get<0>(t));
         if (eids.size() >= 2) {
             HmLoc bgn = HmLoc(HmLocOnH{hm->edges[eids.front()].half().id, 0.5});
             HmLoc end = HmLoc(HmLocOnH{hm->edges[eids.back()].half().id, 0.5});

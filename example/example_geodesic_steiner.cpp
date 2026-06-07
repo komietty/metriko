@@ -21,11 +21,11 @@ int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     Hmesh hm(V, F);
 
-    // 許可領域：エッジID -> [r0,r1]（マップに無いエッジ = 横切り禁止）
-    umap<int, Row2d> allowed;
-    for (Edge e : hm.edges) allowed[e.id] = Row2d(0.0, 1.0);
+    // 許可領域：(eid, r0, r1) のリスト（含まれないエッジ = 横切り禁止）
+    vec<std::tuple<int, double, double>> allowed;
+    for (Edge e : hm.edges) allowed.emplace_back(e.id, 0.0, 1.0);
     // 制限例（各エッジ中央60%だけ通す）:
-    //   for (Edge e : hm.edges) allowed[e.id] = Row2d(0.2, 0.8);
+    //   for (Edge e : hm.edges) allowed.emplace_back(e.id, 0.2, 0.8);
 
     // 面内点を重心座標で作り、面ローカル xy を持つ HmLocOnF に
     auto faceInteriorLoc = [&](int fid, double b0, double b1, double b2) -> HmLoc {
