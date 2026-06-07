@@ -12,6 +12,9 @@ namespace metriko {
 template<class... Ts>
 struct overloaded : Ts... { using Ts::operator()...; };
 
+constexpr auto circular_prev = [](auto& c, auto it) { return it == c.begin() ? std::prev(c.end()) : std::prev(it); };
+constexpr auto circular_next = [](auto& c, auto it) { auto n = std::next(it); return n == c.end() ? c.begin() : n; };
+
 inline complex get_quater_rot(int i) {
     switch ((i % 4 + 4) % 4) {
         case 0: return {1, 0};

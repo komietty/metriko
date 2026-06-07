@@ -6,9 +6,6 @@
 
 namespace metriko {
 
-constexpr auto circular_prev = [](auto& c, auto it) { return it == c.begin() ? std::prev(c.end()) : std::prev(it); };
-constexpr auto circular_next = [](auto& c, auto it) { auto n = std::next(it); return n == c.end() ? c.begin() : n; };
-
 inline bool Emesh::collapse_ehalf(const int ehid) {
     auto& eh = ehalfs[ehid];
     auto& eq = equads[eh.eqid];

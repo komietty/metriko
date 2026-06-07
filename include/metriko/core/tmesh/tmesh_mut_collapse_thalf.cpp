@@ -1,11 +1,5 @@
 #include "./tmesh_mut.h"
-#include "metriko/core/hmesh/hpath.h"
-
-namespace metriko {
-
-constexpr auto circular_prev = [](auto& c, auto it) { return it == c.begin() ? std::prev(c.end()) : std::prev(it); };
-constexpr auto circular_next = [](auto& c, auto it) { auto n = std::next(it); return n == c.end() ? c.begin() : n; };
-
+using namespace metriko;
 
 bool TmeshMut::collapse_thalf(int thid) {
     auto& th_crr = thalfs[thid];
@@ -63,5 +57,4 @@ bool TmeshMut::collapse_thalf(int thid) {
     else                  { te_nxt.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_front(te_crr.nids); else te_twn_adj.insert_locs_after(te_crr.nids); }
 
     return true;
-}
 }

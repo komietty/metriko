@@ -2,6 +2,7 @@
 #define EXAMPLE_EBD_CPP_TMESH_MUT_H
 #include "tmesh.h"
 #include "metriko/core/hmesh/hmloc.h"
+#include "metriko/core/hmesh/hpath.h"
 #include "metriko/core/hmesh/utilities.h"
 
 namespace metriko {
