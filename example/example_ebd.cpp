@@ -148,6 +148,33 @@ int main(int argc, char** argv) {
         }
     }
 
+    // ===== thid=85 で collapse して前後を可視化 =====
+    {
+        auto draw_tedges = [&](const TmeshMut& m, const std::string& name, glm::vec3 col) {
+            std::vector<glm::vec3> ns;
+            std::vector<std::array<size_t, 2>> es;
+            size_t c = 0;
+            for (const TedgeMut& te : m.tedges) {
+                for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
+                    Row3d a = get_ptloc_pos(*hm, m.tnodes[te.nids[i]]);
+                    Row3d b = get_ptloc_pos(*hm, m.tnodes[te.nids[i + 1]]);
+                    ns.emplace_back(a.x(), a.y(), a.z());
+                    ns.emplace_back(b.x(), b.y(), b.z());
+                    es.push_back({c, c + 1}); c += 2;
+                }
+            }
+            auto* cn = polyscope::registerCurveNetwork(name, ns, es);
+            cn->setColor(col); cn->setRadius(0.0015); cn->resetTransform();
+        };
+
+        if (tmm.collapse_thalf(85)) {
+            draw_tedges(tmm, "tmesh after collapse(84)", {1.0, 0.3, 0.0});
+            std::cout << "collapse_thalf(84) done" << std::endl;
+        } else {
+            std::cout << "collapse_thalf(84) failed (no path)" << std::endl;
+        }
+    }
+
     // todo: early return!
     polyscope::show(); return 0;
 

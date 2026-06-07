@@ -68,8 +68,22 @@ int main(int argc, char** argv) {
             CHECK(r0 < r1);
         }
 
-        std::cout << "[test_tmesh] OK  " << mesh << "  nTQ=" << tm.nTQ
-                  << "  allowed=" << r.size() << "/" << hm.nE << "\n";
+        // --- collapse 後も「各 tquad の対辺の x 合計が等しい」（quantization の quad 制約）---
+        // x = 量子化値（teid ごと）
+        auto opp_balanced = [&](const TmeshMut& m) -> bool {
+            for (const TquadMut& q : m.tquads) {
+                if (q.data.empty()) continue;
+                double s[4] = {0, 0, 0, 0};
+                for (const TdataMut& d : q.data) s[d.side] += m.thalfs[d.thid].x;
+                if (std::abs(s[0] - s[2]) > 1e-6 || std::abs(s[1] - s[3]) > 1e-6) return false;
+            }
+            return true;
+        };
+
+        for (auto& th : tmm.thalfs) th.x = X[th.teid];
+        CHECK(opp_balanced(tmm));
+
+        std::cout << "[test_tmesh] OK  " << mesh << "  nTQ=" << tm.nTQ << "  allowed=" << r.size() << "/" << hm.nE << "\n";
     }
     return 0;
 }
