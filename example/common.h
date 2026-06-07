@@ -151,7 +151,7 @@ inline void visualize_node_adjacency(const mc::Mgrph& mg, const VecXc& uv, bool 
 
         for (int i = 0; i < mn.adj.size(); ++i) {
             const auto& as = mn.adj[i];
-            const auto& sg = mg.mcurvs[as.curv_id].sgmts[as.sgmt_id];
+            const auto& sg = mg.mcurvs[as.x()].sgmts[as.y()];
 
             bool is_outgoing = sg.fr_nid == nid;
             int fid = sg.face_id;
