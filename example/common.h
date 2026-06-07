@@ -71,10 +71,10 @@ inline void visualize_motorcycle_graph(
     vec<bool> mnodes_reserved = vec(mg.mnodes.size(), false);
     size_t counter = 0;
 
-    auto get_loc_type_value = [](const mc::MnodeLoc& loc) -> double {
-        if (std::holds_alternative<mc::OnVert>(loc)) return 1.;
-        if (std::holds_alternative<mc::OnEdge>(loc)) return 2.;
-        if (std::holds_alternative<mc::OnFace>(loc)) return 3.;
+    auto get_loc_type_value = [](const HmLoc& loc) -> double {
+        if (std::holds_alternative<HmLocOnV>(loc)) return 1.;
+        if (std::holds_alternative<HmLocOnE>(loc)) return 2.;
+        if (std::holds_alternative<HmLocOnP>(loc)) return 3.;
         return 0.;
     };
 

@@ -58,13 +58,14 @@ struct TmeshMut {
         tnodes.reserve(mg.mnodes.size());
         for (const mc::Mnode& mn : mg.mnodes) {
             tnodes.push_back(std::visit(overloaded{
-                [&](const mc::OnVert& v) -> HmLoc { return HmLocOnV{v.vid}; },
-                [&](const mc::OnEdge& e) -> HmLoc { return HmLocOnE{e.eid, e.r}; },
-                [&](const mc::OnFace& f) -> HmLoc {
-                    Face  fc = hm.faces[f.fid];
+                [&](const auto&     _) -> HmLoc { throw std::runtime_error("no impl"); },
+                [&](const HmLocOnV& v) -> HmLoc { return HmLocOnV{v.id}; },
+                [&](const HmLocOnE& e) -> HmLoc { return HmLocOnE{e.id, e.r}; },
+                [&](const HmLocOnP& f) -> HmLoc {
+                    Face  fc = hm.faces[f.id];
                     Row3d p  = conversion_2d_3d(fc, cf, f.uv);           // uv -> 3D
                     Row3d v  = p - fc.half().tail().pos();               // 面ローカル原点からの差
-                    return HmLocOnF{f.fid, complex(v.dot(fc.basisX()), v.dot(fc.basisY()))};
+                    return HmLocOnF{f.id, complex(v.dot(fc.basisX()), v.dot(fc.basisY()))};
                 },
             }, mn.loc));
         }

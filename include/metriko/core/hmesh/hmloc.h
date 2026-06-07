@@ -10,9 +10,14 @@ struct HmLocOnC { int id;             bool operator==(const HmLocOnC&) const = d
 struct HmLocOnE { int id; double r;   bool operator==(const HmLocOnE&) const = default; };
 struct HmLocOnH { int id; double r;   bool operator==(const HmLocOnH&) const = default; };
 struct HmLocOnF { int id; complex xy; bool operator==(const HmLocOnF&) const = default; };
-using HmLoc = std::variant<HmLocOnV, HmLocOnE, HmLocOnF, HmLocOnH, HmLocOnC>;
+struct HmLocOnP { int id; complex uv; bool operator==(const HmLocOnP&) const = default; }; // parameter space coord in face
 
-inline Row3d get_ptloc_pos(const Hmesh& hm, const HmLoc& loc) {
+using HmLoc = std::variant<HmLocOnV, HmLocOnE, HmLocOnF, HmLocOnH, HmLocOnC, HmLocOnP>;
+
+inline Row3d get_ptloc_pos(
+    const Hmesh& hm,
+    const HmLoc& hl
+) {
     return std::visit(overloaded{
         [&](const HmLocOnV& l) -> Row3d { return hm.verts[l.id].pos(); },
         [&](const HmLocOnC& l) -> Row3d { return hm.crnrs[l.id].vert().pos(); },
@@ -35,8 +40,23 @@ inline Row3d get_ptloc_pos(const Hmesh& hm, const HmLoc& loc) {
             Row3d y = f.basisY();
             return o + x * l.xy.real() + y * l.xy.imag();
         },
-    }, loc);
-}
+        [&](const HmLocOnP& _) -> Row3d { throw std::runtime_error("no impl"); },
+    }, hl);
 }
 
+inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
+    Face f = hm.faces[fid];
+    Vert v = hm.verts[vid];
+    for (auto h: f.adjHalfs()) if (h.crnr().vert() == v) return h.crnr();
+    return std::nullopt;
+}
+
+inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
+    Face f = hm.faces[fid];
+    Edge e = hm.edges[eid];
+    for (auto h: f.adjHalfs()) if (h.edge() == e) return h;
+    return std::nullopt;
+}
+
+}
 #endif

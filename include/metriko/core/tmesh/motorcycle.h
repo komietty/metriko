@@ -8,6 +8,7 @@
 #include "../common/predicates.h"
 #include "../hmesh/hmesh.h"
 #include "./common.h"
+#include "metriko/core/hmesh/hmloc.h"
 
 namespace metriko::mc {
 constexpr double TOLERANCE_HALF = 1e-6;    //
@@ -27,10 +28,6 @@ struct Mport {
     int prev_id = -1;
 };
 
-struct OnVert { int vid;             bool operator==(const OnVert&) const = default; };
-struct OnEdge { int eid; double r;   bool operator==(const OnEdge&) const = default; };
-struct OnFace { int fid; complex uv; bool operator==(const OnFace&) const = default; };
-using MnodeLoc = std::variant<OnVert, OnEdge, OnFace>;
 enum class JunctionType { None, F, T, C };
 
 struct Asgmt {
@@ -40,7 +37,7 @@ struct Asgmt {
 
 struct Mnode {
     JunctionType jt = JunctionType::None;
-    MnodeLoc    loc = {};
+    HmLoc       loc = {};
     vec<Asgmt>  adj = {};
 };
 
@@ -132,26 +129,16 @@ inline void update_to_oppo(const Hmesh& hm, const VecXc& cf, Mbuff& buff) {
 }
 
 inline complex get_face_uv(const Mnode& mn, int fid, const Hmesh& hm, const VecXc& cf) {
-    auto on_crnr_uv = [&](Face f, Vert v) {
-        for (auto h: f.adjHalfs())
-            if (h.crnr().vert() == v) return cf[h.crnr().id];
-        throw std::runtime_error("invalid arguments");
-    };
-
-    auto on_edge_uv = [&](Face f, Edge e, double r) {
-        for (auto h: f.adjHalfs())
-            if (h.edge() == e) {
-                auto uv0 = cf[h.next().crnr().id];
-                auto uv1 = cf[h.prev().crnr().id];
-                return lerp(uv0, uv1, h.isCanonical() ? r : 1 - r);
-            }
-        throw std::runtime_error("invalid arguments");
-    };
-
     return std::visit(overloaded {
-        [&](const OnVert& v) -> complex { return on_crnr_uv(hm.faces[fid], hm.verts[v.vid]); },
-        [&](const OnEdge& e) -> complex { return on_edge_uv(hm.faces[fid], hm.edges[e.eid], e.r); },
-        [&](const OnFace& f) -> complex { return f.uv; },
+        [&](const HmLocOnP& f) -> complex { return f.uv; },
+        [&](const HmLocOnV& v) -> complex { return cf[try_get_crnr(hm, v.id, fid).value().id]; },
+        [&](const HmLocOnE& e) -> complex {
+            auto h  = try_get_half(hm, e.id, fid).value();
+            auto p0 = cf[h.next().crnr().id];
+            auto p1 = cf[h.prev().crnr().id];
+            return lerp(p0, p1, h.isCanonical() ? e.r : 1 - e.r);
+        },
+        [&](const auto& _) -> complex { throw std::runtime_error("invalid arguments"); },
     }, mn.loc);
 }
 
@@ -172,7 +159,7 @@ struct  Mgrph {
         gen_ports(singular);
 
         for (auto v: hm.verts | vw::filter([&](auto& v) { return singular[v.id]; }))
-            mnodes.push_back({.jt = JunctionType::F, .loc = OnVert{v.id}});
+            mnodes.push_back({.jt = JunctionType::F, .loc = HmLocOnV{v.id}});
 
         // 1: Add the first segment for each curve
         mcurvs.reserve(mports.size());

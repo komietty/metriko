@@ -74,10 +74,10 @@ void Mgrph::sort_node_adjacency() {
         };
 
         std::visit(overloaded {
-            [&](const OnVert& v) {
+            [&](const HmLocOnV& v) {
                 std::unordered_map<int, int> ccw_rank;
                 int rank = 0;
-                for (Half h : hm.verts[v.vid].adjHalfs()) ccw_rank[h.face().id] = rank++;
+                for (Half h : hm.verts[v.id].adjHalfs()) ccw_rank[h.face().id] = rank++;
                 rg::sort(mn.adj, [&](auto& a, auto& b) {
                     int rA = ccw_rank.at(get_fid(a));
                     int rB = ccw_rank.at(get_fid(b));
@@ -85,8 +85,8 @@ void Mgrph::sort_node_adjacency() {
                     return cross(get_dir(a), get_dir(b)) > 0;
                 });
             },
-            [&](const OnEdge& e) {
-                Half h = hm.edges[e.eid].half();
+            [&](const HmLocOnE& e) {
+                Half h = hm.edges[e.id].half();
                 int f0 = h.face().id;
                 int f1 = h.twin().face().id;
 
@@ -103,17 +103,17 @@ void Mgrph::sort_node_adjacency() {
                     return cross(get_dir(a), get_dir(b)) > 0;
                 });
             },
-            [&](const OnFace& f) {
+            [&](const HmLocOnP& _) {
                 rg::sort(mn.adj, [&](auto& a, auto& b) { return std::arg(get_dir(a)) < std::arg(get_dir(b)); });
             },
-            [](std::monostate) {}
+            [](const auto& _) { throw std::runtime_error("no impl"); }
         }, mn.loc);
     }
 }
 
 int Mcurv::resolve_bgn_node(const Hmesh& hm, const bool bgn, const int cid) const {
     if (!bgn) return sgmts.back().to_nid;
-    auto l = MnodeLoc{OnVert{hm.crnrs[cid].vert().id}};
+    auto l = HmLoc{HmLocOnV{hm.crnrs[cid].vert().id}};
     auto i = rg::find(mg->mnodes, l, &Mnode::loc);
     assert(i != mg->mnodes.end() && "start node must exist!");
     return std::distance(mg->mnodes.begin(), i);
@@ -160,7 +160,7 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
         if (buff.cid != -1) {
             auto c1 = hm.crnrs[buff.cid];
             auto v1 = c1.vert();
-            auto ml = MnodeLoc{OnVert{v1.id}};
+            auto ml = HmLoc{HmLocOnV{v1.id}};
 
             // if hit to other Mnode, return
             for (int i = 0; i < mg->mnodes.size(); ++i) {
@@ -175,7 +175,7 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
             }
 
             // otherwise
-            auto n = Mnode{.loc = OnVert{v1.id}};
+            auto n = Mnode{.loc = HmLocOnV{v1.id}};
             mg->mnodes.push_back(n);
             sg.to_nid = mg->mnodes.size() - 1;
             sgmts.push_back(sg);
@@ -185,7 +185,7 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
             auto n = Mnode {};
             if (buff.hid != -1) {
                 auto h = hm.halfs[buff.hid];
-                n.loc = OnEdge{h.edge().id, h.isCanonical() ? buff.r : 1. - buff.r};
+                n.loc = HmLocOnE{h.edge().id, h.isCanonical() ? buff.r : 1. - buff.r};
             }
             mg->mnodes.push_back(n);
             sg.to_nid = mg->mnodes.size() - 1;
@@ -230,7 +230,7 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
         if (cd_end_snappable && snap(it->to_nid)) { std::cout << "cd end snappable, fid: " << fid << std::endl; return; }
 
         { // hit in middle case, or close to singular node
-            auto mn = Mnode{.jt = JunctionType::T, .loc = OnFace{fid, lerp(uv0, uv3, ab)}};
+            auto mn = Mnode{.jt = JunctionType::T, .loc = HmLocOnP{fid, lerp(uv0, uv3, ab)}};
             mg->mnodes.push_back(mn);
             auto nid = mg->mnodes.size() - 1;
 
