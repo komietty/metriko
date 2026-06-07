@@ -51,9 +51,9 @@ void Mgrph::collect_node_adjacency() {
     for (auto& mc : mcurvs) {
         for (int i = 0; i < mc.sgmts.size(); ++i) {
             auto& sg = mc.sgmts[i];
-            Asgmt as = {mc.id, i};
-            if (sg.fr_nid != -1) mnodes[sg.fr_nid].adj.push_back(as);
-            if (sg.to_nid != -1) mnodes[sg.to_nid].adj.push_back(as);
+            Row2i ad = Row2i{mc.id, i};
+            if (sg.fr_nid != -1) mnodes[sg.fr_nid].adj.push_back(ad);
+            if (sg.to_nid != -1) mnodes[sg.to_nid].adj.push_back(ad);
         }
     }
 }
@@ -63,9 +63,9 @@ void Mgrph::sort_node_adjacency() {
         auto& mn = mnodes[nid];
         if (mn.adj.size() < 3) continue;
 
-        auto get_fid = [&](const Asgmt& as) { return mcurvs[as.curv_id].sgmts[as.sgmt_id].face_id; };
-        auto get_dir = [&](const Asgmt& as) {
-            auto& s  = mcurvs[as.curv_id].sgmts[as.sgmt_id];
+        auto get_fid = [&](const Row2i& ad) { return mcurvs[ad.x()].sgmts[ad.y()].face_id; };
+        auto get_dir = [&](const Row2i& ad) {
+            auto& s  = mcurvs[ad.x()].sgmts[ad.y()];
             auto fr  = s.fr_nid == nid;
             auto uvA = get_face_uv(mnodes[s.fr_nid], s.face_id, hm, cf);
             auto uvB = get_face_uv(mnodes[s.to_nid], s.face_id, hm, cf);

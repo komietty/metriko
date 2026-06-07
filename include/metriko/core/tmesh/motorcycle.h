@@ -30,15 +30,10 @@ struct Mport {
 
 enum class JunctionType { None, F, T, C };
 
-struct Asgmt {
-    int curv_id;
-    int sgmt_id;
-};
-
 struct Mnode {
     JunctionType jt = JunctionType::None;
-    HmLoc       loc = {};
-    vec<Asgmt>  adj = {};
+    HmLoc      loc = {};
+    vec<Row2i> adj = {}; // x: curv_id, y: sgmt_id
 };
 
 struct Msgmt {

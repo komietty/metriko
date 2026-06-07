@@ -8,19 +8,17 @@ namespace metriko {
 
 inline vec<HmLoc> approx_shortest_path(
     const int n_div,
-    const Hmesh& hm,                 //
-    const HmLoc& loc_bgn,            //
-    const HmLoc& loc_end,            //
-    const umap<int, Row2d>& allowed  // eid -> allowed region ranges
+    const Hmesh& hm,
+    const HmLoc& loc_bgn,
+    const HmLoc& loc_end,
+    const vec<std::tuple<int, double, double>>& allowed // (eid, r0, r1) allowed region ranges
 ) {
     struct Node { HmLoc loc; Row3d pos; };
     vec<Node> nodes;
     umap<int, vec<int>> e2n;  // eid -> node
 
-    for (auto& [eid, rng] : allowed) {
+    for (auto& [eid, r0, r1] : allowed) {
         Half h = hm.edges[eid].half(); // h is canonical half
-        double r0 = rng.x();
-        double r1 = rng.y();
         int cnt = std::max(1, (int)std::lround(n_div * (r1 - r0)));
         for (int k = 0; k < cnt; ++k) {
             double r = r0 + (r1 - r0) * (k + 1.) / (cnt + 1.);

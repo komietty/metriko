@@ -111,7 +111,7 @@ std::map<int, int> mnode2dense_v(
 
                 auto get_v = [&](int idx) {
                     auto& as = mn.adj[idx];
-                    auto& sg = mg.mcurvs[as.curv_id].sgmts[as.sgmt_id];
+                    auto& sg = mg.mcurvs[as.x()].sgmts[as.y()];
                     int other = (sg.fr_nid == nid) ? sg.to_nid : sg.fr_nid;
                     complex d = get_face_uv(mg.mnodes[other], sg.face_id, hm, uv2) - get_face_uv(
                         mn, sg.face_id, hm, uv2);
@@ -125,8 +125,8 @@ std::map<int, int> mnode2dense_v(
                 }
             }
 
-            int cid = mn.adj[branch_idx].curv_id;
-            int sid = mn.adj[branch_idx].sgmt_id;
+            int cid = mn.adj[branch_idx].x();
+            int sid = mn.adj[branch_idx].y();
             auto& s = mg.mcurvs[cid].sgmts[sid];
 
             //int cid = mn.adj[1].curv_id;

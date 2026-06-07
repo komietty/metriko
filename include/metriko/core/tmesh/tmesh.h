@@ -116,7 +116,7 @@ struct Tmesh {
 
             auto get_rank = [&](const Thalf* th) {
                 auto& sg = th->cano ? th->edge().segs.front() : th->edge().segs.back();
-                auto  it = rg::find_if(mn.adj, [&](auto& as) { return as.curv_id == sg.curv_id && as.sgmt_id == sg.this_id; });
+                auto  it = rg::find_if(mn.adj, [&](const Row2i& ad) { return ad.x() == sg.curv_id && ad.y() == sg.this_id; });
                 return std::distance(mn.adj.begin(), it);
             };
 
@@ -188,9 +188,6 @@ struct Tmesh {
         nTQ = tquads.size();
     }
 };
-
-// tquad 内部に含まれる hmesh エッジの許可レンジ (eid -> [r0,r1]) を抽出する（tmesh_collapse_allow.cpp）
-umap<int, Row2d> allowed_ranges_in_tquad(const Tquad& tq, const Tmesh& tm, const mc::Mgrph& mg);
 
 inline const Tedge& Thalf::edge() const { return tm->tedges[teid]; }
 inline const Thalf& Thalf::twin() const { return tm->thalfs[twid]; }
