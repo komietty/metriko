@@ -98,17 +98,10 @@ int main(int argc, char** argv) {
     //visualizer::visualize_tedge(tm, mg, uv2);
     //visualizer::debug_tquad_sides(tm, mg, uv2);
 
-    for (const Tquad& tq: tm.tquads) {
-        for (const Tdata& td: tq.data) {
-            int teid = tm.thalfs[td.thid].teid;
-            if (teid == 8) std::cout << "tqid " << tq.id << " teid " << teid << std::endl;
-        }
-    }
-
     // ===== tquad 内で approx_shortest_path（TmeshMut 版）=====
     TmeshMut tmm(mg, tm);
     {
-        int tqid = std::min(9, (int)tmm.tquads.size() - 1);
+        int tqid = std::min(1, (int)tmm.tquads.size() - 1);
         auto allowed = tmm.allowed_range(tqid);  // vec<(eid, r0, r1)>
         std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
 
@@ -149,29 +142,55 @@ int main(int argc, char** argv) {
     }
 
     // ===== thid=85 で collapse して前後を可視化 =====
-    {
-        auto draw_tedges = [&](const TmeshMut& m, const std::string& name, glm::vec3 col) {
-            std::vector<glm::vec3> ns;
-            std::vector<std::array<size_t, 2>> es;
-            size_t c = 0;
-            for (const TedgeMut& te : m.tedges) {
-                for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
-                    Row3d a = get_ptloc_pos(*hm, m.tnodes[te.nids[i]]);
-                    Row3d b = get_ptloc_pos(*hm, m.tnodes[te.nids[i + 1]]);
-                    ns.emplace_back(a.x(), a.y(), a.z());
-                    ns.emplace_back(b.x(), b.y(), b.z());
-                    es.push_back({c, c + 1}); c += 2;
-                }
-            }
-            auto* cn = polyscope::registerCurveNetwork(name, ns, es);
-            cn->setColor(col); cn->setRadius(0.0015); cn->resetTransform();
-        };
+    //{
+    //    auto draw_tedges = [&](const TmeshMut& m, const std::string& name, glm::vec3 col) {
+    //        std::vector<glm::vec3> ns;
+    //        std::vector<std::array<size_t, 2>> es;
+    //        size_t c = 0;
+    //        for (const TedgeMut& te : m.tedges) {
+    //            for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
+    //                Row3d a = get_ptloc_pos(*hm, m.tnodes[te.nids[i]]);
+    //                Row3d b = get_ptloc_pos(*hm, m.tnodes[te.nids[i + 1]]);
+    //                ns.emplace_back(a.x(), a.y(), a.z());
+    //                ns.emplace_back(b.x(), b.y(), b.z());
+    //                es.push_back({c, c + 1}); c += 2;
+    //            }
+    //        }
+    //        auto* cn = polyscope::registerCurveNetwork(name, ns, es);
+    //        cn->setColor(col); cn->setRadius(0.0015); cn->resetTransform();
+    //    };
+    //    if (tmm.collapse_thalf(85)) {
+    //        draw_tedges(tmm, "tmesh after collapse(84)", {1.0, 0.3, 0.0});
+    //        std::cout << "collapse_thalf(84) done" << std::endl;
+    //    } else {
+    //        std::cout << "collapse_thalf(84) failed (no path)" << std::endl;
+    //    }
+    //}
 
-        if (tmm.collapse_thalf(85)) {
-            draw_tedges(tmm, "tmesh after collapse(84)", {1.0, 0.3, 0.0});
-            std::cout << "collapse_thalf(84) done" << std::endl;
-        } else {
-            std::cout << "collapse_thalf(84) failed (no path)" << std::endl;
+    // tquad collapse: 各 collapsable tquad の collapse 点列を点群で可視化（val/side/tqid 付き）
+    {
+        for (auto& th : tmm.thalfs) th.x = X[th.teid];   // x = 量子化値（is_collapsable は side 合計==0 で判定）
+
+        for (const TquadMut& tq : tmm.tquads) {
+            Tqaux tqaux;
+            if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+                //tmm.collapse_tquad_execute(tq.id, tqaux);
+                std::vector<glm::vec3> pcs;
+                std::vector<double> vals;
+                std::vector<double> sides;
+                for (const auto& [loc, val, side] : tqaux.checkpoints) {
+                    Row3d p = get_ptloc_pos(*hm, loc);
+                    pcs.emplace_back(p.x(), p.y(), p.z());
+                    vals.push_back(val);
+                    sides.push_back(side);
+                }
+                auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tq.id), pcs);
+                pc->addScalarQuantity("val",  vals);
+                pc->addScalarQuantity("side", sides);
+                pc->setPointRadius(0.004);
+                pc->resetTransform();
+            }
+
         }
     }
 

@@ -1,7 +1,7 @@
 #include "./tmesh_mut.h"
 using namespace metriko;
 
-bool TmeshMut::collapse_thalf(int thid) {
+void TmeshMut::collapse_thalf(int thid) {
     auto& th_crr = thalfs[thid];
     auto& th_twn = thalfs[th_crr.twid];
     auto& tq_crr = tquads[th_crr.tqid];
@@ -30,7 +30,7 @@ bool TmeshMut::collapse_thalf(int thid) {
       throw std::runtime_error("no impl");
     }();
 
-    auto path = approx_shortest_path(10, hm, *p_fr, *p_to, region);
+    auto path = approx_shortest_path(20, hm, *p_fr, *p_to, region);
 
     // fr/to idx already exists, otherwise all inter-points are newly added. follows this condition.
     vec<int> nids;
@@ -39,7 +39,7 @@ bool TmeshMut::collapse_thalf(int thid) {
     for (int i = 0; i < path.size(); ++i) {
         if      (i == 0)                  nids.push_back(fr_idx);
         else if (i + 1 == path.size())    nids.push_back(to_idx);
-        else { tnodes.push_back(path[i]); nids.push_back((int)tnodes.size() - 1); }
+        else { tnodes.push_back(path[i]); nids.push_back(tnodes.size() - 1); }
     }
 
     auto  it_twn_adj = collapse_to_prev ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
@@ -55,6 +55,4 @@ bool TmeshMut::collapse_thalf(int thid) {
     // 3: insert missing segments to the adjacent edge
     if (collapse_to_prev) { te_prv.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_after(te_crr.nids); else te_twn_adj.insert_locs_front(te_crr.nids); }
     else                  { te_nxt.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_front(te_crr.nids); else te_twn_adj.insert_locs_after(te_crr.nids); }
-
-    return true;
 }

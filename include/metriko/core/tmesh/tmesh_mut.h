@@ -8,6 +8,16 @@
 namespace metriko {
 struct TmeshMut;
 
+using Terng = std::tuple<int, double, double>; // temp. to define a range for dijkstra. (eid, fr, to)
+
+struct Tqaux {
+    vec<std::tuple<HmLoc, double, int>> checkpoints;  // collapse point of tquad. (loc, val, side)
+    std::pair<int, vec<int>> side_thids_a;
+    std::pair<int, vec<int>> side_thids_b;
+    std::pair<int, int> side_thid_p;
+    std::pair<int, int> side_thid_q;
+};
+
 struct TedgeMut {
     vec<int> nids;
     void insert_locs_front(vec<int> locs) { nids.insert(nids.begin(), locs.begin(), locs.end()); }
@@ -41,10 +51,9 @@ struct TquadMut {
     vec<TdataMut> data;
 
     vec<int> thids(int side) const {
-        return data
-            | vw::filter([&](const auto& d) { return d.side == side; })
-            | vw::transform([](const auto& d) { return d.thid; })
-            | rg::to<vec<int>>();
+        return data | vw::filter([&](auto& d) { return d.side == side; })
+                    | vw::transform([](auto& d) { return d.thid; })
+                    | rg::to<vec<int>>();
     }
 };
 
@@ -117,10 +126,10 @@ struct TmeshMut {
         }
     }
 
-    bool collapse_tquad(int tqid);
-    bool collapse_thalf(int thid);
-    vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
-
+    void collapse_thalf(int thid);
+    bool collapse_tquad_prepare(int tqid, Tqaux& tqaux) const;
+    void collapse_tquad_execute(int tqid, Tqaux& tqaux);
+    vec<Terng> allowed_range(int tqid) const;  // name is temp.
 };
 
 inline const HmLoc& ThalfMut::loc_fr() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
