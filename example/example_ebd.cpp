@@ -124,21 +124,21 @@ int main(int argc, char** argv) {
         reg->resetTransform();
 
         // 許可エッジ2本を端点に approx_shortest_path
-        std::vector<int> eids;
-        for (auto& t : allowed) eids.push_back(std::get<0>(t));
-        if (eids.size() >= 2) {
-            HmLoc bgn = HmLoc(HmLocOnH{hm->edges[eids.front()].half().id, 0.5});
-            HmLoc end = HmLoc(HmLocOnH{hm->edges[eids.back()].half().id, 0.5});
-            vec<HmLoc> path = approx_shortest_path(8, *hm, bgn, end, allowed);
-            if (!path.empty()) {
-                MatXd P((int)path.size(), 3);
-                for (int i = 0; i < (int)path.size(); ++i) P.row(i) = get_ptloc_pos(*hm, path[i]);
-                auto* pc = polyscope::registerCurveNetworkLine("tquad " + std::to_string(tqid) + " steiner path", P);
-                pc->setColor({1.0, 0.0, 0.0});
-                pc->setRadius(0.003);
-                pc->resetTransform();
-            }
-        }
+        //std::vector<int> eids;
+        //for (auto& t : allowed) eids.push_back(std::get<0>(t));
+        //if (eids.size() >= 2) {
+        //    HmLoc bgn = HmLoc(HmLocOnH{hm->edges[eids.front()].half().id, 0.5});
+        //    HmLoc end = HmLoc(HmLocOnH{hm->edges[eids.back()].half().id, 0.5});
+        //    vec<HmLoc> path = approx_shortest_path(8, *hm, bgn, end, allowed);
+        //    if (!path.empty()) {
+        //        MatXd P((int)path.size(), 3);
+        //        for (int i = 0; i < (int)path.size(); ++i) P.row(i) = get_ptloc_pos(*hm, path[i]);
+        //        auto* pc = polyscope::registerCurveNetworkLine("tquad " + std::to_string(tqid) + " steiner path", P);
+        //        pc->setColor({1.0, 0.0, 0.0});
+        //        pc->setRadius(0.003);
+        //        pc->resetTransform();
+        //    }
+        //}
     }
 
     // ===== thid=85 で collapse して前後を可視化 =====
@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
         for (const TquadMut& tq : tmm.tquads) {
             Tqaux tqaux;
             if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-                //tmm.collapse_tquad_execute(tq.id, tqaux);
+                tmm.collapse_tquad_execute(tq.id, tqaux);
                 std::vector<glm::vec3> pcs;
                 std::vector<double> vals;
                 std::vector<double> sides;
@@ -191,6 +191,30 @@ int main(int argc, char** argv) {
                 pc->resetTransform();
             }
 
+        }
+
+        // collapse 後の各 TquadMut を境界（data 順）ごとに描画。tq.id == -1 は除外。
+        for (const TquadMut& tq : tmm.tquads) {
+            if (tq.id == -1) continue;
+            std::vector<glm::vec3> ns;
+            std::vector<std::array<size_t, 2>> es;
+            std::vector<double> nside;
+            size_t c = 0;
+            for (const TdataMut& d : tq.data) {
+                const TedgeMut& te = tmm.tedges[tmm.thalfs[d.thid].teid];
+                for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
+                    Row3d a = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i]]);
+                    Row3d b = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i + 1]]);
+                    ns.emplace_back(a.x(), a.y(), a.z());
+                    ns.emplace_back(b.x(), b.y(), b.z());
+                    es.push_back({c, c + 1}); c += 2;
+                    nside.push_back(d.side); nside.push_back(d.side);
+                }
+            }
+            if (ns.empty()) continue;
+            auto* cn = polyscope::registerCurveNetwork("tq" + std::to_string(tq.id), ns, es);
+            cn->addNodeScalarQuantity("side", nside);
+            cn->setRadius(0.0015); cn->resetTransform();
         }
     }
 

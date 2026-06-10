@@ -12,13 +12,16 @@ using Terng = std::tuple<int, double, double>; // temp. to define a range for di
 
 struct Tqaux {
     vec<std::tuple<HmLoc, double, int>> checkpoints;  // collapse point of tquad. (loc, val, side)
-    std::pair<int, vec<int>> side_thids_a;
+    std::pair<int, vec<int>> side_thids_t;
     std::pair<int, vec<int>> side_thids_b;
-    std::pair<int, int> side_thid_p;
-    std::pair<int, int> side_thid_q;
+    std::pair<int, int> side_thid_l;
+    std::pair<int, int> side_thid_r;
+    bool thid_l_merge_to_ahead = false;
+    bool thid_r_merge_to_ahead = false;
 };
 
 struct TedgeMut {
+    int id = -1;
     vec<int> nids;
     void insert_locs_front(vec<int> locs) { nids.insert(nids.begin(), locs.begin(), locs.end()); }
     void insert_locs_after(vec<int> locs) { nids.insert(nids.end()  , locs.begin(), locs.end()); }
@@ -30,8 +33,6 @@ struct ThalfMut {
     int twid = -1;
     int teid = -1;
     int tqid = -1;
-    int nxid = -1;
-    int pvid = -1;
     bool cano = false;
     bool bgn  = false;
     bool end  = false;
@@ -54,6 +55,10 @@ struct TquadMut {
         return data | vw::filter([&](auto& d) { return d.side == side; })
                     | vw::transform([](auto& d) { return d.thid; })
                     | rg::to<vec<int>>();
+    }
+
+    int side_of(const ThalfMut& th) const {
+        return rg::find(data, th.id, &TdataMut::thid)->side;
     }
 };
 
@@ -89,7 +94,7 @@ struct TmeshMut {
         // 2. tedges: segs(Msgmt 列) -> 通過 node id の連鎖
         tedges.reserve(tm.tedges.size());
         for (const Tedge& te : tm.tedges) {
-            TedgeMut tem;
+            TedgeMut tem {.id = te.id};
             tem.nids.reserve(te.segs.size() + 1);
             tem.nids.push_back(te.segs.front().fr_nid);
             for (const mc::Msgmt& sg : te.segs) tem.nids.push_back(sg.to_nid);
@@ -106,8 +111,6 @@ struct TmeshMut {
                 .twid = th.twid,
                 .teid = th.teid,
                 .tqid = tm.th2quad[th.id],
-                .nxid = th.nxid,
-                .pvid = th.pvid,
                 .cano = th.cano,
                 .bgn  = th.cano && te.isBgn,
                 .end  = th.cano && te.isEnd,
@@ -132,8 +135,8 @@ struct TmeshMut {
     vec<Terng> allowed_range(int tqid) const;  // name is temp.
 };
 
-inline const HmLoc& ThalfMut::loc_fr() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
-inline const HmLoc& ThalfMut::loc_to() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
+inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
+inline const HmLoc& ThalfMut::loc_to() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
 }
 
 #endif
