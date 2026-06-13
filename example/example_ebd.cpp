@@ -99,10 +99,13 @@ int main(int argc, char** argv) {
     //visualizer::debug_tquad_sides(tm, mg, uv2);
 
     // ===== tquad 内で approx_shortest_path（TmeshMut 版）=====
-    TmeshMut tmm(mg, tm);
-    {
-        int tqid = std::min(1, (int)tmm.tquads.size() - 1);
-        auto allowed = tmm.allowed_range(tqid);  // vec<(eid, r0, r1)>
+    TmeshMut tmm(mg, tm, X);
+    for (int i : {
+        //1, 13, 17, 22, 29, 34
+            7, 32
+    }) {
+        int tqid = std::min(i, (int)tmm.tquads.size() - 1);
+        auto allowed = tmm.allowed_range_trace(tqid);  // vec<(eid, r0, r1)>  ← 横断トレース版
         std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
 
         // 許可レンジ（=領域）を可視化
@@ -120,7 +123,7 @@ int main(int argc, char** argv) {
         }
         auto* reg = polyscope::registerCurveNetwork("tquad " + std::to_string(tqid) + " allowed region", rns, res);
         reg->setColor({0.2, 0.6, 1.0});
-        reg->setRadius(0.0012);
+        reg->setRadius(0.0005);
         reg->resetTransform();
 
         // 許可エッジ2本を端点に approx_shortest_path
@@ -169,12 +172,15 @@ int main(int argc, char** argv) {
 
     // tquad collapse: 各 collapsable tquad の collapse 点列を点群で可視化（val/side/tqid 付き）
     {
-        for (auto& th : tmm.thalfs) th.x = X[th.teid];   // x = 量子化値（is_collapsable は side 合計==0 で判定）
+        const size_t te_before = tmm.tedges.size();      // これ以降に追加される tedge が「新規 thalf」の実体
+        const size_t th_before = tmm.thalfs.size();
 
         for (const TquadMut& tq : tmm.tquads) {
             Tqaux tqaux;
             if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-                tmm.collapse_tquad_execute(tq.id, tqaux);
+                //if (tq.id != 29) continue;
+                std::cout << "tq_collapse id: " << tq.id << std::endl;
+
                 std::vector<glm::vec3> pcs;
                 std::vector<double> vals;
                 std::vector<double> sides;
@@ -189,6 +195,8 @@ int main(int argc, char** argv) {
                 pc->addScalarQuantity("side", sides);
                 pc->setPointRadius(0.004);
                 pc->resetTransform();
+
+                tmm.collapse_tquad_execute(tq.id, tqaux);
             }
 
         }
@@ -196,6 +204,13 @@ int main(int argc, char** argv) {
         // collapse 後の各 TquadMut を境界（data 順）ごとに描画。tq.id == -1 は除外。
         for (const TquadMut& tq : tmm.tquads) {
             if (tq.id == -1) continue;
+            //if (
+            //    tq.id != 24 &&
+            //    tq.id != 25 &&
+            //    tq.id != 28 &&
+            //    tq.id != 30 &&
+            //    tq.id != 32
+            //    ) continue;
             std::vector<glm::vec3> ns;
             std::vector<std::array<size_t, 2>> es;
             std::vector<double> nside;
@@ -215,6 +230,32 @@ int main(int argc, char** argv) {
             auto* cn = polyscope::registerCurveNetwork("tq" + std::to_string(tq.id), ns, es);
             cn->addNodeScalarQuantity("side", nside);
             cn->setRadius(0.0015); cn->resetTransform();
+        }
+
+        // collapse 中に新しく追加された thalf だけを描画（新規 tedge = te_before 以降）。
+        {
+            std::vector<glm::vec3> ns;
+            std::vector<std::array<size_t, 2>> es;
+            std::vector<double> teid_q;
+            size_t c = 0;
+            for (size_t teid = te_before; teid < tmm.tedges.size(); ++teid) {
+                const TedgeMut& te = tmm.tedges[teid];
+                for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
+                    Row3d a = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i]]);
+                    Row3d b = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i + 1]]);
+                    ns.emplace_back(a.x(), a.y(), a.z());
+                    ns.emplace_back(b.x(), b.y(), b.z());
+                    es.push_back({c, c + 1}); c += 2;
+                    teid_q.push_back((double)teid); teid_q.push_back((double)teid);
+                }
+            }
+            std::cout << "new thalfs: " << (tmm.thalfs.size() - th_before)
+                      << "  new tedges: " << (tmm.tedges.size() - te_before) << std::endl;
+            if (!ns.empty()) {
+                auto* cn = polyscope::registerCurveNetwork("new thalfs", ns, es);
+                cn->addNodeScalarQuantity("teid", teid_q);
+                cn->setColor({1.0, 0.2, 0.8}); cn->setRadius(0.0025); cn->resetTransform();
+            }
         }
     }
 

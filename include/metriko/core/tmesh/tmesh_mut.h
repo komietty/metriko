@@ -37,6 +37,7 @@ struct ThalfMut {
     bool bgn  = false;
     bool end  = false;
     double x  = -1;
+    double r  = -1;
 
     const HmLoc& loc_fr() const;
     const HmLoc& loc_to() const;
@@ -71,7 +72,8 @@ struct TmeshMut {
 
     explicit TmeshMut(
         const mc::Mgrph& mg,
-        const Tmesh& tm
+        const Tmesh& tm,
+        const VecXd& X
     ): hm(mg.hm) {
         const VecXc& cf = mg.cf;
 
@@ -114,7 +116,8 @@ struct TmeshMut {
                 .cano = th.cano,
                 .bgn  = th.cano && te.isBgn,
                 .end  = th.cano && te.isEnd,
-                .x    = tm.tedges[th.teid].len
+                .x    = X[th.teid],
+                .r    = tm.tedges[th.teid].len
             });
         }
 
@@ -132,7 +135,8 @@ struct TmeshMut {
     void collapse_thalf(int thid);
     bool collapse_tquad_prepare(int tqid, Tqaux& tqaux) const;
     void collapse_tquad_execute(int tqid, Tqaux& tqaux);
-    vec<Terng> allowed_range(int tqid) const;  // name is temp.
+    vec<Terng> allowed_range(int tqid) const;        // 領域2彩色版
+    vec<Terng> allowed_range_trace(int tqid) const;  // 境界点から横断トレース版（vert 問題回避）
 };
 
 inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
