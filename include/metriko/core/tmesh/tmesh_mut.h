@@ -8,8 +8,6 @@
 namespace metriko {
 struct TmeshMut;
 
-using Terng = std::tuple<int, double, double>; // temp. to define a range for dijkstra. (eid, fr, to)
-
 struct Tqaux {
     vec<std::tuple<HmLoc, double, int>> checkpoints;  // collapse point of tquad. (loc, val, side)
     std::pair<int, vec<int>> side_thids_t;
@@ -38,7 +36,6 @@ struct ThalfMut {
     bool end  = false;
     double x  = -1;
     double r  = -1;
-
     const HmLoc& loc_fr() const;
     const HmLoc& loc_to() const;
 };
@@ -52,14 +49,12 @@ struct TquadMut {
     int id = -1;
     vec<TdataMut> data;
 
+    int side_of(const ThalfMut& th) const { return rg::find(data, th.id, &TdataMut::thid)->side; }
+
     vec<int> thids(int side) const {
         return data | vw::filter([&](auto& d) { return d.side == side; })
                     | vw::transform([](auto& d) { return d.thid; })
                     | rg::to<vec<int>>();
-    }
-
-    int side_of(const ThalfMut& th) const {
-        return rg::find(data, th.id, &TdataMut::thid)->side;
     }
 };
 
@@ -76,25 +71,25 @@ struct TmeshMut {
         const VecXd& X
     ): hm(mg.hm) {
         const VecXc& cf = mg.cf;
-
-        // 1. nodes: MnodeLoc -> HmLoc
         tnodes.reserve(mg.mnodes.size());
+        tedges.reserve(tm.tedges.size());
+        thalfs.reserve(tm.thalfs.size());
+        tquads.reserve(tm.tquads.size());
+
         for (const mc::Mnode& mn : mg.mnodes) {
             tnodes.push_back(std::visit(overloaded{
                 [&](const auto&     _) -> HmLoc { throw std::runtime_error("no impl"); },
                 [&](const HmLocOnV& v) -> HmLoc { return HmLocOnV{v.id}; },
                 [&](const HmLocOnE& e) -> HmLoc { return HmLocOnE{e.id, e.r}; },
                 [&](const HmLocOnP& f) -> HmLoc {
-                    Face  fc = hm.faces[f.id];
-                    Row3d p  = conversion_2d_3d(fc, cf, f.uv);
-                    Row3d v  = p - fc.half().tail().pos();
+                    Face fc = hm.faces[f.id];
+                    Row3d p = conversion_2d_3d(fc, cf, f.uv);
+                    Row3d v = p - fc.half().tail().pos();
                     return HmLocOnF{f.id, complex(v.dot(fc.basisX()), v.dot(fc.basisY()))};
                 },
             }, mn.loc));
         }
 
-        // 2. tedges: segs(Msgmt 列) -> 通過 node id の連鎖
-        tedges.reserve(tm.tedges.size());
         for (const Tedge& te : tm.tedges) {
             TedgeMut tem {.id = te.id};
             tem.nids.reserve(te.segs.size() + 1);
@@ -103,10 +98,7 @@ struct TmeshMut {
             tedges.push_back(std::move(tem));
         }
 
-        // 3. thalfs: Tmesh の thalf をミラー。 quad id / bgn / end を half に載せる
-        thalfs.reserve(tm.thalfs.size());
         for (const Thalf& th : tm.thalfs) {
-            const Tedge& te = tm.tedges[th.teid];
             thalfs.push_back({
                 .tm   = this,
                 .id   = th.id,
@@ -114,20 +106,18 @@ struct TmeshMut {
                 .teid = th.teid,
                 .tqid = tm.th2quad[th.id],
                 .cano = th.cano,
-                .bgn  = th.cano && te.isBgn,
-                .end  = th.cano && te.isEnd,
+                .bgn  = th.cano && tm.tedges[th.teid].isBgn,
+                .end  = th.cano && tm.tedges[th.teid].isEnd,
                 .x    = X[th.teid],
                 .r    = tm.tedges[th.teid].len
             });
         }
 
-        // 4. tquads
-        tquads.reserve(tm.tquads.size());
-        for (const Tquad& tq : tm.tquads) {
+        for (const auto& [id, data] : tm.tquads) {
             TquadMut tqm;
-            tqm.id = tq.id;
-            tqm.data.reserve(tq.data.size());
-            for (const Tdata& d : tq.data) tqm.data.push_back({d.thid, d.side});
+            tqm.id = id;
+            tqm.data.reserve(data.size());
+            for (const auto& d : data) tqm.data.push_back({d.thid, d.side});
             tquads.push_back(std::move(tqm));
         }
     }
@@ -135,8 +125,18 @@ struct TmeshMut {
     void collapse_thalf(int thid);
     bool collapse_tquad_prepare(int tqid, Tqaux& tqaux) const;
     void collapse_tquad_execute(int tqid, Tqaux& tqaux);
-    vec<Terng> allowed_range(int tqid) const;        // 領域2彩色版
-    vec<Terng> allowed_range_trace(int tqid) const;  // 境界点から横断トレース版（vert 問題回避）
+    vec<int> add_new_path(const vec<HmLoc>& path, int nid0, int nid1) {
+        vec<int> nids;
+        for (int i = 0; i < path.size(); ++i) {
+            if      (i == 0)                  nids.push_back(nid0);
+            else if (i + 1 == path.size())    nids.push_back(nid1);
+            else { tnodes.push_back(path[i]); nids.push_back(tnodes.size() - 1); }
+        }
+        return nids;
+    }
+
+    vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
+    vec<std::tuple<int, double, double>> allowed_range_trace(int tqid) const;
 };
 
 inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }

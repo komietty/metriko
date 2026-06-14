@@ -88,26 +88,17 @@ int main(int argc, char** argv) {
 
     ///--- gen mport, medge ---///
     auto mg = mc::Mgrph(*hm, uv2, cmbf->matching, cmbf->singular);
-    //visualizer::visualize_motorcycle_graph(mg, uv2);
-    //visualizer::visualize_node_adjacency(mg, uv2);
-
     auto tm = Tmesh(mg);
     VecXd X = compute_quantization(tm, mg);
     validate_quantization(tm, X);
     visualizer::visualize_tedge(tm, mg, uv2, &X);
-    //visualizer::visualize_tedge(tm, mg, uv2);
-    //visualizer::debug_tquad_sides(tm, mg, uv2);
-
-    // ===== tquad 内で approx_shortest_path（TmeshMut 版）=====
     TmeshMut tmm(mg, tm, X);
-    for (int i : {
-        //1, 13, 17, 22, 29, 34
-            7, 32
-    }) {
+
+    /*
+    for (int i : { 7, 32 }) {
         int tqid = std::min(i, (int)tmm.tquads.size() - 1);
         auto allowed = tmm.allowed_range_trace(tqid);  // vec<(eid, r0, r1)>  ← 横断トレース版
         std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
-
         // 許可レンジ（=領域）を可視化
         std::vector<glm::vec3> rns;
         std::vector<std::array<size_t, 2>> res;
@@ -125,62 +116,47 @@ int main(int argc, char** argv) {
         reg->setColor({0.2, 0.6, 1.0});
         reg->setRadius(0.0005);
         reg->resetTransform();
+    }
+    */
 
-        // 許可エッジ2本を端点に approx_shortest_path
-        //std::vector<int> eids;
-        //for (auto& t : allowed) eids.push_back(std::get<0>(t));
-        //if (eids.size() >= 2) {
-        //    HmLoc bgn = HmLoc(HmLocOnH{hm->edges[eids.front()].half().id, 0.5});
-        //    HmLoc end = HmLoc(HmLocOnH{hm->edges[eids.back()].half().id, 0.5});
-        //    vec<HmLoc> path = approx_shortest_path(8, *hm, bgn, end, allowed);
-        //    if (!path.empty()) {
-        //        MatXd P((int)path.size(), 3);
-        //        for (int i = 0; i < (int)path.size(); ++i) P.row(i) = get_ptloc_pos(*hm, path[i]);
-        //        auto* pc = polyscope::registerCurveNetworkLine("tquad " + std::to_string(tqid) + " steiner path", P);
-        //        pc->setColor({1.0, 0.0, 0.0});
-        //        pc->setRadius(0.003);
-        //        pc->resetTransform();
-        //    }
-        //}
+    // collapse all zero-length edge
+    for (ThalfMut th0 : tmm.thalfs) {
+        auto& th1 = tmm.thalfs[th0.twid];
+        auto& tq0 = tmm.tquads[th0.tqid];
+        auto& tq1 = tmm.tquads[th1.tqid];
+        if (th0.id == -1) continue;
+        if (th1.id == -1) continue;
+        if (th0.x != 0) continue;
+        if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+        if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+        std::cout << "thalf " << th0.id << ": " << tq0.id << " " << tq1.id << std::endl;
+        tmm.collapse_thalf(th0.id);
     }
 
-    // ===== thid=85 で collapse して前後を可視化 =====
-    //{
-    //    auto draw_tedges = [&](const TmeshMut& m, const std::string& name, glm::vec3 col) {
-    //        std::vector<glm::vec3> ns;
-    //        std::vector<std::array<size_t, 2>> es;
-    //        size_t c = 0;
-    //        for (const TedgeMut& te : m.tedges) {
-    //            for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
-    //                Row3d a = get_ptloc_pos(*hm, m.tnodes[te.nids[i]]);
-    //                Row3d b = get_ptloc_pos(*hm, m.tnodes[te.nids[i + 1]]);
-    //                ns.emplace_back(a.x(), a.y(), a.z());
-    //                ns.emplace_back(b.x(), b.y(), b.z());
-    //                es.push_back({c, c + 1}); c += 2;
-    //            }
-    //        }
-    //        auto* cn = polyscope::registerCurveNetwork(name, ns, es);
-    //        cn->setColor(col); cn->setRadius(0.0015); cn->resetTransform();
-    //    };
-    //    if (tmm.collapse_thalf(85)) {
-    //        draw_tedges(tmm, "tmesh after collapse(84)", {1.0, 0.3, 0.0});
-    //        std::cout << "collapse_thalf(84) done" << std::endl;
-    //    } else {
-    //        std::cout << "collapse_thalf(84) failed (no path)" << std::endl;
-    //    }
-    //}
-
-    // tquad collapse: 各 collapsable tquad の collapse 点列を点群で可視化（val/side/tqid 付き）
     {
-        const size_t te_before = tmm.tedges.size();      // これ以降に追加される tedge が「新規 thalf」の実体
+        const size_t te_before = tmm.tedges.size();
         const size_t th_before = tmm.thalfs.size();
+
+        // デバッグ: data の全 thalf の x が 0 な tquad（u/v 両方ゼロ長＝退化 quad）が存在しないか走査
+
+        auto report_all_zero_x = [&](const std::string& when) {
+            for (const TquadMut& tq : tmm.tquads) {
+                if (tq.id == -1 || tq.data.empty()) continue;
+                bool all_zero = true;
+                for (const TdataMut& d : tq.data)
+                    if (tmm.thalfs[d.thid].x != 0) { all_zero = false; break; }
+                if (all_zero)
+                    std::cout << "[debug] " << when << ": tquad " << tq.id
+                              << " has ALL x == 0 (n=" << tq.data.size() << ")" << std::endl;
+            }
+        };
+        report_all_zero_x("before collapse loop");
 
         for (const TquadMut& tq : tmm.tquads) {
             Tqaux tqaux;
             if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
                 //if (tq.id != 29) continue;
                 std::cout << "tq_collapse id: " << tq.id << std::endl;
-
                 std::vector<glm::vec3> pcs;
                 std::vector<double> vals;
                 std::vector<double> sides;
@@ -197,20 +173,13 @@ int main(int argc, char** argv) {
                 pc->resetTransform();
 
                 tmm.collapse_tquad_execute(tq.id, tqaux);
+                report_all_zero_x("after collapse tq" + std::to_string(tq.id));
             }
-
         }
 
         // collapse 後の各 TquadMut を境界（data 順）ごとに描画。tq.id == -1 は除外。
         for (const TquadMut& tq : tmm.tquads) {
             if (tq.id == -1) continue;
-            //if (
-            //    tq.id != 24 &&
-            //    tq.id != 25 &&
-            //    tq.id != 28 &&
-            //    tq.id != 30 &&
-            //    tq.id != 32
-            //    ) continue;
             std::vector<glm::vec3> ns;
             std::vector<std::array<size_t, 2>> es;
             std::vector<double> nside;

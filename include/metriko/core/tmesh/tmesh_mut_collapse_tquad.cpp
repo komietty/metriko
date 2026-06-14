@@ -98,17 +98,10 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
 
         if (side0 == side1) { qs.emplace_back(find_thid_in_tquad(loc0, loc1).value(), side0, side1, val0, val1); }
         else {
+            auto id0  = rg::find(tnodes, loc0) - tnodes.begin();
+            auto id1  = rg::find(tnodes, loc1) - tnodes.begin();
             auto path = approx_shortest_path(20, hm, loc0, loc1, region);
-
-            vec<int> nids;
-            int fr_idx = rg::find(tnodes, loc0) - tnodes.begin();
-            int to_idx = rg::find(tnodes, loc1) - tnodes.begin();
-            for (int j = 0; j < path.size(); ++j) {
-                if      (j == 0)                  nids.push_back(fr_idx);
-                else if (j + 1 == path.size())    nids.push_back(to_idx);
-                else { tnodes.push_back(path[j]); nids.push_back(tnodes.size() - 1); }
-            }
-
+            auto nids = add_new_path(path, id0, id1);
             int teid  = tedges.size();
             int thid0 = thalfs.size();
             int thid1 = thalfs.size() + 1;
