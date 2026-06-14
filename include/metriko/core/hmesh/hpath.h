@@ -130,9 +130,7 @@ inline vec<HmLoc> approx_shortest_path(
     vec<int> seq;
     for (int v = t; v != -1; v = prev[v]) seq.push_back(v);
     rg::reverse(seq);
-    std::cout << "steiner geodesic length = " << dist[t]
-              << ",  #path points = " << seq.size()
-              << ",  #candidate nodes = " << (nodes.size() - 2) << std::endl;
+    //std::cout << "steiner geodesic length = " << dist[t] << ",  #path points = " << seq.size() << ",  #candidate nodes = " << (nodes.size() - 2) << std::endl;
 
     vec<HmLoc> path;
     path.reserve(seq.size());

@@ -21,8 +21,8 @@ using namespace metriko;
 int N = 4;
 MatXd flatV;
 MatXi flatF;
-MatXd uv1;                          // real number uv
-VecXc uv2;                          // complex number uv
+MatXd uv1;
+VecXc uv2;
 std::vector<bool> seam;
 std::unique_ptr<Hmesh> hm;
 std::unique_ptr<FaceRosyField> rawf;
@@ -51,15 +51,12 @@ int main(int argc, char** argv) {
         cmbExtRosy.block(f.id, 9, 1, 3) = (c3.real() * f.basisX() + c3.imag() * f.basisY()).normalized();
     }
 
-    double t_integ0 = omp_get_wtime();
     RosyParameterization rp(*hm, *cutm, cmbExtRosy, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
     rp.seamless = false;
     rp.localInjectivity = true;
     rp.verbose = false;
     rp.setup();
     rp.integ();
-    double t_integ1 = omp_get_wtime();
-    std::cout << "[time] compute_integration: " << (t_integ1 - t_integ0) << " s" << std::endl;
 
     uv1.resize(hm->nF * 3, 2);
     uv2.resize(hm->nF * 3);
@@ -77,14 +74,7 @@ int main(int argc, char** argv) {
     polyscope::init();
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
-
-
-    /// ---- visualize mesh ---- ///
-    {
-        auto s = visualizer::visualize_mesh_with_uv(hm->pos, hm->idx, uv1, "base_mesh", true);
-        //visualizer::visualize_seam(*hm, seam, "base_seam", cmbf->matching);
-        //visualizer::visualize_frosy_field(s, *hm, *rawf, *cmbf, N);
-    }
+    visualizer::visualize_mesh_with_uv(hm->pos, hm->idx, uv1, "base_mesh", true);
 
     ///--- gen mport, medge ---///
     auto mg = mc::Mgrph(*hm, uv2, cmbf->matching, cmbf->singular);
@@ -119,7 +109,7 @@ int main(int argc, char** argv) {
     }
     */
 
-    // collapse all zero-length edge
+    // collapse thalf
     for (ThalfMut th0 : tmm.thalfs) {
         auto& th1 = tmm.thalfs[th0.twid];
         auto& tq0 = tmm.tquads[th0.tqid];
@@ -129,109 +119,63 @@ int main(int argc, char** argv) {
         if (th0.x != 0) continue;
         if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
         if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-        std::cout << "thalf " << th0.id << ": " << tq0.id << " " << tq1.id << std::endl;
+        std::cout << "thalf " << th0.id << std::endl;
         tmm.collapse_thalf(th0.id);
     }
 
-    {
-        const size_t te_before = tmm.tedges.size();
-        const size_t th_before = tmm.thalfs.size();
-
-        // デバッグ: data の全 thalf の x が 0 な tquad（u/v 両方ゼロ長＝退化 quad）が存在しないか走査
-
-        auto report_all_zero_x = [&](const std::string& when) {
-            for (const TquadMut& tq : tmm.tquads) {
-                if (tq.id == -1 || tq.data.empty()) continue;
-                bool all_zero = true;
-                for (const TdataMut& d : tq.data)
-                    if (tmm.thalfs[d.thid].x != 0) { all_zero = false; break; }
-                if (all_zero)
-                    std::cout << "[debug] " << when << ": tquad " << tq.id
-                              << " has ALL x == 0 (n=" << tq.data.size() << ")" << std::endl;
+    // collapse tquad
+    /*
+    for (const TquadMut& tq : tmm.tquads) {
+        Tqaux tqaux;
+        if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+            tmm.collapse_tquad_execute(tq.id, tqaux);
+            std::cout << "tq_collapse id: " << tq.id << std::endl;
+            std::vector<glm::vec3> pcs;
+            std::vector<double> vals;
+            std::vector<double> sides;
+            for (const auto& [loc, val, side] : tqaux.checkpoints) {
+                Row3d p = get_ptloc_pos(*hm, loc);
+                pcs.emplace_back(p.x(), p.y(), p.z());
+                vals.push_back(val);
+                sides.push_back(side);
             }
-        };
-        report_all_zero_x("before collapse loop");
-
-        for (const TquadMut& tq : tmm.tquads) {
-            Tqaux tqaux;
-            if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-                //if (tq.id != 29) continue;
-                std::cout << "tq_collapse id: " << tq.id << std::endl;
-                std::vector<glm::vec3> pcs;
-                std::vector<double> vals;
-                std::vector<double> sides;
-                for (const auto& [loc, val, side] : tqaux.checkpoints) {
-                    Row3d p = get_ptloc_pos(*hm, loc);
-                    pcs.emplace_back(p.x(), p.y(), p.z());
-                    vals.push_back(val);
-                    sides.push_back(side);
-                }
-                auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tq.id), pcs);
-                pc->addScalarQuantity("val",  vals);
-                pc->addScalarQuantity("side", sides);
-                pc->setPointRadius(0.004);
-                pc->resetTransform();
-
-                tmm.collapse_tquad_execute(tq.id, tqaux);
-                report_all_zero_x("after collapse tq" + std::to_string(tq.id));
-            }
-        }
-
-        // collapse 後の各 TquadMut を境界（data 順）ごとに描画。tq.id == -1 は除外。
-        for (const TquadMut& tq : tmm.tquads) {
-            if (tq.id == -1) continue;
-            std::vector<glm::vec3> ns;
-            std::vector<std::array<size_t, 2>> es;
-            std::vector<double> nside;
-            size_t c = 0;
-            for (const TdataMut& d : tq.data) {
-                const TedgeMut& te = tmm.tedges[tmm.thalfs[d.thid].teid];
-                for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
-                    Row3d a = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i]]);
-                    Row3d b = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i + 1]]);
-                    ns.emplace_back(a.x(), a.y(), a.z());
-                    ns.emplace_back(b.x(), b.y(), b.z());
-                    es.push_back({c, c + 1}); c += 2;
-                    nside.push_back(d.side); nside.push_back(d.side);
-                }
-            }
-            if (ns.empty()) continue;
-            auto* cn = polyscope::registerCurveNetwork("tq" + std::to_string(tq.id), ns, es);
-            cn->addNodeScalarQuantity("side", nside);
-            cn->setRadius(0.0015); cn->resetTransform();
-        }
-
-        // collapse 中に新しく追加された thalf だけを描画（新規 tedge = te_before 以降）。
-        {
-            std::vector<glm::vec3> ns;
-            std::vector<std::array<size_t, 2>> es;
-            std::vector<double> teid_q;
-            size_t c = 0;
-            for (size_t teid = te_before; teid < tmm.tedges.size(); ++teid) {
-                const TedgeMut& te = tmm.tedges[teid];
-                for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
-                    Row3d a = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i]]);
-                    Row3d b = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i + 1]]);
-                    ns.emplace_back(a.x(), a.y(), a.z());
-                    ns.emplace_back(b.x(), b.y(), b.z());
-                    es.push_back({c, c + 1}); c += 2;
-                    teid_q.push_back((double)teid); teid_q.push_back((double)teid);
-                }
-            }
-            std::cout << "new thalfs: " << (tmm.thalfs.size() - th_before)
-                      << "  new tedges: " << (tmm.tedges.size() - te_before) << std::endl;
-            if (!ns.empty()) {
-                auto* cn = polyscope::registerCurveNetwork("new thalfs", ns, es);
-                cn->addNodeScalarQuantity("teid", teid_q);
-                cn->setColor({1.0, 0.2, 0.8}); cn->setRadius(0.0025); cn->resetTransform();
-            }
+            auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tq.id), pcs);
+            pc->addScalarQuantity("val",  vals);
+            pc->addScalarQuantity("side", sides);
+            pc->setPointRadius(0.004);
+            pc->resetTransform();
         }
     }
+    */
 
-    // todo: early return!
-    polyscope::show(); return 0;
+    // debug view
+    for (const TquadMut& tq : tmm.tquads) {
+        if (tq.id == -1) continue;
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> nside;
+        size_t c = 0;
+        for (const TdataMut& d : tq.data) {
+            const TedgeMut& te = tmm.tedges[tmm.thalfs[d.thid].teid];
+            for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
+                Row3d a = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i]]);
+                Row3d b = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i + 1]]);
+                ns.emplace_back(a.x(), a.y(), a.z());
+                ns.emplace_back(b.x(), b.y(), b.z());
+                es.push_back({c, c + 1}); c += 2;
+                nside.push_back(d.side); nside.push_back(d.side);
+            }
+        }
+        if (ns.empty()) continue;
+        auto* cn = polyscope::registerCurveNetwork("tq" + std::to_string(tq.id), ns, es);
+        cn->addNodeScalarQuantity("side", nside);
+        cn->setMaterial("flat");
+        cn->setRadius(0.0005); cn->resetTransform();
+    }
 
+    polyscope::show(); return 0; // early return!
 
+    /*
     auto sdiv_data = generate_tracked_data(*hm, uv2);
     //compute_midpoint_subdivision(sdiv_data, 1);
     //compute_barycentric_subdivision(sdiv_data, 1);
@@ -397,4 +341,5 @@ int main(int argc, char** argv) {
 
     polyscope::show();
     return 0;
+    */
 }
