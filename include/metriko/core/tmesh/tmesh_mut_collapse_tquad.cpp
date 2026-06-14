@@ -80,7 +80,6 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         double val_fr;
         double val_to;
     };
-
     vec<Q> qs;
 
     auto find_thid_in_tquad = [&](const HmLoc& fr, const HmLoc& to) -> std::optional<int> {
@@ -97,10 +96,7 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         auto& [loc0, val0, side0] = tqaux.checkpoints[i];
         auto& [loc1, val1, side1] = tqaux.checkpoints[i + 1];
 
-        if (side0 == side1) {
-            int thid = find_thid_in_tquad(loc0, loc1).value();
-            qs.emplace_back(thid, side0, side1, val0, val1);
-        }
+        if (side0 == side1) { qs.emplace_back(find_thid_in_tquad(loc0, loc1).value(), side0, side1, val0, val1); }
         else {
             auto path = approx_shortest_path(20, hm, loc0, loc1, region);
 
@@ -134,16 +130,13 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         while (true) {
             auto it = rg::find_if(qs, [&](auto& t) {
                 const auto& th = thalfs[t.thid];
-                if (invert) return th.loc_to() == cur;
-                else        return th.loc_fr() == cur;
+                return invert? (th.loc_to() == cur) : (th.loc_fr() == cur);
             });
             if (it == qs.end()) break;
             auto thid = it->thid;
-            auto flag = it->side_to == side_to_stop;
-            if (invert) flag = it->side_fr == side_to_stop;
+            auto flag = invert ? (it->side_fr == side_to_stop) : (it->side_to == side_to_stop);
             res.push_back(thid);
-            if (invert) cur = thalfs[thid].loc_fr();
-            else        cur = thalfs[thid].loc_to();
+            cur = invert ? thalfs[thid].loc_fr() : thalfs[thid].loc_to();
             qs.erase(it);
             if (flag) break;
         }
@@ -151,52 +144,27 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         return res;
     };
 
-    vec<int> thids_bgn = consume_pool(loc_bgn, side_end, false);
-    std::cout << "thids_bgn size (fwd): " << thids_bgn.size() << std::endl;
-    if (thids_bgn.empty()) thids_bgn = consume_pool(loc_bgn, side_end, true);
-    std::cout << "thids_bgn size (bwd): " << thids_bgn.size() << std::endl;
-
-    vec<int> thids_end = consume_pool(loc_end, side_bgn, false);
-    std::cout << "thids_end size (fwd): " << thids_end.size() << std::endl;
-    if (thids_end.empty()) thids_end = consume_pool(loc_end, side_bgn, true);
-    std::cout << "thids_end size (bwd): " << thids_end.size() << std::endl;
+    vec<int> thids_bgn = consume_pool(loc_bgn, side_end, false); if (thids_bgn.empty()) thids_bgn = consume_pool(loc_bgn, side_end, true);
+    vec<int> thids_end = consume_pool(loc_end, side_bgn, false); if (thids_end.empty()) thids_end = consume_pool(loc_end, side_bgn, true);
 
     vec<vec<int>> chains;
     while (!qs.empty()) {
-        // from all remaining qs, get min and max val（qs 全体に対して1回）
-        double min_val = qs.front().val_fr;
-        double max_val = qs.front().val_fr;
+        double lo = qs.front().val_fr;
+        double hi = lo;
         for (auto& q : qs) {
-            min_val = std::min({ min_val, q.val_fr, q.val_to });
-            max_val = std::max({ max_val, q.val_fr, q.val_to });
+            lo = std::min({ lo, q.val_fr, q.val_to });
+            hi = std::max({ hi, q.val_fr, q.val_to });
         }
-
-        // 開始 q を1つ選ぶ（consume_pool が qs を erase するので、for で回しながら消さない）
-        auto it = rg::find_if(qs, [&](auto& q) { return q.val_fr == min_val || q.val_fr == max_val; });
-        if (it != qs.end()) {
-            int thid = it->thid, side_fr = it->side_fr;
-            auto res = consume_pool(thalfs[thid].loc_fr(), side_fr, false);
-            assert(res.size() >= 2);
-            chains.push_back(res);
-        } else {
-            auto it = rg::find_if(qs, [&](auto& q) { return q.val_to == min_val || q.val_to == max_val; });
-            int thid = it->thid, side_to = it->side_to;
-            auto res = consume_pool(thalfs[thid].loc_to(), side_to, true);
-            assert(res.size() >= 2);
-            chains.push_back(res);
-        }
+        auto ext = [&](double v) { return v == lo || v == hi; };
+        if (auto it = rg::find_if(qs, [&](auto& q) { return ext(q.val_fr); }); it != qs.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_fr(), it->side_fr, false)); continue; }
+        if (auto it = rg::find_if(qs, [&](auto& q) { return ext(q.val_to); }); it != qs.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_to(), it->side_to, true));  continue; }
+        throw std::runtime_error("error in collapse_tquad_execute");
     }
 
-    for (auto& chain: chains) {
-        std::cout << "chain size: " << chain.size() << std::endl;
-        for (int thid: chain) { std::cout << "thid: " << thid << std::endl; }
-    }
-    for (int thid: thids_bgn) { std::cout << "thid_bgn: " << thid << std::endl; }
-    for (int thid: thids_end) { std::cout << "thid_end: " << thid << std::endl; }
+    for (auto& chain: chains) assert(chain.size() >= 2);
 
-
-    auto step_next = [&](int thid) { auto& q = tquads[thalfs[thid].tqid]; return circular_next(q.data, rg::find(q.data, thid, &TdataMut::thid))->thid; };
-    auto step_prev = [&](int thid) { auto& q = tquads[thalfs[thid].tqid]; return circular_prev(q.data, rg::find(q.data, thid, &TdataMut::thid))->thid; };
+    auto step_next = [&](int thid) { auto& [_, data] = tquads[thalfs[thid].tqid]; return circular_next(data, rg::find(data, thid, &TdataMut::thid))->thid; };
+    auto step_prev = [&](int thid) { auto& [_, data] = tquads[thalfs[thid].tqid]; return circular_prev(data, rg::find(data, thid, &TdataMut::thid))->thid; };
 
     auto replace = [&](int thid_replace, const vec<int>& chain) {
         auto& th_replace = thalfs[thid_replace];
@@ -230,10 +198,8 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     for (auto& chain: chains) {
         const HmLoc& fr = thalfs[chain.front()].loc_fr();
         const HmLoc& to = thalfs[chain.back()].loc_to();
-        auto o0 = find_thid_in_tquad(fr, to);
-        auto o1 = find_thid_in_tquad(to, fr);
-        if (o0.has_value()) replace(thalfs[o0.value()].twid, chain);
-        if (o1.has_value()) replace(thalfs[o1.value()].twid, chain);
+        if (auto o = find_thid_in_tquad(fr, to); o.has_value()) replace(thalfs[o.value()].twid, chain);
+        if (auto o = find_thid_in_tquad(to, fr); o.has_value()) replace(thalfs[o.value()].twid, chain);
     }
 
     tedges[th_r.teid].id = -1;

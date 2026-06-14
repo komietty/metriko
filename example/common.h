@@ -626,6 +626,8 @@ polyscope::SurfaceMesh* visualize_mesh_with_uv(
 
     surf->setEdgeWidth(0.7);
     surf->setEnabled(show);
+    surf->setMaterial("flat");
+    surf->setSurfaceColor(glm::vec3(0.15, 0.15, 0.15));
 
     vec<glm::vec3> f_col(surf->nFaces(), glm::vec3(0.8, 0.8, 0.8));
 
