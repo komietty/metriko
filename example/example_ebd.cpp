@@ -84,7 +84,8 @@ int main(int argc, char** argv) {
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     TmeshMut tmm(mg, tm, X);
 
-    for (int i : { 1, 7 }) {
+    //for (int i : { 1, 7 }) {
+    for (int i = 0; i < tmm.tquads.size(); i++) {
         int tqid = std::min(i, (int)tmm.tquads.size() - 1);
         auto allowed = tmm.allowed_range(tqid);
         std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
@@ -104,6 +105,7 @@ int main(int argc, char** argv) {
         reg->setColor({0.2, 0.6, 1.0});
         reg->setRadius(0.0005);
         reg->resetTransform();
+        reg->setEnabled(false);
     }
 
 
@@ -122,6 +124,7 @@ int main(int argc, char** argv) {
     }
 
     // collapse tquad
+    /*
     for (const TquadMut& tq : tmm.tquads) {
         Tqaux tqaux;
         if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
@@ -143,6 +146,7 @@ int main(int argc, char** argv) {
             pc->resetTransform();
         }
     }
+    */
 
     // debug view
     for (const TquadMut& tq : tmm.tquads) {

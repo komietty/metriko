@@ -136,8 +136,6 @@ struct TmeshMut {
     }
 
     vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
-    vec<std::tuple<int, double, double>> allowed_range_(int tqid) const;
-    vec<std::tuple<int, double, double>> allowed_range_trace(int tqid) const;
 };
 
 inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
