@@ -44,6 +44,22 @@ inline Row3d get_ptloc_pos(
     }, hl);
 }
 
+inline Row3d get_ptloc_normal(
+    const Hmesh& hm,
+    const HmLoc& hl
+) {
+    return std::visit(overloaded{
+        [&](const HmLocOnV& l) -> Row3d { return hm.verts[l.id].normal(); },
+        [&](const HmLocOnF& l) -> Row3d { return hm.faces[l.id].normal(); },
+        [&](const HmLocOnE& l) -> Row3d {
+            Edge  e = hm.edges[l.id];
+            Row3d d = e.face0().normal() + e.face1().normal();
+            return d.norm() > 0 ? d.normalized() : Row3d::Zero();
+        },
+        [&](const auto& _) -> Row3d { throw std::runtime_error("no impl"); },
+    }, hl);
+}
+
 inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
     Face f = hm.faces[fid];
     Vert v = hm.verts[vid];

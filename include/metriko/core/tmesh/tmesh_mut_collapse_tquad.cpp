@@ -71,7 +71,7 @@ bool TmeshMut::collapse_tquad_prepare(int tqid, Tqaux& tqaux) const {
 
 void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     auto& tq_crr = tquads[tqid];
-    auto  region = allowed_range(tq_crr.id);
+    auto  region = allowed_range_(tq_crr.id);
 
     struct Q {
         int thid;

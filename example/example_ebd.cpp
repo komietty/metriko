@@ -84,12 +84,10 @@ int main(int argc, char** argv) {
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     TmeshMut tmm(mg, tm, X);
 
-    /*
-    for (int i : { 7, 32 }) {
+    for (int i : { 1, 7 }) {
         int tqid = std::min(i, (int)tmm.tquads.size() - 1);
-        auto allowed = tmm.allowed_range_trace(tqid);  // vec<(eid, r0, r1)>  ← 横断トレース版
+        auto allowed = tmm.allowed_range(tqid);
         std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
-        // 許可レンジ（=領域）を可視化
         std::vector<glm::vec3> rns;
         std::vector<std::array<size_t, 2>> res;
         size_t rc = 0;
@@ -107,7 +105,7 @@ int main(int argc, char** argv) {
         reg->setRadius(0.0005);
         reg->resetTransform();
     }
-    */
+
 
     // collapse thalf
     for (ThalfMut th0 : tmm.thalfs) {
@@ -124,12 +122,11 @@ int main(int argc, char** argv) {
     }
 
     // collapse tquad
-    /*
     for (const TquadMut& tq : tmm.tquads) {
         Tqaux tqaux;
         if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-            tmm.collapse_tquad_execute(tq.id, tqaux);
             std::cout << "tq_collapse id: " << tq.id << std::endl;
+            tmm.collapse_tquad_execute(tq.id, tqaux);
             std::vector<glm::vec3> pcs;
             std::vector<double> vals;
             std::vector<double> sides;
@@ -146,7 +143,6 @@ int main(int argc, char** argv) {
             pc->resetTransform();
         }
     }
-    */
 
     // debug view
     for (const TquadMut& tq : tmm.tquads) {

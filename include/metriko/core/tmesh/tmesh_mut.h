@@ -136,6 +136,7 @@ struct TmeshMut {
     }
 
     vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
+    vec<std::tuple<int, double, double>> allowed_range_(int tqid) const;
     vec<std::tuple<int, double, double>> allowed_range_trace(int tqid) const;
 };
 

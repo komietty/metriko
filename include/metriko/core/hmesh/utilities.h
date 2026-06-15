@@ -63,6 +63,13 @@ inline bool is_inside_face(
     return is_inside_triangle(uv1, uv2, uv3, uv);
 }
 
+inline vec<Face> get_faces(const Hmesh &hm, Vert v) {
+    vec<Face> faces;
+    for (auto h : hm.halfs)
+        if (h.crnr().vert() == v) faces.push_back(h.face());
+    return faces;
 }
+
+};
 
 #endif
