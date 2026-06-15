@@ -34,7 +34,7 @@ MatXi F;
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     hm = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::Smoothest);
+    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*hm  , seam);
@@ -124,29 +124,31 @@ int main(int argc, char** argv) {
     }
 
     // collapse tquad
-    /*
-    for (const TquadMut& tq : tmm.tquads) {
-        Tqaux tqaux;
-        if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-            std::cout << "tq_collapse id: " << tq.id << std::endl;
-            tmm.collapse_tquad_execute(tq.id, tqaux);
-            std::vector<glm::vec3> pcs;
-            std::vector<double> vals;
-            std::vector<double> sides;
-            for (const auto& [loc, val, side] : tqaux.checkpoints) {
-                Row3d p = get_ptloc_pos(*hm, loc);
-                pcs.emplace_back(p.x(), p.y(), p.z());
-                vals.push_back(val);
-                sides.push_back(side);
+    //for (int i = 0; i < 2; ++i)
+        {
+        for (const TquadMut& tq : tmm.tquads) {
+            Tqaux tqaux;
+            if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+                if (tq.id > 40) continue;
+                std::cout << "tq_collapse id: " << tq.id << std::endl;
+                tmm.collapse_tquad_execute(tq.id, tqaux);
+                std::vector<glm::vec3> pcs;
+                std::vector<double> vals;
+                std::vector<double> sides;
+                for (const auto& [loc, val, side] : tqaux.checkpoints) {
+                    Row3d p = get_ptloc_pos(*hm, loc);
+                    pcs.emplace_back(p.x(), p.y(), p.z());
+                    vals.push_back(val);
+                    sides.push_back(side);
+                }
+                auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tq.id), pcs);
+                pc->addScalarQuantity("val",  vals);
+                pc->addScalarQuantity("side", sides);
+                pc->setPointRadius(0.004);
+                pc->resetTransform();
             }
-            auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tq.id), pcs);
-            pc->addScalarQuantity("val",  vals);
-            pc->addScalarQuantity("side", sides);
-            pc->setPointRadius(0.004);
-            pc->resetTransform();
         }
     }
-    */
 
     // debug view
     for (const TquadMut& tq : tmm.tquads) {

@@ -20,6 +20,9 @@ bool TmeshMut::collapse_tquad_prepare(int tqid, Tqaux& tqaux) const {
     auto& th_l   = thalfs[thid_l];
     auto& th_r   = thalfs[thid_r];
 
+    if (rg::any_of(thids_t, [&](int t) { return thalfs[t].x == 0; })) return false;
+    if (rg::any_of(thids_b, [&](int t) { return thalfs[t].x == 0; })) return false;
+
     auto find_terminal = [&](int thid, int s0, int s1) -> std::pair<const HmLoc&, int> {
         auto& th0 = thalfs[thid];
         auto& th1 = thalfs[th0.twid];

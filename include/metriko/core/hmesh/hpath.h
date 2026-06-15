@@ -13,6 +13,53 @@ inline vec<HmLoc> approx_shortest_path(
     const HmLoc& loc_end,
     const vec<std::tuple<int, double, double>>& allowed // (eid, r0, r1) allowed region ranges
 ) {
+
+    auto incidentFaces = [&](const HmLoc& loc) -> vec<int> {
+        return std::visit(overloaded{
+            [&](const HmLocOnF& l) -> vec<int> { return { l.id }; },
+            [&](const HmLocOnH& l) -> vec<int> {
+                vec<int> fs; Half h = hm.halfs[l.id];
+                if (h.face().id != -1)        fs.push_back(h.face().id);
+                if (h.twin().face().id != -1) fs.push_back(h.twin().face().id);
+                return fs;
+            },
+            [&](const HmLocOnE& l) -> vec<int> {
+                vec<int> fs; Edge e = hm.edges[l.id];
+                if (e.face0().id != -1) fs.push_back(e.face0().id);
+                if (e.face1().id != -1) fs.push_back(e.face1().id);
+                return fs;
+            },
+            [&](const HmLocOnV& l) -> vec<int> {
+                vec<int> fs;
+                for (Half h : hm.verts[l.id].adjHalfs())
+                    if (h.face().id != -1) fs.push_back(h.face().id);
+                return fs;
+            },
+            [&](const auto&) -> vec<int> { return {}; },
+        }, loc);
+    };
+    auto incidentEdges = [&](const HmLoc& loc) -> vec<int> {
+        return std::visit(overloaded{
+            [&](const HmLocOnE& l) -> vec<int> { return { l.id }; },
+            [&](const HmLocOnH& l) -> vec<int> { return { hm.halfs[l.id].edge().id }; },
+            [&](const HmLocOnV& l) -> vec<int> {
+                vec<int> es;
+                for (Half h : hm.verts[l.id].adjHalfs()) es.push_back(h.edge().id);
+                return es;
+            },
+            [&](const auto&) -> vec<int> { return {}; },
+        }, loc);
+    };
+    auto shares = [](const vec<int>& a, const vec<int>& b) {
+        for (int x : a) for (int y : b) if (x == y) return true;
+        return false;
+    };
+    // same edge or shared face -> straight segment, skip the graph search.
+    if (shares(incidentEdges(loc_bgn), incidentEdges(loc_end))) return { loc_bgn, loc_end };
+    if (shares(incidentFaces(loc_bgn), incidentFaces(loc_end))) return { loc_bgn, loc_end };
+
+    // if not on the same element, follows
+
     struct Node { HmLoc loc; Row3d pos; };
     vec<Node> nodes;
     umap<int, vec<int>> e2n;  // eid -> node
@@ -57,33 +104,6 @@ inline vec<HmLoc> approx_shortest_path(
     // ============================================================
     // 4. 始点・終点（面内任意点）をノードとして追加
     // ============================================================
-    auto incidentFaces = [&](const HmLoc& loc) -> vec<int> {
-        return std::visit(overloaded{
-            [&](const HmLocOnF& l) -> vec<int> { return { l.id }; },
-            [&](const HmLocOnH& l) -> vec<int> {
-                vec<int> fs;
-                Half h = hm.halfs[l.id];
-                if (h.face().id != -1)        fs.push_back(h.face().id);
-                if (h.twin().face().id != -1) fs.push_back(h.twin().face().id);
-                return fs;
-            },
-            [&](const HmLocOnE& l) -> vec<int> {
-                vec<int> fs;
-                Edge e = hm.edges[l.id];
-                if (e.face0().id != -1) fs.push_back(e.face0().id);
-                if (e.face1().id != -1) fs.push_back(e.face1().id);
-                return fs;
-            },
-            [&](const HmLocOnV& l) -> vec<int> {
-                vec<int> fs;
-                for (Half h : hm.verts[l.id].adjHalfs())
-                    if (h.face().id != -1) fs.push_back(h.face().id);
-                return fs;
-            },
-            [&](const auto&) -> vec<int> { return {}; },
-        }, loc);
-    };
-
     // 端点（vert / edge / face内点）をノード化し、属する面のエッジ候補へ接続
     auto addPoint = [&](const HmLoc& loc) -> int {
         int id = (int)nodes.size();
@@ -130,7 +150,6 @@ inline vec<HmLoc> approx_shortest_path(
     vec<int> seq;
     for (int v = t; v != -1; v = prev[v]) seq.push_back(v);
     rg::reverse(seq);
-    //std::cout << "steiner geodesic length = " << dist[t] << ",  #path points = " << seq.size() << ",  #candidate nodes = " << (nodes.size() - 2) << std::endl;
 
     vec<HmLoc> path;
     path.reserve(seq.size());
