@@ -159,16 +159,13 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
 
     for (auto& chain: chains) assert(chain.size() >= 2);
 
-    auto step_next = [&](int thid) { auto& [_, data] = tquads[thalfs[thid].tqid]; return circular_next(data, rg::find(data, thid, &TdataMut::thid))->thid; };
-    auto step_prev = [&](int thid) { auto& [_, data] = tquads[thalfs[thid].tqid]; return circular_prev(data, rg::find(data, thid, &TdataMut::thid))->thid; };
-
     auto replace = [&](int thid_replace, const vec<int>& chain) {
         auto& th_replace = thalfs[thid_replace];
         auto& tq_replace = tquads[th_replace.tqid];
         int   side = tq_replace.side_of(th_replace);
         auto& data = tq_replace.data;
         int    pos = rg::find(data, side, &TdataMut::side) - data.begin();
-        std::erase_if(data, [&](const TdataMut& d) { return d.side == side; });
+        std::erase_if(data, [&](const TdataMut& d) { return d.thid == thid_replace; });
         vec<TdataMut> repl;
         for (int thid : chain) { thalfs[thid].tqid = tq_replace.id; repl.push_back({ thid, side }); }
         data.insert(data.begin() + pos, repl.begin(), repl.end());
@@ -182,12 +179,19 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         auto& [_, nids]  = tedges[th.teid];
         vec<int> wo_l(nids.begin(), nids.end() - 1);
         vec<int> wo_f(nids.begin() + 1, nids.end());
-        if (ahd) { if (th.cano) te_ahd.insert_locs_front(wo_l); else te_ahd.insert_locs_after(wo_f); replace(th_nxt.twid, chain); }
+        if (ahd) {
+            if (th.cano) te_ahd.insert_locs_front(wo_l);
+            else         te_ahd.insert_locs_after(wo_f);
+            replace(th_nxt.twid, chain);
+        }
         else     { if (th.cano) te_bhd.insert_locs_after(wo_f); else te_bhd.insert_locs_front(wo_l); replace(th_prv.twid, chain); }
     };
 
     const auto& th_r = thalfs[tqaux.side_thid_r.second];
     const auto& th_l = thalfs[tqaux.side_thid_l.second];
+    int cout_r = count_adj_tquads(th_r.id);
+    int cout_l = count_adj_tquads(th_l.id);
+    std::cout << "cout_r: " << cout_r << ", cout_l: " << cout_l << std::endl;
     extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn);
     extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end);
 

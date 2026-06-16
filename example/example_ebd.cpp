@@ -34,7 +34,7 @@ MatXi F;
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     hm = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::CurvatureAligned);
+    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::Smoothest);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*hm  , seam);
@@ -84,29 +84,27 @@ int main(int argc, char** argv) {
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     TmeshMut tmm(mg, tm, X);
 
-    //for (int i : { 1, 7 }) {
-    for (int i = 0; i < tmm.tquads.size(); i++) {
-        int tqid = std::min(i, (int)tmm.tquads.size() - 1);
-        auto allowed = tmm.allowed_range(tqid);
-        std::cout << "tquad " << tqid << ": allowed edges = " << allowed.size() << std::endl;
-        std::vector<glm::vec3> rns;
-        std::vector<std::array<size_t, 2>> res;
-        size_t rc = 0;
-        for (auto& [eid, r0, r1] : allowed) {
-            Half h = hm->edges[eid].half();
-            Row3d p0 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r0}));
-            Row3d p1 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r1}));
-            rns.emplace_back(p0.x(), p0.y(), p0.z());
-            rns.emplace_back(p1.x(), p1.y(), p1.z());
-            res.push_back({rc, rc + 1});
-            rc += 2;
-        }
-        auto* reg = polyscope::registerCurveNetwork("tquad " + std::to_string(tqid) + " allowed region", rns, res);
-        reg->setColor({0.2, 0.6, 1.0});
-        reg->setRadius(0.0005);
-        reg->resetTransform();
-        reg->setEnabled(false);
-    }
+    //for (int i = 0; i < tmm.tquads.size(); i++) {
+    //    int tqid = std::min(i, (int)tmm.tquads.size() - 1);
+    //    auto allowed = tmm.allowed_range(tqid);
+    //    std::vector<glm::vec3> rns;
+    //    std::vector<std::array<size_t, 2>> res;
+    //    size_t rc = 0;
+    //    for (auto& [eid, r0, r1] : allowed) {
+    //        Half h = hm->edges[eid].half();
+    //        Row3d p0 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r0}));
+    //        Row3d p1 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r1}));
+    //        rns.emplace_back(p0.x(), p0.y(), p0.z());
+    //        rns.emplace_back(p1.x(), p1.y(), p1.z());
+    //        res.push_back({rc, rc + 1});
+    //        rc += 2;
+    //    }
+    //    auto* reg = polyscope::registerCurveNetwork("tquad " + std::to_string(tqid) + " allowed region", rns, res);
+    //    reg->setColor({0.2, 0.6, 1.0});
+    //    reg->setRadius(0.0005);
+    //    reg->resetTransform();
+    //    reg->setEnabled(false);
+    //}
 
 
     // collapse thalf
@@ -119,7 +117,7 @@ int main(int argc, char** argv) {
         if (th0.x != 0) continue;
         if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
         if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-        std::cout << "thalf " << th0.id << std::endl;
+        std::cout << "th_collapse id: " << th0.id << std::endl;
         tmm.collapse_thalf(th0.id);
     }
 
@@ -129,7 +127,6 @@ int main(int argc, char** argv) {
         for (const TquadMut& tq : tmm.tquads) {
             Tqaux tqaux;
             if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-                if (tq.id > 40) continue;
                 std::cout << "tq_collapse id: " << tq.id << std::endl;
                 tmm.collapse_tquad_execute(tq.id, tqaux);
                 std::vector<glm::vec3> pcs;
@@ -155,10 +152,11 @@ int main(int argc, char** argv) {
         if (tq.id == -1) continue;
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
-        std::vector<double> nside;
+        std::vector<double> nside, nx, nr;
         size_t c = 0;
         for (const TdataMut& d : tq.data) {
-            const TedgeMut& te = tmm.tedges[tmm.thalfs[d.thid].teid];
+            const ThalfMut& th = tmm.thalfs[d.thid];
+            const TedgeMut& te = tmm.tedges[th.teid];
             for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
                 Row3d a = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i]]);
                 Row3d b = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i + 1]]);
@@ -166,11 +164,15 @@ int main(int argc, char** argv) {
                 ns.emplace_back(b.x(), b.y(), b.z());
                 es.push_back({c, c + 1}); c += 2;
                 nside.push_back(d.side); nside.push_back(d.side);
+                nx.push_back(th.x);      nx.push_back(th.x);
+                nr.push_back(th.r);      nr.push_back(th.r);
             }
         }
         if (ns.empty()) continue;
         auto* cn = polyscope::registerCurveNetwork("tq" + std::to_string(tq.id), ns, es);
         cn->addNodeScalarQuantity("side", nside);
+        cn->addNodeScalarQuantity("x", nx);
+        cn->addNodeScalarQuantity("r", nr);
         cn->setMaterial("flat");
         cn->setRadius(0.0005); cn->resetTransform();
     }

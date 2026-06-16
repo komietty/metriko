@@ -1,89 +1,66 @@
-// パイプライン結合テスト（field→param→mc→Tmesh→TmeshMut→allowed_range）。polyscope 不要。
-#include <igl/readOBJ.h>
-#include "metriko/core/vectorfield/face_rosy_field.h"
-#include "metriko/core/igm/parameterization.h"
-#include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include <string>
+#include "pipeline.h"
 #include "check.h"
 
 using namespace metriko;
 
 int main(int argc, char** argv) {
     if (argc < 3) { std::cerr << "usage: test_tmesh <gridscale> <mesh.obj> [more.obj ...]\n"; return 2; }
-    const int N = 4;
+    const int    N     = 4;
     const double scale = std::stod(argv[1]);
 
-    for (int a = 2; a < argc; ++a) {                 // 複数メッシュをループ（Program arguments で指定）
+    for (int a = 2; a < argc; ++a) {
         const char* mesh = argv[a];
-        MatXd V; MatXi F;
-        igl::readOBJ(mesh, V, F);
-        CHECK(V.rows() > 0 && F.rows() > 0);   // 読み込み失敗(欠落/空)をクリーンに検出
-        Hmesh hm(V, F);
+        TmeshPipeline P(mesh, scale, N);
+        CHECK(P.ok);
+        const Hmesh&     hm  = *P.hm;
+        const mc::Mgrph& mg  = *P.mg;
+        const Tmesh&     tm  = *P.tm;
+        TmeshMut&        tmm = *P.tmm;
 
-        FaceRosyField rawf(hm, N, FieldType::Smoothest);
-        rawf.computeMatching(MatchingType::Principal);
-        auto seam = compute_seam(rawf);
-        auto cutm = compute_cut_mesh(hm, seam);
-        auto cmbf = compute_combbed_field(rawf, seam);
-
-        MatXd ext(hm.nF, 3 * N);
-        for (Face f : hm.faces)
-            for (int k = 0; k < N; ++k) {
-                complex c = cmbf->field(f.id, k);
-                ext.block(f.id, 3 * k, 1, 3) = (c.real() * f.basisX() + c.imag() * f.basisY()).normalized();
-            }
-
-        RosyParameterization rp(hm, *cutm, ext, cmbf->singular, cmbf->matching, seam, N, scale);
-        rp.seamless = false;
-        rp.localInjectivity = true;
-        rp.verbose = false;
-        rp.setup();
-        rp.integ();
-
-        VecXc uv2(hm.nF * 3);
-        for (Face f : hm.faces) {
-            uv2(f.id * 3 + 0) = complex{ rp.cfn(f.id, 0), rp.cfn(f.id, 1) };
-            uv2(f.id * 3 + 1) = complex{ rp.cfn(f.id, 4), rp.cfn(f.id, 5) };
-            uv2(f.id * 3 + 2) = complex{ rp.cfn(f.id, 8), rp.cfn(f.id, 9) };
-        }
-
-        mc::Mgrph mg(hm, uv2, cmbf->matching, cmbf->singular);
-        Tmesh    tm(mg);
-        VecXd    X = compute_quantization(tm, mg);
-        TmeshMut tmm(mg, tm);
-
-        // --- Tmesh / TmeshMut の不変条件 ---
         CHECK(tm.nTH == 2 * tm.nTE);
         CHECK(tmm.thalfs.size() == 2 * tmm.tedges.size());
         CHECK(tmm.tnodes.size() == mg.mnodes.size());
         CHECK(!tmm.tquads.empty());
         CHECK(tmm.tquads.size() == tm.tquads.size());
 
-        // --- allowed_range が局所化する（空でなく、全エッジ未満）---
-        auto r = tmm.allowed_range(tmm.tquads.front().id);
-        CHECK(!r.empty());
-        CHECK((int)r.size() < hm.nE);
-        for (auto& [eid, r0, r1] : r) {       // レンジが有効
-            CHECK(eid >= 0 && eid < hm.nE);
-            CHECK(r0 < r1);
+        // collapse thalf
+        for (ThalfMut th0 : tmm.thalfs) {
+            auto& th1 = tmm.thalfs[th0.twid];
+            auto& tq0 = tmm.tquads[th0.tqid];
+            auto& tq1 = tmm.tquads[th1.tqid];
+            if (th0.id == -1) continue;
+            if (th1.id == -1) continue;
+            if (th0.x != 0) continue;
+            if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+            if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+            tmm.collapse_thalf(th0.id);
         }
 
-        // --- collapse 後も「各 tquad の対辺の x 合計が等しい」（quantization の quad 制約）---
-        // x = 量子化値（teid ごと）
+        // collapse tquad
+        for (const TquadMut& tq: tmm.tquads) {
+            Tqaux tqaux;
+            if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+                tmm.collapse_tquad_execute(tq.id, tqaux);
+            }
+        }
+
         auto opp_balanced = [&](const TmeshMut& m) -> bool {
             for (const TquadMut& q : m.tquads) {
                 if (q.data.empty()) continue;
                 double s[4] = {0, 0, 0, 0};
-                for (const TdataMut& d : q.data) s[d.side] += m.thalfs[d.thid].x;
-                if (std::abs(s[0] - s[2]) > 1e-6 || std::abs(s[1] - s[3]) > 1e-6) return false;
+                for (const auto& [thid, side] : q.data) {
+                    int x = m.thalfs[thid].x;
+                    CHECK(x >= 1);
+                    s[side] += x;
+                }
+                if (std::abs(s[0] - s[2]) > 1e-6 || std::abs(s[1] - s[3]) > 1e-6) { return false; }
             }
             return true;
         };
-
-        for (auto& th : tmm.thalfs) th.x = X[th.teid];
         CHECK(opp_balanced(tmm));
 
-        std::cout << "[test_tmesh] OK  " << mesh << "  nTQ=" << tm.nTQ << "  allowed=" << r.size() << "/" << hm.nE << "\n";
+        std::cout << "[test_tmesh] OK  " << mesh << std::endl;
     }
     return 0;
 }

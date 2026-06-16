@@ -122,6 +122,18 @@ struct TmeshMut {
         }
     }
 
+    int step_next(int i) { auto& [_, d] = tquads[thalfs[i].tqid]; return circular_next(d, rg::find(d, i, &TdataMut::thid))->thid; };
+    int step_prev(int i) { auto& [_, d] = tquads[thalfs[i].tqid]; return circular_prev(d, rg::find(d, i, &TdataMut::thid))->thid; };
+
+    int count_adj_tquads(int thid0) {
+        int count = 0, thid = thid0;
+        do { ++count; thid = step_next(thalfs[thid].twid); }
+        while (thid != thid0 && count <= thalfs.size());
+        return count;
+    }
+
+    vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
+
     void collapse_thalf(int thid);
     bool collapse_tquad_prepare(int tqid, Tqaux& tqaux) const;
     void collapse_tquad_execute(int tqid, Tqaux& tqaux);
@@ -135,7 +147,6 @@ struct TmeshMut {
         return nids;
     }
 
-    vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
 };
 
 inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }

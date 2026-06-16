@@ -1,0 +1,10 @@
+{
+  "gridscale": 0.05,
+  "models_dir": "/Users/saki/dev/models",
+  "expected": "expected_allowed.json",
+  "meshes": [
+    "torus_1",
+    "icosphere_4",
+    "icosphere_5"
+  ]
+}
