@@ -172,29 +172,26 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     };
 
     auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain) {
-        auto& th_nxt = thalfs[step_next(th.id)];
         auto& th_twn = thalfs[th.twid];
         auto& tq_twn = tquads[th_twn.tqid];
-        auto& th_prv = thalfs[step_prev(th.id)];
-        auto& th_ahd = thalfs[step_next(th_nxt.twid)];
-        auto& th_bhd = thalfs[step_prev(th_prv.twid)];
-        auto& te_ahd = tedges[th_ahd.teid];
-        auto& te_bhd = tedges[th_bhd.teid];
         auto& [_, nids]  = tedges[th.teid];
-
         vec<int> wo_l(nids.begin(), nids.end() - 1);
         vec<int> wo_f(nids.begin() + 1, nids.end());
         if (ahd) {
-            //std::cout << "ahd: " << th.id << std::endl;
+            auto& th_nxt = thalfs[step_next(th.id)];
+            auto& th_ahd = thalfs[step_next(th_nxt.twid)];
+            auto& te_ahd = tedges[th_ahd.teid];
             std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
             if (th.cano) te_ahd.insert_locs_front(wo_l);
             else         te_ahd.insert_locs_after(wo_f);
             replace(th_nxt.twid, chain);
         } else {
-            //std::cout << "bhd: " << th.id << std::endl;
+            auto& th_prv = thalfs[step_prev(th.id)];
+            auto& th_bhd = thalfs[step_prev(th_prv.twid)];
+            auto& te_bhd = tedges[th_bhd.teid];
             std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
             if (th.cano) te_bhd.insert_locs_after(wo_f);
-            else te_bhd.insert_locs_front(wo_l);
+            else         te_bhd.insert_locs_front(wo_l);
             replace(th_prv.twid, chain);
         }
     };
@@ -204,6 +201,7 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     int cout_r = count_adj_tquads(th_r.id);
     int cout_l = count_adj_tquads(th_l.id);
     std::cout << "cout_r: " << cout_r << ", cout_l: " << cout_l << std::endl;
+
     extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn);
     extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end);
 

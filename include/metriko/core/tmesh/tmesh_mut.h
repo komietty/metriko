@@ -122,8 +122,18 @@ struct TmeshMut {
         }
     }
 
-    int step_next(int i) { auto& [_, d] = tquads[thalfs[i].tqid]; return circular_next(d, rg::find(d, i, &TdataMut::thid))->thid; };
-    int step_prev(int i) { auto& [_, d] = tquads[thalfs[i].tqid]; return circular_prev(d, rg::find(d, i, &TdataMut::thid))->thid; };
+    int step_next(int i) {
+        auto& [_, d] = tquads[thalfs[i].tqid];
+        auto it = rg::find(d, i, &TdataMut::thid);
+        if (it == d.end()) throw std::runtime_error("step_next: ghost thid " + std::to_string(i));
+        return circular_next(d, it)->thid;
+    };
+    int step_prev(int i) {
+        auto& [_, d] = tquads[thalfs[i].tqid];
+        auto it = rg::find(d, i, &TdataMut::thid);
+        if (it == d.end()) throw std::runtime_error("step_prev: ghost thid " + std::to_string(i));
+        return circular_prev(d, it)->thid;
+    };
 
     int count_adj_tquads(int thid0) {
         int count = 0, thid = thid0;

@@ -49,6 +49,6 @@ void TmeshMut::collapse_thalf(int thid) {
     if (collapse_to_prev) { te_prv.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_after(te_crr.nids); else te_twn_adj.insert_locs_front(te_crr.nids); }
     else                  { te_nxt.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_front(te_crr.nids); else te_twn_adj.insert_locs_after(te_crr.nids); }
 
-    th_crr.id = -1;
-    th_twn.id = -1;
+    th_crr = {};
+    th_twn = {};
 }

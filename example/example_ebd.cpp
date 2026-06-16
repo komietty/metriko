@@ -34,7 +34,7 @@ MatXi F;
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     hm = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::Smoothest);
+    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*hm  , seam);
@@ -108,25 +108,27 @@ int main(int argc, char** argv) {
 
 
     // collapse thalf
-    for (ThalfMut th0 : tmm.thalfs) {
-        auto& th1 = tmm.thalfs[th0.twid];
-        auto& tq0 = tmm.tquads[th0.tqid];
-        auto& tq1 = tmm.tquads[th1.tqid];
-        if (th0.id == -1) continue;
-        if (th1.id == -1) continue;
-        if (th0.x != 0) continue;
-        if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
-        if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-        std::cout << "th_collapse id: " << th0.id << std::endl;
-        tmm.collapse_thalf(th0.id);
-    }
+    //for (ThalfMut th0 : tmm.thalfs) {
+    //    auto& th1 = tmm.thalfs[th0.twid];
+    //    auto& tq0 = tmm.tquads[th0.tqid];
+    //    auto& tq1 = tmm.tquads[th1.tqid];
+    //    if (th0.id == -1) continue;
+    //    if (th1.id == -1) continue;
+    //    if (th0.x != 0) continue;
+    //    if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+    //    if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+    //    std::cout << "th_collapse id: " << th0.id << std::endl;
+    //    tmm.collapse_thalf(th0.id);
+    //}
 
     // collapse tquad
     //for (int i = 0; i < 2; ++i)
+    //if (false)
         {
         for (const TquadMut& tq : tmm.tquads) {
             Tqaux tqaux;
             if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+                //if (tq.id != 8) continue;
                 std::cout << "tq_collapse id: " << tq.id << std::endl;
                 tmm.collapse_tquad_execute(tq.id, tqaux);
                 std::vector<glm::vec3> pcs;
@@ -152,7 +154,7 @@ int main(int argc, char** argv) {
         if (tq.id == -1) continue;
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
-        std::vector<double> nside, nx, nr;
+        std::vector<double> eside, ex, er, ethid;   // per-edge (thalf) params
         size_t c = 0;
         for (const TdataMut& d : tq.data) {
             const ThalfMut& th = tmm.thalfs[d.thid];
@@ -163,16 +165,18 @@ int main(int argc, char** argv) {
                 ns.emplace_back(a.x(), a.y(), a.z());
                 ns.emplace_back(b.x(), b.y(), b.z());
                 es.push_back({c, c + 1}); c += 2;
-                nside.push_back(d.side); nside.push_back(d.side);
-                nx.push_back(th.x);      nx.push_back(th.x);
-                nr.push_back(th.r);      nr.push_back(th.r);
+                eside.push_back(d.side);
+                ex.push_back(th.x);
+                er.push_back(th.r);
+                ethid.push_back(d.thid);
             }
         }
         if (ns.empty()) continue;
         auto* cn = polyscope::registerCurveNetwork("tq" + std::to_string(tq.id), ns, es);
-        cn->addNodeScalarQuantity("side", nside);
-        cn->addNodeScalarQuantity("x", nx);
-        cn->addNodeScalarQuantity("r", nr);
+        cn->addEdgeScalarQuantity("side", eside);
+        cn->addEdgeScalarQuantity("x", ex);
+        cn->addEdgeScalarQuantity("r", er);
+        cn->addEdgeScalarQuantity("thid", ethid);
         cn->setMaterial("flat");
         cn->setRadius(0.0005); cn->resetTransform();
     }
