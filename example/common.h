@@ -184,17 +184,19 @@ inline void visualize_node_adjacency(const mc::Mgrph& mg, const VecXc& uv, bool 
 
 inline void visualize_tedge(
     const Tmesh& tm,
-    const mc::Mgrph& mg, // 【追加】幾何座標の参照に必須
-    const VecXc& uv,               // 3D変換用のベース頂点座標など
+    const mc::Mgrph& mg,
+    const VecXc& uv,
     const VecXd* X = nullptr,
     const std::vector<int> &selector = std::vector<int>(),
     const std::string& prefix = std::string(""),
     const bool show = true
 ) {
-    std::vector<glm::vec3> ns;
-    std::vector<std::array<size_t, 2>> es;
-    std::vector<double> teids;
-    std::vector<double> randoms;
+    vec<glm::vec3> ns;
+    vec<std::array<size_t, 2>> es;
+    vec<double> teids;
+    vec<double> tqid1;
+    vec<double> tqid2;
+    vec<double> randoms;
     size_t counter = 0;
 
     std::random_device rd;
@@ -211,17 +213,19 @@ inline void visualize_tedge(
 
     for (int i = 0; i < tm.nTE; i++) {
         const auto& te = tm.tedges[i];
+        // find two thalf of tedge (created as a consecutive pair: 2*teid = cano, +1 = twin)
+        const auto& th0 = tm.thalfs[te.id * 2];   // cano
+        const auto& th1 = tm.thalfs[th0.twid];    // twin
+        int q1 = tm.th2quad[th0.id];              // tquad on cano side
+        int q2 = tm.th2quad[th1.id];              // tquad on twin side
+
         int random_value = distr(gen);
 
-        // セレクタによるフィルタリング
         if (!selector.empty() && rg::find(selector, i) == selector.end()) continue;
 
-        // Tedge が保持する Msgmt の履歴を辿る
         for (const mc::Msgmt &ts: te.segs) {
-            // mg を使って、ノードIDからFaceローカルなUV座標を動的に計算する
             complex uvFr = mc::get_face_uv(mg.mnodes[ts.fr_nid], ts.face_id, mg.hm, mg.cf);
             complex uvTo = mc::get_face_uv(mg.mnodes[ts.to_nid], ts.face_id, mg.hm, mg.cf);
-
             Row3d p1 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvFr);
             Row3d p2 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvTo);
 
@@ -230,6 +234,8 @@ inline void visualize_tedge(
             es.emplace_back(std::array{counter, counter + 1});
 
             teids.emplace_back(i);
+            tqid1.emplace_back(q1);
+            tqid2.emplace_back(q2);
 
             uvX.emplace_back(uvFr.real());
             uvX.emplace_back(uvTo.real());
@@ -251,6 +257,8 @@ inline void visualize_tedge(
     auto c = polyscope::registerCurveNetwork(prefix + "tedges", ns, es);
     c->setColor(glm::vec4(.0, .0, .0, 1.));
     c->addEdgeScalarQuantity("teid", teids);
+    c->addEdgeScalarQuantity("tqid1", tqid1);
+    c->addEdgeScalarQuantity("tqid2", tqid2);
     c->addEdgeScalarQuantity("R", vecR);
     if (X != nullptr) c->addEdgeScalarQuantity("X", vecX);
     c->addNodeScalarQuantity("uv x", uvX);

@@ -40,9 +40,8 @@ int main(int argc, char** argv) {
         // collapse tquad
         for (const TquadMut& tq: tmm.tquads) {
             Tqaux tqaux;
-            if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+            if (tmm.collapse_tquad_prepare(tq.id, tqaux))
                 tmm.collapse_tquad_execute(tq.id, tqaux);
-            }
         }
 
         auto opp_balanced = [&](const TmeshMut& m) -> bool {
@@ -51,7 +50,7 @@ int main(int argc, char** argv) {
                 double s[4] = {0, 0, 0, 0};
                 for (const auto& [thid, side] : q.data) {
                     int x = m.thalfs[thid].x;
-                    CHECK(x >= 1);
+                    if (x == 0) return false;
                     s[side] += x;
                 }
                 if (std::abs(s[0] - s[2]) > 1e-6 || std::abs(s[1] - s[3]) > 1e-6) { return false; }

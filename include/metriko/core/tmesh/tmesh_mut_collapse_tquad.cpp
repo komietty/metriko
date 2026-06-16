@@ -165,7 +165,7 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         int   side = tq_replace.side_of(th_replace);
         auto& data = tq_replace.data;
         int    pos = rg::find(data, side, &TdataMut::side) - data.begin();
-        std::erase_if(data, [&](const TdataMut& d) { return d.thid == thid_replace; });
+        std::erase_if(data, [&](const TdataMut& d) { return d.thid == th_replace.id; });
         vec<TdataMut> repl;
         for (int thid : chain) { thalfs[thid].tqid = tq_replace.id; repl.push_back({ thid, side }); }
         data.insert(data.begin() + pos, repl.begin(), repl.end());
@@ -173,18 +173,30 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
 
     auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain) {
         auto& th_nxt = thalfs[step_next(th.id)];
+        auto& th_twn = thalfs[th.twid];
+        auto& tq_twn = tquads[th_twn.tqid];
         auto& th_prv = thalfs[step_prev(th.id)];
-        auto& te_ahd = tedges[thalfs[step_next(th_nxt.twid)].teid];
-        auto& te_bhd = tedges[thalfs[step_prev(th_prv.twid)].teid];
+        auto& th_ahd = thalfs[step_next(th_nxt.twid)];
+        auto& th_bhd = thalfs[step_prev(th_prv.twid)];
+        auto& te_ahd = tedges[th_ahd.teid];
+        auto& te_bhd = tedges[th_bhd.teid];
         auto& [_, nids]  = tedges[th.teid];
+
         vec<int> wo_l(nids.begin(), nids.end() - 1);
         vec<int> wo_f(nids.begin() + 1, nids.end());
         if (ahd) {
+            //std::cout << "ahd: " << th.id << std::endl;
+            std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
             if (th.cano) te_ahd.insert_locs_front(wo_l);
             else         te_ahd.insert_locs_after(wo_f);
             replace(th_nxt.twid, chain);
+        } else {
+            //std::cout << "bhd: " << th.id << std::endl;
+            std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
+            if (th.cano) te_bhd.insert_locs_after(wo_f);
+            else te_bhd.insert_locs_front(wo_l);
+            replace(th_prv.twid, chain);
         }
-        else     { if (th.cano) te_bhd.insert_locs_after(wo_f); else te_bhd.insert_locs_front(wo_l); replace(th_prv.twid, chain); }
     };
 
     const auto& th_r = thalfs[tqaux.side_thid_r.second];
