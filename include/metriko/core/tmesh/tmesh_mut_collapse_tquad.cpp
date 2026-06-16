@@ -171,39 +171,65 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         data.insert(data.begin() + pos, repl.begin(), repl.end());
     };
 
-    auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain) {
+    auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain, int count_fr, int count_to) {
         auto& th_twn = thalfs[th.twid];
         auto& tq_twn = tquads[th_twn.tqid];
         auto& [_, nids]  = tedges[th.teid];
         vec<int> wo_l(nids.begin(), nids.end() - 1);
         vec<int> wo_f(nids.begin() + 1, nids.end());
+
         if (ahd) {
             auto& th_nxt = thalfs[step_next(th.id)];
             auto& th_ahd = thalfs[step_next(th_nxt.twid)];
+            auto& tq_ahd = tquads[th_ahd.tqid];
             auto& te_ahd = tedges[th_ahd.teid];
-            std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
-            if (th.cano) te_ahd.insert_locs_front(wo_l);
-            else         te_ahd.insert_locs_after(wo_f);
+            if (count_fr == 4 || count_to == 4) {
+                // find th_ahd in tq_ahd, and in its data insert th.id and side before th_ahd
+                auto it   = rg::find(tq_ahd.data, th_ahd.id, &TdataMut::thid);
+                int  side = it->side;
+                thalfs[th.id].tqid = tq_ahd.id;
+                tq_ahd.data.insert(it, TdataMut{ th.id, side });
+            } else {
+                std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
+                if (th.cano) te_ahd.insert_locs_front(wo_l);
+                else         te_ahd.insert_locs_after(wo_f);
+            }
             replace(th_nxt.twid, chain);
         } else {
             auto& th_prv = thalfs[step_prev(th.id)];
             auto& th_bhd = thalfs[step_prev(th_prv.twid)];
+            auto& tq_bhd = tquads[th_bhd.tqid];
             auto& te_bhd = tedges[th_bhd.teid];
-            std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
-            if (th.cano) te_bhd.insert_locs_after(wo_f);
-            else         te_bhd.insert_locs_front(wo_l);
+
+            if (count_fr == 4 || count_to == 4) {
+                // find th_bhd in tq_bhd, and in its data insert th.id and side after th_bhd
+                auto it   = rg::find(tq_bhd.data, th_bhd.id, &TdataMut::thid);
+                int  side = it->side;
+                thalfs[th.id].tqid = tq_bhd.id;
+                tq_bhd.data.insert(it + 1, TdataMut{ th.id, side });
+            } else {
+                std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
+                if (th.cano) te_bhd.insert_locs_after(wo_f);
+                else         te_bhd.insert_locs_front(wo_l);
+            }
             replace(th_prv.twid, chain);
         }
     };
 
     const auto& th_r = thalfs[tqaux.side_thid_r.second];
     const auto& th_l = thalfs[tqaux.side_thid_l.second];
-    int cout_r = count_adj_tquads(th_r.id);
-    int cout_l = count_adj_tquads(th_l.id);
-    std::cout << "cout_r: " << cout_r << ", cout_l: " << cout_l << std::endl;
+    int cout_r_fr = count_adj_tquads(th_r.id);
+    int cout_r_to = count_adj_tquads(th_r.twid);
+    int cout_l_fr = count_adj_tquads(th_l.id);
+    int cout_l_to = count_adj_tquads(th_l.twid);
+    //std::cout << "  cout_r_fr: " << cout_r_fr
+    //          << ", cout_r_to: " << cout_l_to
+    //          << ", cout_l_fr: " << cout_l_fr
+    //          << ", cout_l_to: " << cout_l_to
+    //          << std::endl;
 
-    extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn);
-    extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end);
+    extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn, cout_r_fr, cout_r_to);
+    extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end, cout_l_fr, cout_l_to);
 
     for (auto& chain: chains) {
         const HmLoc& fr = thalfs[chain.front()].loc_fr();

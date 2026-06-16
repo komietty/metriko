@@ -107,28 +107,30 @@ int main(int argc, char** argv) {
     //}
 
 
-    // collapse thalf
-    //for (ThalfMut th0 : tmm.thalfs) {
-    //    auto& th1 = tmm.thalfs[th0.twid];
-    //    auto& tq0 = tmm.tquads[th0.tqid];
-    //    auto& tq1 = tmm.tquads[th1.tqid];
-    //    if (th0.id == -1) continue;
-    //    if (th1.id == -1) continue;
-    //    if (th0.x != 0) continue;
-    //    if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
-    //    if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-    //    std::cout << "th_collapse id: " << th0.id << std::endl;
-    //    tmm.collapse_thalf(th0.id);
-    //}
+    for (int i = 0; i < 2; ++i) {
+        std::cout << "-------------- collapse iteration: " << i << std::endl;
 
-    // collapse tquad
-    //for (int i = 0; i < 2; ++i)
-    //if (false)
-        {
+        // collapse thalf
+        for (ThalfMut th0 : tmm.thalfs) {
+            auto& th1 = tmm.thalfs[th0.twid];
+            auto& tq0 = tmm.tquads[th0.tqid];
+            auto& tq1 = tmm.tquads[th1.tqid];
+            if (th0.id == -1) continue;
+            if (th1.id == -1) continue;
+            if (th0.x != 0)   continue;
+            if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+            if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+            std::cout << "th_collapse id: " << th0.id << std::endl;
+            tmm.collapse_thalf(th0.id);
+        }
+
+        // collapse tquad
         for (const TquadMut& tq : tmm.tquads) {
+            if (tq.id == -1) continue;
             Tqaux tqaux;
             if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-                //if (tq.id != 8) continue;
+                int tqid = tq.id;
+                //if (tq.id > 47) continue;
                 std::cout << "tq_collapse id: " << tq.id << std::endl;
                 tmm.collapse_tquad_execute(tq.id, tqaux);
                 std::vector<glm::vec3> pcs;
@@ -140,7 +142,7 @@ int main(int argc, char** argv) {
                     vals.push_back(val);
                     sides.push_back(side);
                 }
-                auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tq.id), pcs);
+                auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tqid), pcs);
                 pc->addScalarQuantity("val",  vals);
                 pc->addScalarQuantity("side", sides);
                 pc->setPointRadius(0.004);
@@ -178,7 +180,7 @@ int main(int argc, char** argv) {
         cn->addEdgeScalarQuantity("r", er);
         cn->addEdgeScalarQuantity("thid", ethid);
         cn->setMaterial("flat");
-        cn->setRadius(0.0005); cn->resetTransform();
+        cn->setRadius(0.0007); cn->resetTransform();
     }
 
     polyscope::show(); return 0; // early return!
