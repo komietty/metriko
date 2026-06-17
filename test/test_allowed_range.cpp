@@ -74,10 +74,11 @@ struct JParser {
 };
 
 int main(int argc, char** argv) {
-    if (argc < 4) { std::cerr << "usage: test_allowed_range <gridscale> <mesh.obj> <fixture.json>\n"; return 2; }
-    const double scale = std::stod(argv[1]);
-    const char*  mesh  = argv[2];
-    const char*  fxp   = argv[3];
+    if (argc < 5) { std::cerr << "usage: test_allowed_range <gridscale> <vectorfield> <mesh.obj> <fixture.json>\n"; return 2; }
+    const double    scale = std::stod(argv[1]);
+    const FieldType ft    = parse_field_type(argv[2]);
+    const char*     mesh  = argv[3];
+    const char*     fxp   = argv[4];
 
     std::ifstream f(fxp);
     CHECK(f.good());                                 // fixture opens
@@ -87,7 +88,7 @@ int main(int argc, char** argv) {
     std::map<int, Tris> expected = jp.top();
     CHECK(jp.ok);                                    // fixture parses
 
-    TmeshPipeline P(mesh, scale);
+    TmeshPipeline P(mesh, scale, ft);
     CHECK(P.ok);                                     // mesh loads + pipeline builds
     auto& tmm = *P.tmm;
 

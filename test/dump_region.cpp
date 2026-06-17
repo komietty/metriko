@@ -19,14 +19,14 @@
 using namespace metriko;
 
 int main(int argc, char** argv) {
-    if (argc < 4) { std::cerr << "usage: dump_region <mesh.obj> <gridscale> <out.json>\n"; return 2; }
+    if (argc < 5) { std::cerr << "usage: dump_region <mesh.obj> <gridscale> <vectorfield> <out.json>\n"; return 2; }
 
-    TmeshPipeline P(argv[1], std::stod(argv[2]));
+    TmeshPipeline P(argv[1], std::stod(argv[2]), parse_field_type(argv[3]));
     if (!P.ok) { std::cerr << "failed to load mesh: " << argv[1] << "\n"; return 1; }
     auto& tmm = *P.tmm;
 
-    std::ofstream out(argv[3]);
-    if (!out.good()) { std::cerr << "cannot open output: " << argv[3] << "\n"; return 1; }
+    std::ofstream out(argv[4]);
+    if (!out.good()) { std::cerr << "cannot open output: " << argv[4] << "\n"; return 1; }
     out << std::setprecision(17);
 
     const int n = (int)tmm.tquads.size();
@@ -43,6 +43,6 @@ int main(int argc, char** argv) {
     }
     out << "}\n";
 
-    std::cout << "[dump_region] " << argv[1] << " tquads=" << n << " -> " << argv[3] << "\n";
+    std::cout << "[dump_region] " << argv[1] << " tquads=" << n << " -> " << argv[4] << "\n";
     return 0;
 }

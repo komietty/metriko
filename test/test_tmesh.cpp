@@ -5,13 +5,14 @@
 using namespace metriko;
 
 int main(int argc, char** argv) {
-    if (argc < 3) { std::cerr << "usage: test_tmesh <gridscale> <mesh.obj> [more.obj ...]\n"; return 2; }
-    const int    N     = 4;
-    const double scale = std::stod(argv[1]);
+    if (argc < 4) { std::cerr << "usage: test_tmesh <gridscale> <vectorfield> <mesh.obj> [more.obj ...]\n"; return 2; }
+    const int       N     = 4;
+    const double    scale = std::stod(argv[1]);
+    const FieldType ft    = parse_field_type(argv[2]);
 
-    for (int a = 2; a < argc; ++a) {
+    for (int a = 3; a < argc; ++a) {
         const char* mesh = argv[a];
-        TmeshPipeline P(mesh, scale, N);
+        TmeshPipeline P(mesh, scale, ft);
         CHECK(P.ok);
         const Hmesh&     hm  = *P.hm;
         const mc::Mgrph& mg  = *P.mg;
@@ -24,25 +25,46 @@ int main(int argc, char** argv) {
         CHECK(!tmm.tquads.empty());
         CHECK(tmm.tquads.size() == tm.tquads.size());
 
-        // collapse thalf
-        for (ThalfMut th0 : tmm.thalfs) {
-            auto& th1 = tmm.thalfs[th0.twid];
-            auto& tq0 = tmm.tquads[th0.tqid];
-            auto& tq1 = tmm.tquads[th1.tqid];
-            if (th0.id == -1) continue;
-            if (th1.id == -1) continue;
-            if (th0.x != 0) continue;
-            if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
-            if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-            tmm.collapse_thalf(th0.id);
+        if (ft == FieldType::Smoothest) {
+            for (ThalfMut th0 : tmm.thalfs) {
+                auto& th1 = tmm.thalfs[th0.twid];
+                auto& tq0 = tmm.tquads[th0.tqid];
+                auto& tq1 = tmm.tquads[th1.tqid];
+                if (th0.id == -1) continue;
+                if (th1.id == -1) continue;
+                if (th0.x != 0) continue;
+                if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+                if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+                tmm.collapse_thalf(th0.id);
+            }
+
+            for (const TquadMut& tq: tmm.tquads) {
+                Tqaux tqaux;
+                if (tmm.collapse_tquad_prepare(tq.id, tqaux))
+                    tmm.collapse_tquad_execute(tq.id, tqaux);
+            }
+        } else {
+            for (int i = 0; i < 20; ++i) {
+                for (ThalfMut th0 : tmm.thalfs) {
+                    auto& th1 = tmm.thalfs[th0.twid];
+                    auto& tq0 = tmm.tquads[th0.tqid];
+                    auto& tq1 = tmm.tquads[th1.tqid];
+                    if (th0.id == -1) continue;
+                    if (th1.id == -1) continue;
+                    if (th0.x != 0) continue;
+                    if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+                    if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+                    tmm.collapse_thalf(th0.id);
+                }
+
+                for (const TquadMut& tq: tmm.tquads) {
+                    Tqaux tqaux;
+                    if (tmm.collapse_tquad_prepare(tq.id, tqaux))
+                        tmm.collapse_tquad_execute(tq.id, tqaux);
+                }
+            }
         }
 
-        // collapse tquad
-        for (const TquadMut& tq: tmm.tquads) {
-            Tqaux tqaux;
-            if (tmm.collapse_tquad_prepare(tq.id, tqaux))
-                tmm.collapse_tquad_execute(tq.id, tqaux);
-        }
 
         auto opp_balanced = [&](const TmeshMut& m) -> bool {
             for (const TquadMut& q : m.tquads) {

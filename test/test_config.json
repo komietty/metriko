@@ -1,10 +1,23 @@
 {
-  "gridscale": 0.05,
-  "models_dir": "/Users/saki/dev/models",
-  "expected": "expected_allowed.json",
-  "meshes": [
-    "torus_1",
-    "icosphere_4",
-    "icosphere_5"
-  ]
+  "directory": "/Users/saki/dev/models",
+"patterns": [
+  {
+     "gridscale": 0.05,
+     "expected": "expected_allowed.json",
+     "vectorfield": "smoothest",
+     "meshes": [
+       "torus_1",
+       "icosphere_4",
+       "icosphere_5"
+     ]
+   },
+  {
+    "gridscale": 0.05,
+    "expected": "expected_allowed.json",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "icosphere_4"
+    ]
+  }
+]
 }

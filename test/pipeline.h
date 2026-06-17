@@ -18,6 +18,10 @@
 
 namespace metriko {
 
+inline FieldType parse_field_type(const std::string& s) {
+    return s == "curvature_aligned" ? FieldType::CurvatureAligned : FieldType::Smoothest;
+}
+
 struct TmeshPipeline {
     std::optional<Hmesh>     hm;
     VecXc                    uv2;
@@ -27,14 +31,14 @@ struct TmeshPipeline {
     std::optional<TmeshMut>  tmm;
     bool ok = false;
 
-    TmeshPipeline(const std::string& mesh_path, double scale, int N = 4) {
+    TmeshPipeline(const std::string& mesh_path, double scale, FieldType ft = FieldType::Smoothest, int N = 4) {
         MatXd V; MatXi F;
         igl::readOBJ(mesh_path, V, F);
         if (V.rows() == 0 || F.rows() == 0) return;   // ok=false のまま返す
         hm.emplace(V, F);
         Hmesh& h = *hm;
 
-        FaceRosyField rawf(h, N, FieldType::Smoothest);
+        FaceRosyField rawf(h, N, ft);
         rawf.computeMatching(MatchingType::Principal);
         auto seam = compute_seam(rawf);
         auto cutm = compute_cut_mesh(h, seam);
