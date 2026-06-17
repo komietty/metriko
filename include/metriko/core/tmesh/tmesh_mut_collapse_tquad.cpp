@@ -140,10 +140,10 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         return res;
     };
 
-    vec<int> thids_bgn = consume_pool(loc_bgn, side_end, false); if (thids_bgn.empty()) thids_bgn = consume_pool(loc_bgn, side_end, true);
-    vec<int> thids_end = consume_pool(loc_end, side_bgn, false); if (thids_end.empty()) thids_end = consume_pool(loc_end, side_bgn, true);
-
+    vec<int> thids_bgn = consume_pool(loc_bgn, side_end, side_bgn == tqaux.side_thids_b.first);
+    vec<int> thids_end = consume_pool(loc_end, side_bgn, side_end == tqaux.side_thids_t.first);
     vec<vec<int>> chains;
+
     while (!qs.empty()) {
         double lo = qs.front().val_fr;
         double hi = lo;
@@ -170,7 +170,7 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain, int count_fr, int count_to) {
         auto& th_twn = thalfs[th.twid];
         auto& tq_twn = tquads[th_twn.tqid];
-        auto& [_, nids] = tedges[th.teid];
+        auto& [nids] = tedges[th.teid];
 
         auto merge_into = [&](TedgeMut& te) {
             auto& tn = te.nids;
@@ -232,9 +232,6 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         if      (auto o = find_thid_in_tquad(fr, to); o.has_value()) replace(thalfs[o.value()].twid, chain);
         else if (auto o = find_thid_in_tquad(to, fr); o.has_value()) replace(thalfs[o.value()].twid, chain);
     }
-
-    tedges[th_r.teid].id = -1;
-    tedges[th_l.teid].id = -1;
 
     for (const auto& [thid, _]: tq_crr.data) {
         auto& th0 = thalfs[thid];

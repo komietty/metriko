@@ -16,6 +16,7 @@
     "expected": "expected_allowed.json",
     "vectorfield": "curvature_aligned",
     "meshes": [
+      "icosphere_3",
       "icosphere_4"
     ]
   }

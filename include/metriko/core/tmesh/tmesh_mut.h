@@ -19,7 +19,6 @@ struct Tqaux {
 };
 
 struct TedgeMut {
-    int id = -1;
     vec<int> nids;
     void insert_locs_front(vec<int> locs) { nids.insert(nids.begin(), locs.begin(), locs.end()); }
     void insert_locs_after(vec<int> locs) { nids.insert(nids.end()  , locs.begin(), locs.end()); }
@@ -91,7 +90,7 @@ struct TmeshMut {
         }
 
         for (const Tedge& te : tm.tedges) {
-            TedgeMut tem {.id = te.id};
+            TedgeMut tem {};
             tem.nids.reserve(te.segs.size() + 1);
             tem.nids.push_back(te.segs.front().fr_nid);
             for (const mc::Msgmt& sg : te.segs) tem.nids.push_back(sg.to_nid);
@@ -122,18 +121,8 @@ struct TmeshMut {
         }
     }
 
-    int step_next(int thid) {
-        auto& [_, d] = tquads[thalfs[thid].tqid];
-        auto it = rg::find(d, thid, &TdataMut::thid);
-        if (it == d.end()) throw std::runtime_error("step_next: ghost thid " + std::to_string(thid));
-        return circular_next(d, it)->thid;
-    };
-    int step_prev(int thid) {
-        auto& [_, d] = tquads[thalfs[thid].tqid];
-        auto it = rg::find(d, thid, &TdataMut::thid);
-        if (it == d.end()) throw std::runtime_error("step_prev: ghost thid " + std::to_string(thid));
-        return circular_prev(d, it)->thid;
-    };
+    int step_next(int thid) { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error(""); return circular_next(d, it)->thid; };
+    int step_prev(int thid) { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error(""); return circular_prev(d, it)->thid; };
 
     int count_adj_tquads(int thid0) {
         int count = 0, thid = thid0;
@@ -158,8 +147,8 @@ struct TmeshMut {
     }
 };
 
-inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
-inline const HmLoc& ThalfMut::loc_to() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
+inline const HmLoc& ThalfMut::loc_fr() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
+inline const HmLoc& ThalfMut::loc_to() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
 }
 
 #endif
