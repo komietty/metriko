@@ -31,6 +31,24 @@ std::unique_ptr<FaceRosyField> cmbf;
 MatXd V;
 MatXi F;
 
+void validate_tmeshmut(const TmeshMut& tm) {
+    for (const TquadMut& tq : tm.tquads) {
+        if (tq.data.empty()) continue;
+        double s[4] = {0, 0, 0, 0};
+        for (const auto& [thid, side] : tq.data) {
+            assert(thid != -1);
+            auto& th_cur = tm.thalfs[thid];        if (th_cur.twid == -1 || th_cur.teid == -1 || th_cur.tqid == -1) throw std::runtime_error("th_cur");
+            auto& th_twn = tm.thalfs[th_cur.twid]; if (th_twn.twid == -1 || th_twn.teid == -1 || th_twn.tqid == -1) throw std::runtime_error("th_twn");
+            int x = th_cur.x;
+            //if (x == 0) throw std::runtime_error("x == 0");
+            s[side] += x;
+        }
+        if (std::abs(s[0] - s[2]) > 1e-6 || std::abs(s[1] - s[3]) > 1e-6) {
+            throw new std::runtime_error("s[0] != s[2] || s[1] != s[3]");
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     hm = std::make_unique<Hmesh>(V, F);
@@ -84,32 +102,75 @@ int main(int argc, char** argv) {
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     TmeshMut tmm(mg, tm, X);
 
-    //for (int i = 0; i < tmm.tquads.size(); i++) {
-    //    int tqid = std::min(i, (int)tmm.tquads.size() - 1);
-    //    auto allowed = tmm.allowed_range(tqid);
-    //    std::vector<glm::vec3> rns;
-    //    std::vector<std::array<size_t, 2>> res;
-    //    size_t rc = 0;
-    //    for (auto& [eid, r0, r1] : allowed) {
-    //        Half h = hm->edges[eid].half();
-    //        Row3d p0 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r0}));
-    //        Row3d p1 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r1}));
-    //        rns.emplace_back(p0.x(), p0.y(), p0.z());
-    //        rns.emplace_back(p1.x(), p1.y(), p1.z());
-    //        res.push_back({rc, rc + 1});
-    //        rc += 2;
-    //    }
-    //    auto* reg = polyscope::registerCurveNetwork("tquad " + std::to_string(tqid) + " allowed region", rns, res);
-    //    reg->setColor({0.2, 0.6, 1.0});
-    //    reg->setRadius(0.0005);
-    //    reg->resetTransform();
-    //    reg->setEnabled(false);
-    //}
+    for (int i = 0; i < tmm.tquads.size(); i++) {
+        int tqid = std::min(i, (int)tmm.tquads.size() - 1);
+        auto allowed = tmm.allowed_range(tqid);
+        std::vector<glm::vec3> rns;
+        std::vector<std::array<size_t, 2>> res;
+        size_t rc = 0;
+        for (auto& [eid, r0, r1] : allowed) {
+            Half h = hm->edges[eid].half();
+            Row3d p0 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r0}));
+            Row3d p1 = get_ptloc_pos(*hm, HmLoc(HmLocOnH{h.id, r1}));
+            rns.emplace_back(p0.x(), p0.y(), p0.z());
+            rns.emplace_back(p1.x(), p1.y(), p1.z());
+            res.push_back({rc, rc + 1});
+            rc += 2;
+        }
+        auto* reg = polyscope::registerCurveNetwork("tquad " + std::to_string(tqid) + " allowed region", rns, res);
+        reg->setColor({0.2, 0.6, 1.0});
+        reg->setRadius(0.0005);
+        reg->resetTransform();
+        reg->setEnabled(false);
+    }
 
 
-    for (int i = 0; i < 2; ++i) {
-        std::cout << "-------------- collapse iteration: " << i << std::endl;
+    for (int i = 0; i < 1; ++i) {
+        // collapse thalf
+        for (ThalfMut th0 : tmm.thalfs) {
+            if (th0.id == -1) continue;
+            auto& th1 = tmm.thalfs[th0.twid];
+            auto& tq0 = tmm.tquads[th0.tqid];
+            auto& tq1 = tmm.tquads[th1.tqid];
+            if (th1.id == -1) continue;
+            if (th0.x != 0)   continue;
+            if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+            if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+            std::cout << "th collapse: " << th0.id << std::endl;
+            tmm.collapse_thalf(th0.id);
+            validate_tmeshmut(tmm);
+        }
 
+        // collapse tquad
+        for (const TquadMut& tq : tmm.tquads) {
+            if (tq.id == -1) continue;
+            Tqaux tqaux;
+            if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+                std::cout << "tq collapse: " << tq.id << std::endl;
+                tmm.collapse_tquad_execute(tq.id, tqaux);
+                validate_tmeshmut(tmm);
+
+                //std::vector<glm::vec3> pcs;
+                //std::vector<double> vals;
+                //std::vector<double> sides;
+                //for (const auto& [loc, val, side] : tqaux.checkpoints) {
+                //    Row3d p = get_ptloc_pos(*hm, loc);
+                //    pcs.emplace_back(p.x(), p.y(), p.z());
+                //    vals.push_back(val);
+                //    sides.push_back(side);
+                //}
+                //auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tqid), pcs);
+                //pc->addScalarQuantity("val",  vals);
+                //pc->addScalarQuantity("side", sides);
+                //pc->setPointRadius(0.004);
+                //pc->resetTransform();
+                //pc->setEnabled(false);
+            }
+        }
+    }
+
+    // second loop
+    for (int i = 0; i < 20; ++i) {
         // collapse thalf
         for (ThalfMut th0 : tmm.thalfs) {
             auto& th1 = tmm.thalfs[th0.twid];
@@ -120,33 +181,18 @@ int main(int argc, char** argv) {
             if (th0.x != 0)   continue;
             if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
             if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-            std::cout << "th_collapse id: " << th0.id << std::endl;
+            std::cout << "th collapse: " << th0.id << std::endl;
             tmm.collapse_thalf(th0.id);
+            validate_tmeshmut(tmm);
         }
 
-        // collapse tquad
         for (const TquadMut& tq : tmm.tquads) {
             if (tq.id == -1) continue;
+            std::cout << "tq collapse: " << tq.id << std::endl;
             Tqaux tqaux;
             if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-                int tqid = tq.id;
-                //if (tq.id > 47) continue;
-                std::cout << "tq_collapse id: " << tq.id << std::endl;
                 tmm.collapse_tquad_execute(tq.id, tqaux);
-                std::vector<glm::vec3> pcs;
-                std::vector<double> vals;
-                std::vector<double> sides;
-                for (const auto& [loc, val, side] : tqaux.checkpoints) {
-                    Row3d p = get_ptloc_pos(*hm, loc);
-                    pcs.emplace_back(p.x(), p.y(), p.z());
-                    vals.push_back(val);
-                    sides.push_back(side);
-                }
-                auto* pc = polyscope::registerPointCloud("collapse pts tq" + std::to_string(tqid), pcs);
-                pc->addScalarQuantity("val",  vals);
-                pc->addScalarQuantity("side", sides);
-                pc->setPointRadius(0.004);
-                pc->resetTransform();
+                validate_tmeshmut(tmm);
             }
         }
     }
@@ -161,6 +207,7 @@ int main(int argc, char** argv) {
         for (const TdataMut& d : tq.data) {
             const ThalfMut& th = tmm.thalfs[d.thid];
             const TedgeMut& te = tmm.tedges[th.teid];
+            //if (th.id != 66) { continue; }
             for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
                 Row3d a = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i]]);
                 Row3d b = get_ptloc_pos(*hm, tmm.tnodes[te.nids[i + 1]]);
@@ -168,7 +215,7 @@ int main(int argc, char** argv) {
                 ns.emplace_back(b.x(), b.y(), b.z());
                 es.push_back({c, c + 1}); c += 2;
                 eside.push_back(d.side);
-                ex.push_back(th.x);
+                ex.push_back(th.x > 0 ? 1 : 0);
                 er.push_back(th.r);
                 ethid.push_back(d.thid);
             }
@@ -176,7 +223,8 @@ int main(int argc, char** argv) {
         if (ns.empty()) continue;
         auto* cn = polyscope::registerCurveNetwork("tq" + std::to_string(tq.id), ns, es);
         cn->addEdgeScalarQuantity("side", eside);
-        cn->addEdgeScalarQuantity("x", ex);
+        auto cx = cn->addEdgeScalarQuantity("x", ex);
+        cx->setEnabled(true);
         cn->addEdgeScalarQuantity("r", er);
         cn->addEdgeScalarQuantity("thid", ethid);
         cn->setMaterial("flat");

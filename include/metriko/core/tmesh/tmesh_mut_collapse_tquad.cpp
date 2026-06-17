@@ -86,7 +86,7 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     vec<Q> qs;
 
     auto find_thid_in_tquad = [&](const HmLoc& fr, const HmLoc& to) -> std::optional<int> {
-        for (auto& [thid, _]: tq_crr.data) {
+        for (const auto& [thid, _]: tq_crr.data) {
             auto& th = thalfs[thid];
             bool  f1 = th.loc_fr() == fr && th.loc_to() == to;
             bool  f2 = th.loc_fr() == to && th.loc_to() == fr;
@@ -157,8 +157,6 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         throw std::runtime_error("error in collapse_tquad_execute");
     }
 
-    for (auto& chain: chains) assert(chain.size() >= 2);
-
     auto replace = [&](int thid_replace, const vec<int>& chain) {
         auto& [id, data] = tquads[thalfs[thid_replace].tqid];
         auto it = rg::find(data, thid_replace, &TdataMut::thid); assert(it != data.end());
@@ -205,7 +203,6 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
             auto& th_bhd = thalfs[step_prev(th_prv.twid)];
             auto& tq_bhd = tquads[th_bhd.tqid];
             auto& te_bhd = tedges[th_bhd.teid];
-
             if (count_fr == 4 || count_to == 4) {
                 auto it = rg::find(tq_bhd.data, th_bhd.id, &TdataMut::thid);
                 auto si = it->side;
@@ -221,20 +218,15 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
 
     const auto& th_r = thalfs[tqaux.side_thid_r.second];
     const auto& th_l = thalfs[tqaux.side_thid_l.second];
-    int cout_r_fr = count_adj_tquads(th_r.id);
-    int cout_r_to = count_adj_tquads(th_r.twid);
-    int cout_l_fr = count_adj_tquads(th_l.id);
-    int cout_l_to = count_adj_tquads(th_l.twid);
-    //std::cout << "  cout_r_fr: " << cout_r_fr
-    //          << ", cout_r_to: " << cout_l_to
-    //          << ", cout_l_fr: " << cout_l_fr
-    //          << ", cout_l_to: " << cout_l_to
-    //          << std::endl;
-
-    extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn, cout_r_fr, cout_r_to);
-    extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end, cout_l_fr, cout_l_to);
+    int c_r_fr = count_adj_tquads(th_r.id);
+    int c_l_fr = count_adj_tquads(th_l.id);
+    int c_r_to = count_adj_tquads(th_r.twid);
+    int c_l_to = count_adj_tquads(th_l.twid);
+    extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn, c_r_fr, c_r_to);
+    extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end, c_l_fr, c_l_to);
 
     for (auto& chain: chains) {
+        assert(chain.size() >= 2);
         const HmLoc& fr = thalfs[chain.front()].loc_fr();
         const HmLoc& to = thalfs[chain.back()].loc_to();
         if      (auto o = find_thid_in_tquad(fr, to); o.has_value()) replace(thalfs[o.value()].twid, chain);
@@ -243,6 +235,12 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
 
     tedges[th_r.teid].id = -1;
     tedges[th_l.teid].id = -1;
+
+    for (const auto& [thid, _]: tq_crr.data) {
+        auto& th0 = thalfs[thid];
+        auto& th1 = thalfs[th0.twid];
+        if (th0.tqid == tq_crr.id) { th0 = {}; th1 = {}; }
+    }
     tq_crr.data.clear();
     tq_crr.id = -1;
 }

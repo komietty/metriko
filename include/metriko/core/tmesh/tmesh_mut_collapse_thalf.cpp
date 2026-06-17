@@ -19,36 +19,53 @@ void TmeshMut::collapse_thalf(int thid) {
     assert(!(it_crr->side != it_prv->side && it_crr->side != it_nxt->side));
     assert(!(it_crr->side == it_prv->side && it_crr->side == it_nxt->side));
 
-    bool collapse_to_prev = it_crr->side != it_prv->side;
+    int cout_fr = count_adj_tquads(th_crr.id);
+    int cout_to = count_adj_tquads(th_twn.id);
 
-    auto [p_fr, p_to] = [&]{
-      if ( collapse_to_prev &&  th_prv.cano) return std::pair{&th_prv.loc_fr(), &th_crr.loc_to()};
-      if ( collapse_to_prev && !th_prv.cano) return std::pair{&th_crr.loc_to(), &th_prv.loc_fr()};
-      if (!collapse_to_prev &&  th_nxt.cano) return std::pair{&th_crr.loc_fr(), &th_nxt.loc_to()};
-      if (!collapse_to_prev && !th_nxt.cano) return std::pair{&th_nxt.loc_to(), &th_crr.loc_fr()};
-      throw std::runtime_error("no impl");
-    }();
+    auto merge_into = [&](TedgeMut& te, const vec<int>& nids) {
+        auto& tn = te.nids;
+        int f = nids.front();
+        int b = nids.back();
+        if      (tn.front() == b) { tn.insert(tn.begin(), nids.begin(), nids.end() - 1); } // prepend [f..b-1]
+        else if (tn.back()  == f) { tn.insert(tn.end(),   nids.begin() + 1, nids.end()); } // append  [f+1..b]
+        else if (tn.front() == f) { vec<int> s(nids.begin() + 1, nids.end()); rg::reverse(s); tn.insert(tn.begin(), s.begin(), s.end()); } // prepend reverse([f+1..b])
+        else if (tn.back()  == b) { vec<int> s(nids.begin(), nids.end() - 1); rg::reverse(s); tn.insert(tn.end(),   s.begin(), s.end()); } // append  reverse([f..b-1])
+        else throw std::runtime_error("merge_into: no shared corner");
+    };
 
-    auto region = allowed_range(tq_crr.id);
-    auto path   = approx_shortest_path(20, hm, *p_fr, *p_to, region);
-    auto nid0   = p_fr - tnodes.data();
-    auto nid1   = p_to - tnodes.data();
-    auto nids   = add_new_path(path, nid0, nid1);
+    if      (cout_fr == 2) { merge_into(te_prv, te_crr.nids); }
+    else if (cout_to == 2) { merge_into(te_nxt, te_crr.nids); }
+    else {
+        bool collapse_to_prev = it_crr->side != it_prv->side;
 
-    auto  it_twn_adj = collapse_to_prev ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
-    auto& th_twn_adj = thalfs[it_twn_adj->thid];
-    auto& te_twn_adj = tedges[th_twn_adj.teid];
-    assert(it_twn_adj->side == it_twn->side);
+        auto [p_fr, p_to] = [&]{
+            if ( collapse_to_prev &&  th_prv.cano) return std::pair{&th_prv.loc_fr(), &th_crr.loc_to()};
+            if ( collapse_to_prev && !th_prv.cano) return std::pair{&th_crr.loc_to(), &th_prv.loc_fr()};
+            if (!collapse_to_prev &&  th_nxt.cano) return std::pair{&th_crr.loc_fr(), &th_nxt.loc_to()};
+            if (!collapse_to_prev && !th_nxt.cano) return std::pair{&th_nxt.loc_to(), &th_crr.loc_fr()};
+            throw std::runtime_error("no impl");
+        }();
 
-    // 1: remove the data from tquads which have collapsed thalfs
+        auto region = allowed_range(tq_crr.id);
+        auto path   = approx_shortest_path(20, hm, *p_fr, *p_to, region);
+        auto nid0   = p_fr - tnodes.data();
+        auto nid1   = p_to - tnodes.data();
+        auto nids   = add_new_path(path, nid0, nid1);
+
+        auto  it_twn_adj = collapse_to_prev ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
+        auto& th_twn_adj = thalfs[it_twn_adj->thid];
+        auto& te_twn_adj = tedges[th_twn_adj.teid];
+        assert(it_twn_adj->side == it_twn->side);
+
+        // 1: collapse to the prv/nxt edge
+        // 2: insert missing segments to the adjacent edge
+        if (collapse_to_prev) { te_prv.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_after(te_crr.nids); else te_twn_adj.insert_locs_front(te_crr.nids); }
+        else                  { te_nxt.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_front(te_crr.nids); else te_twn_adj.insert_locs_after(te_crr.nids); }
+    }
+
+    // remove the data from tquads which have collapsed thalfs
     tq_crr.data.erase(it_crr);
     tq_twn.data.erase(it_twn);
-
-    // 2: collapse to the prv/nxt edge
-    // 3: insert missing segments to the adjacent edge
-    if (collapse_to_prev) { te_prv.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_after(te_crr.nids); else te_twn_adj.insert_locs_front(te_crr.nids); }
-    else                  { te_nxt.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_front(te_crr.nids); else te_twn_adj.insert_locs_after(te_crr.nids); }
-
     th_crr = {};
     th_twn = {};
 }

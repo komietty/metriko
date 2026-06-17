@@ -122,16 +122,16 @@ struct TmeshMut {
         }
     }
 
-    int step_next(int i) {
-        auto& [_, d] = tquads[thalfs[i].tqid];
-        auto it = rg::find(d, i, &TdataMut::thid);
-        if (it == d.end()) throw std::runtime_error("step_next: ghost thid " + std::to_string(i));
+    int step_next(int thid) {
+        auto& [_, d] = tquads[thalfs[thid].tqid];
+        auto it = rg::find(d, thid, &TdataMut::thid);
+        if (it == d.end()) throw std::runtime_error("step_next: ghost thid " + std::to_string(thid));
         return circular_next(d, it)->thid;
     };
-    int step_prev(int i) {
-        auto& [_, d] = tquads[thalfs[i].tqid];
-        auto it = rg::find(d, i, &TdataMut::thid);
-        if (it == d.end()) throw std::runtime_error("step_prev: ghost thid " + std::to_string(i));
+    int step_prev(int thid) {
+        auto& [_, d] = tquads[thalfs[thid].tqid];
+        auto it = rg::find(d, thid, &TdataMut::thid);
+        if (it == d.end()) throw std::runtime_error("step_prev: ghost thid " + std::to_string(thid));
         return circular_prev(d, it)->thid;
     };
 
@@ -156,7 +156,6 @@ struct TmeshMut {
         }
         return nids;
     }
-
 };
 
 inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
