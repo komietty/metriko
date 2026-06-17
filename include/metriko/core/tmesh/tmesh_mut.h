@@ -41,8 +41,8 @@ struct ThalfMut {
 };
 
 struct TdataMut {
-    int thid;
-    int side;
+    int thid = -1;
+    int side = -1;
 };
 
 struct TquadMut {

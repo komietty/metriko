@@ -160,15 +160,23 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     for (auto& chain: chains) assert(chain.size() >= 2);
 
     auto replace = [&](int thid_replace, const vec<int>& chain) {
-        auto& th_replace = thalfs[thid_replace];
-        auto& tq_replace = tquads[th_replace.tqid];
-        int   side = tq_replace.side_of(th_replace);
-        auto& data = tq_replace.data;
-        int    pos = rg::find(data, side, &TdataMut::side) - data.begin();
-        std::erase_if(data, [&](const TdataMut& d) { return d.thid == th_replace.id; });
+
+        std::cout << "thid_replace: " << thid_replace << std::endl;
+        std::cout << "tqid_replace: " << thalfs[thid_replace].tqid << std::endl;
+
+        auto& [id, data] = tquads[thalfs[thid_replace].tqid];
+
+        for (auto& d: data) {
+            std::cout << "  thid: " << d.thid << ", side: " << d.side << std::endl;
+        }
+
+        auto it = rg::find(data, thid_replace, &TdataMut::thid);
+        assert(it != data.end());
+        auto si = it->side;
+        it = data.erase(it);
         vec<TdataMut> repl;
-        for (int thid : chain) { thalfs[thid].tqid = tq_replace.id; repl.push_back({ thid, side }); }
-        data.insert(data.begin() + pos, repl.begin(), repl.end());
+        for (int thid : chain) { thalfs[thid].tqid = id; repl.push_back({ thid, si }); }
+        data.insert(it, repl.begin(), repl.end());
     };
 
     auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain, int count_fr, int count_to) {
@@ -191,8 +199,11 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
                 tq_ahd.data.insert(it, TdataMut{ th.id, side });
             } else {
                 std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
-                if (th.cano) te_ahd.insert_locs_front(wo_l);
-                else         te_ahd.insert_locs_after(wo_f);
+                if      ( th.cano &&  th_ahd.cano) { te_ahd.insert_locs_front(wo_l); }
+                else if (!th.cano && !th_ahd.cano) { te_ahd.insert_locs_after(wo_f); }
+                else if (!th.cano &&  th_ahd.cano) { rg::reverse(wo_f); te_ahd.insert_locs_front(wo_f); }
+                else if ( th.cano && !th_ahd.cano) { rg::reverse(wo_l); te_ahd.insert_locs_after(wo_l); }
+
             }
             replace(th_nxt.twid, chain);
         } else {
@@ -209,8 +220,10 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
                 tq_bhd.data.insert(it + 1, TdataMut{ th.id, side });
             } else {
                 std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
-                if (th.cano) te_bhd.insert_locs_after(wo_f);
-                else         te_bhd.insert_locs_front(wo_l);
+                if      ( th.cano &&  th_bhd.cano) { te_bhd.insert_locs_after(wo_f); }
+                else if (!th.cano && !th_bhd.cano) { te_bhd.insert_locs_front(wo_l); }
+                else if (!th.cano &&  th_bhd.cano) { rg::reverse(wo_l); te_bhd.insert_locs_after(wo_l); }
+                else if ( th.cano && !th_bhd.cano) { rg::reverse(wo_f); te_bhd.insert_locs_front(wo_f); }
             }
             replace(th_prv.twid, chain);
         }
@@ -234,8 +247,8 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     for (auto& chain: chains) {
         const HmLoc& fr = thalfs[chain.front()].loc_fr();
         const HmLoc& to = thalfs[chain.back()].loc_to();
-        if (auto o = find_thid_in_tquad(fr, to); o.has_value()) replace(thalfs[o.value()].twid, chain);
-        if (auto o = find_thid_in_tquad(to, fr); o.has_value()) replace(thalfs[o.value()].twid, chain);
+        if      (auto o = find_thid_in_tquad(fr, to); o.has_value()) replace(thalfs[o.value()].twid, chain);
+        else if (auto o = find_thid_in_tquad(to, fr); o.has_value()) replace(thalfs[o.value()].twid, chain);
     }
 
     tedges[th_r.teid].id = -1;
@@ -243,4 +256,3 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     tq_crr.data.clear();
     tq_crr.id = -1;
 }
-
