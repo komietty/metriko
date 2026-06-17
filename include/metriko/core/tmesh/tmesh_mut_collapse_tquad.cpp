@@ -160,18 +160,8 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     for (auto& chain: chains) assert(chain.size() >= 2);
 
     auto replace = [&](int thid_replace, const vec<int>& chain) {
-
-        std::cout << "thid_replace: " << thid_replace << std::endl;
-        std::cout << "tqid_replace: " << thalfs[thid_replace].tqid << std::endl;
-
         auto& [id, data] = tquads[thalfs[thid_replace].tqid];
-
-        for (auto& d: data) {
-            std::cout << "  thid: " << d.thid << ", side: " << d.side << std::endl;
-        }
-
-        auto it = rg::find(data, thid_replace, &TdataMut::thid);
-        assert(it != data.end());
+        auto it = rg::find(data, thid_replace, &TdataMut::thid); assert(it != data.end());
         auto si = it->side;
         it = data.erase(it);
         vec<TdataMut> repl;
@@ -182,9 +172,18 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain, int count_fr, int count_to) {
         auto& th_twn = thalfs[th.twid];
         auto& tq_twn = tquads[th_twn.tqid];
-        auto& [_, nids]  = tedges[th.teid];
-        vec<int> wo_l(nids.begin(), nids.end() - 1);
-        vec<int> wo_f(nids.begin() + 1, nids.end());
+        auto& [_, nids] = tedges[th.teid];
+
+        auto merge_into = [&](TedgeMut& te) {
+            auto& tn = te.nids;
+            int f = nids.front();
+            int b = nids.back();
+            if      (tn.front() == b) { tn.insert(tn.begin(), nids.begin(), nids.end() - 1); } // prepend [f..b-1]
+            else if (tn.back()  == f) { tn.insert(tn.end(),   nids.begin() + 1, nids.end()); } // append  [f+1..b]
+            else if (tn.front() == f) { vec<int> s(nids.begin() + 1, nids.end()); rg::reverse(s); tn.insert(tn.begin(), s.begin(), s.end()); } // prepend reverse([f+1..b])
+            else if (tn.back()  == b) { vec<int> s(nids.begin(), nids.end() - 1); rg::reverse(s); tn.insert(tn.end(),   s.begin(), s.end()); } // append  reverse([f..b-1])
+            else throw std::runtime_error("merge_into: no shared corner");
+        };
 
         if (ahd) {
             auto& th_nxt = thalfs[step_next(th.id)];
@@ -192,18 +191,13 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
             auto& tq_ahd = tquads[th_ahd.tqid];
             auto& te_ahd = tedges[th_ahd.teid];
             if (count_fr == 4 || count_to == 4) {
-                // find th_ahd in tq_ahd, and in its data insert th.id and side before th_ahd
-                auto it   = rg::find(tq_ahd.data, th_ahd.id, &TdataMut::thid);
-                int  side = it->side;
+                auto it = rg::find(tq_ahd.data, th_ahd.id, &TdataMut::thid);
+                auto si = it->side;
                 thalfs[th.id].tqid = tq_ahd.id;
-                tq_ahd.data.insert(it, TdataMut{ th.id, side });
+                tq_ahd.data.insert(it, TdataMut{ th.id, si });
             } else {
                 std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
-                if      ( th.cano &&  th_ahd.cano) { te_ahd.insert_locs_front(wo_l); }
-                else if (!th.cano && !th_ahd.cano) { te_ahd.insert_locs_after(wo_f); }
-                else if (!th.cano &&  th_ahd.cano) { rg::reverse(wo_f); te_ahd.insert_locs_front(wo_f); }
-                else if ( th.cano && !th_ahd.cano) { rg::reverse(wo_l); te_ahd.insert_locs_after(wo_l); }
-
+                merge_into(te_ahd);
             }
             replace(th_nxt.twid, chain);
         } else {
@@ -213,17 +207,13 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
             auto& te_bhd = tedges[th_bhd.teid];
 
             if (count_fr == 4 || count_to == 4) {
-                // find th_bhd in tq_bhd, and in its data insert th.id and side after th_bhd
-                auto it   = rg::find(tq_bhd.data, th_bhd.id, &TdataMut::thid);
-                int  side = it->side;
+                auto it = rg::find(tq_bhd.data, th_bhd.id, &TdataMut::thid);
+                auto si = it->side;
                 thalfs[th.id].tqid = tq_bhd.id;
-                tq_bhd.data.insert(it + 1, TdataMut{ th.id, side });
+                tq_bhd.data.insert(it + 1, TdataMut{ th.id, si });
             } else {
                 std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
-                if      ( th.cano &&  th_bhd.cano) { te_bhd.insert_locs_after(wo_f); }
-                else if (!th.cano && !th_bhd.cano) { te_bhd.insert_locs_front(wo_l); }
-                else if (!th.cano &&  th_bhd.cano) { rg::reverse(wo_l); te_bhd.insert_locs_after(wo_l); }
-                else if ( th.cano && !th_bhd.cano) { rg::reverse(wo_f); te_bhd.insert_locs_front(wo_f); }
+                merge_into(te_bhd);
             }
             replace(th_prv.twid, chain);
         }
