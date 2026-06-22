@@ -75,6 +75,10 @@ int main(int argc, char** argv) {
                     if (x == 0) return false;
                     s[side] += x;
                 }
+                std::cout << "s[0]: " << s[0] << std::endl;
+                std::cout << "s[1]: " << s[1] << std::endl;
+                std::cout << "s[2]: " << s[2] << std::endl;
+                std::cout << "s[3]: " << s[3] << std::endl;
                 if (std::abs(s[0] - s[2]) > 1e-6 || std::abs(s[1] - s[3]) > 1e-6) { return false; }
             }
             return true;

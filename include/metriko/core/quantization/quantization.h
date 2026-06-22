@@ -101,24 +101,24 @@ namespace metriko {
        std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
 
        // ----- construct second step vector (trying another basis) ----- //
-       MatXd G2 = construct_generating_vectors(
-           tmesh,
-           R,
-           [](const Comparator &c1, const Comparator &c2) { return c1.length < c2.length; }
-       );
+       //MatXd G2 = construct_generating_vectors(
+       //    tmesh,
+       //    R,
+       //    [](const Comparator &c1, const Comparator &c2) { return c1.length < c2.length; }
+       //);
 
-       for (auto &th: tmesh.thalfs) {
-       for (auto g: G2.colwise()) {
-           if (g[th.edge().id] == 0) continue;
-           VecXd x1 = X + g;
-           VecXd x2 = X - g;
-           double n1 = (x1.cwiseQuotient(R) - I).norm();
-           double n2 = (x2.cwiseQuotient(R) - I).norm();
-           if (n1 <= e && (x1.array() >= 0.).all() && compute_validation(mg, tmesh, x1)) { X = x1; e = n1; }
-           if (n2 <= e && (x2.array() >= 0.).all() && compute_validation(mg, tmesh, x2)) { X = x2; e = n2; }
-       }}
+       //for (auto &th: tmesh.thalfs) {
+       //for (auto g: G2.colwise()) {
+       //    if (g[th.edge().id] == 0) continue;
+       //    VecXd x1 = X + g;
+       //    VecXd x2 = X - g;
+       //    double n1 = (x1.cwiseQuotient(R) - I).norm();
+       //    double n2 = (x2.cwiseQuotient(R) - I).norm();
+       //    if (n1 <= e && (x1.array() >= 0.).all() && compute_validation(mg, tmesh, x1)) { X = x1; e = n1; }
+       //    if (n2 <= e && (x2.array() >= 0.).all() && compute_validation(mg, tmesh, x2)) { X = x2; e = n2; }
+       //}}
 
-       std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
+       //std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
 
        assert((C * X).norm() == 0);
        return X;
