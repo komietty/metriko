@@ -42,12 +42,7 @@ bool TmeshMut::collapse_tquad_prepare(int tqid, Tqaux& tqaux) const {
     aux.emplace_back(loc_end, s, side_end);
 
     auto v = 0.;
-    auto f = [&](const HmLoc& l) {
-        return l != th_l.loc_fr() &&
-               l != th_l.loc_to() &&
-               l != th_r.loc_fr() &&
-               l != th_r.loc_to();
-    };
+    auto f = [&](const HmLoc& l) { return l != th_l.loc_fr() && l != th_l.loc_to() && l != th_r.loc_fr() && l != th_r.loc_to(); };
     for (int i: thids_t) { auto& th = thalfs[i]; auto& l = th.loc_to(); v += th.x; if (f(l)) aux.emplace_back(l, v, side_t); }
     for (int i: thids_b) { auto& th = thalfs[i]; auto& l = th.loc_to(); v -= th.x; if (f(l)) aux.emplace_back(l, v, side_b); }
 
@@ -168,52 +163,29 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     };
 
     auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain, int count_fr, int count_to) {
-        auto& th_twn = thalfs[th.twid];
-        auto& tq_twn = tquads[th_twn.tqid];
-        auto& [nids] = tedges[th.teid];
-
-        auto merge_into = [&](TedgeMut& te) {
-            auto& tn = te.nids;
-            int f = nids.front();
-            int b = nids.back();
-            if      (tn.front() == b) { tn.insert(tn.begin(), nids.begin(), nids.end() - 1); } // prepend [f..b-1]
-            else if (tn.back()  == f) { tn.insert(tn.end(),   nids.begin() + 1, nids.end()); } // append  [f+1..b]
-            else if (tn.front() == f) { vec<int> s(nids.begin() + 1, nids.end()); rg::reverse(s); tn.insert(tn.begin(), s.begin(), s.end()); } // prepend reverse([f+1..b])
-            else if (tn.back()  == b) { vec<int> s(nids.begin(), nids.end() - 1); rg::reverse(s); tn.insert(tn.end(),   s.begin(), s.end()); } // append  reverse([f..b-1])
-            else throw std::runtime_error("merge_into: no shared corner");
-        };
-
-        if (ahd) {
-            auto& th_nxt = thalfs[step_next(th.id)];
-            auto& th_ahd = thalfs[step_next(th_nxt.twid)];
-            auto& tq_ahd = tquads[th_ahd.tqid];
-            auto& te_ahd = tedges[th_ahd.teid];
-            if (count_fr == 4 || count_to == 4) {
-                auto it = rg::find(tq_ahd.data, th_ahd.id, &TdataMut::thid);
-                auto si = it->side;
-                thalfs[th.id].tqid = tq_ahd.id;
-                tq_ahd.data.insert(it, TdataMut{ th.id, si });
-            } else {
-                std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
-                merge_into(te_ahd);
-            }
-            replace(th_nxt.twid, chain);
+        auto step = [&](int thid) { return ahd ? step_next(thid) : step_prev(thid); };
+        auto& th1 = thalfs[step(th.id)];    // nxt or prv
+        auto& th2 = thalfs[step(th1.twid)]; // ahd or bhd
+        auto& [id, data] = tquads[th2.tqid];
+        if (count_fr == 4 || count_to == 4) {
+            auto it = rg::find(data, th2.id, &TdataMut::thid);
+            auto si = it->side;
+            thalfs[th.id].tqid = id;
+            data.insert(ahd ? it : it + 1, TdataMut{ th.id, si });
         } else {
-            auto& th_prv = thalfs[step_prev(th.id)];
-            auto& th_bhd = thalfs[step_prev(th_prv.twid)];
-            auto& tq_bhd = tquads[th_bhd.tqid];
-            auto& te_bhd = tedges[th_bhd.teid];
-            if (count_fr == 4 || count_to == 4) {
-                auto it = rg::find(tq_bhd.data, th_bhd.id, &TdataMut::thid);
-                auto si = it->side;
-                thalfs[th.id].tqid = tq_bhd.id;
-                tq_bhd.data.insert(it + 1, TdataMut{ th.id, si });
-            } else {
-                std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
-                merge_into(te_bhd);
-            }
-            replace(th_prv.twid, chain);
+            auto& [nids]  = tedges[th.teid];
+            auto& th_twn  = thalfs[th.twid];
+            auto& tq_twn  = tquads[th_twn.tqid];
+            auto& th2_twn = thalfs[th2.twid];
+            std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
+            tedges[th2.teid].insert_locs(nids);
+
+            if      (th.bgn)     { if (th2.loc_fr() == th.loc_fr())     th2.bgn = true; else th2_twn.bgn = true; }
+            else if (th_twn.bgn) { if (th2.loc_fr() == th_twn.loc_fr()) th2.bgn = true; else th2_twn.bgn = true; }
+            else if (th.end)     { if (th2.loc_to() == th.loc_to())     th2.end = true; else th2_twn.end = true; }
+            else if (th_twn.end) { if (th2.loc_to() == th_twn.loc_to()) th2.end = true; else th2_twn.end = true; }
         }
+        replace(th1.twid, chain);
     };
 
     const auto& th_r = thalfs[tqaux.side_thid_r.second];
@@ -225,12 +197,13 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn, c_r_fr, c_r_to);
     extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end, c_l_fr, c_l_to);
 
-    for (auto& chain: chains) {
-        assert(chain.size() >= 2);
-        const HmLoc& fr = thalfs[chain.front()].loc_fr();
-        const HmLoc& to = thalfs[chain.back()].loc_to();
-        if      (auto o = find_thid_in_tquad(fr, to); o.has_value()) replace(thalfs[o.value()].twid, chain);
-        else if (auto o = find_thid_in_tquad(to, fr); o.has_value()) replace(thalfs[o.value()].twid, chain);
+    for (auto& c: chains) {
+        assert(c.size() >= 2);
+        auto o = find_thid_in_tquad(
+            thalfs[c.front()].loc_fr(),
+            thalfs[c.back() ].loc_to()
+        );
+        if (o.has_value()) replace(thalfs[o.value()].twid, c);
     }
 
     for (const auto& [thid, _]: tq_crr.data) {
