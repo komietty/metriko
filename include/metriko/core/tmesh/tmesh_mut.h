@@ -9,17 +9,36 @@ namespace metriko {
 struct TmeshMut;
 
 struct Tqaux {
-    vec<std::tuple<HmLoc, double, int>> checkpoints;  // collapse point of tquad. (loc, val, side)
-    std::pair<int, vec<int>> side_thids_t;
-    std::pair<int, vec<int>> side_thids_b;
-    std::pair<int, int> side_thid_l;
-    std::pair<int, int> side_thid_r;
+    vec<std::tuple<HmLoc, double, int>> checkpoints = {};  // collapse point of tquad. (loc, val, side)
+    std::pair<int, vec<int>> side_thids_t = {};
+    std::pair<int, vec<int>> side_thids_b = {};
+    std::pair<int, int> side_thid_l = {};
+    std::pair<int, int> side_thid_r = {};
     bool thid_l_merge_to_ahead = false;
     bool thid_r_merge_to_ahead = false;
 };
 
+struct Tqpoint {
+    HmLoc loc;
+    int val  = -1;
+    int adj  = -1; // adjancy count
+    int side = -1; // top: 0, btm: 1
+};
+
+struct Tqchain {
+    vec<Tqpoint> pts = {};
+    vec<int> tqids   = {};
+    vec<int> bounds  = {};
+    vec<int> thids_z = {}; // zero length thids from left to right
+    vec<int> thids_t = {};
+    vec<int> thids_b = {};
+    int      thid_r  = -1;
+    int      thid_l  = -1;
+};
+
 struct TedgeMut {
-    vec<int> nids;
+    vec<int> nids = {};
+    void insert_locs(const vec<int>& locs);
     void insert_locs_front(vec<int> locs) { nids.insert(nids.begin(), locs.begin(), locs.end()); }
     void insert_locs_after(vec<int> locs) { nids.insert(nids.end()  , locs.begin(), locs.end()); }
 };
@@ -59,10 +78,10 @@ struct TquadMut {
 
 struct TmeshMut {
     const Hmesh& hm;
-    vec<HmLoc>    tnodes;
-    vec<TedgeMut> tedges;
-    vec<ThalfMut> thalfs;
-    vec<TquadMut> tquads;
+    vec<HmLoc>    tnodes = {};
+    vec<TedgeMut> tedges = {};
+    vec<ThalfMut> thalfs = {};
+    vec<TquadMut> tquads = {};
 
     explicit TmeshMut(
         const mc::Mgrph& mg,
@@ -121,10 +140,9 @@ struct TmeshMut {
         }
     }
 
-    int step_next(int thid) { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error(""); return circular_next(d, it)->thid; };
-    int step_prev(int thid) { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error(""); return circular_prev(d, it)->thid; };
-
-    int count_adj_tquads(int thid0) {
+    int step_next(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error(""); return circular_next(d, it)->thid; };
+    int step_prev(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error(""); return circular_prev(d, it)->thid; };
+    int count_adj_tquads(int thid0) const {
         int count = 0, thid = thid0;
         do { ++count; thid = step_next(thalfs[thid].twid); }
         while (thid != thid0 && count <= thalfs.size());
@@ -136,6 +154,11 @@ struct TmeshMut {
     void collapse_thalf(int thid);
     bool collapse_tquad_prepare(int tqid, Tqaux& tqaux) const;
     void collapse_tquad_execute(int tqid, Tqaux& tqaux);
+
+    
+    bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;
+    void collapse_tquad_chain_execute(Tqchain& chain);
+
     vec<int> add_new_path(const vec<HmLoc>& path, int nid0, int nid1) {
         vec<int> nids;
         for (int i = 0; i < path.size(); ++i) {
@@ -149,6 +172,15 @@ struct TmeshMut {
 
 inline const HmLoc& ThalfMut::loc_fr() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
 inline const HmLoc& ThalfMut::loc_to() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
-}
 
+inline void TedgeMut::insert_locs(const vec<int>& locs) {
+    int f = locs.front();
+    int b = locs.back();
+    if      (nids.front() == b) { nids.insert(nids.begin(), locs.begin(), locs.end() - 1); } // prepend [f..b-1]
+    else if (nids.back()  == f) { nids.insert(nids.end(),   locs.begin() + 1, locs.end()); } // append  [f+1..b]
+    else if (nids.front() == f) { vec<int> s(locs.begin() + 1, locs.end()); rg::reverse(s); nids.insert(nids.begin(), s.begin(), s.end()); } // prepend reverse([f+1..b])
+    else if (nids.back()  == b) { vec<int> s(locs.begin(), locs.end() - 1); rg::reverse(s); nids.insert(nids.end(),   s.begin(), s.end()); } // append  reverse([f..b-1])
+    else throw std::runtime_error("merge_into: no shared corner");
+}
+}
 #endif
