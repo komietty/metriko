@@ -4,6 +4,7 @@
 
 #ifndef METRIKO_FACE_ROSY_FIELD_H
 #define METRIKO_FACE_ROSY_FIELD_H
+#include <queue>
 #include <igl/dijkstra.h>
 #include <igl/adjacency_list.h>
 #include <igl/cut_mesh_from_singularities.h>

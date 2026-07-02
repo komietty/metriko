@@ -7,7 +7,6 @@
 #include <Eigen/Geometry>
 #include <Eigen/Sparse>
 #include <ranges>
-#include <__ranges/views.h>
 
 namespace metriko {
     constexpr double PI = M_PI;

@@ -2,6 +2,8 @@
 //--- Copyright (C) 2025 Saki Komikado <komietty@gmail.com>,
 //--- This Source Code Form is subject to the terms of the Mozilla Public License v.2.0.
 
+#include <queue>
+
 #ifndef METRIKO_QUANTIZATION_VALIDATION_H
 #define METRIKO_QUANTIZATION_VALIDATION_H
 #include "metriko/core/tmesh/tmesh.h"
