@@ -45,7 +45,6 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         auto thids_3 = tq_.thids((side_0 + 3) % 4);
 
         chain.tqids.push_back(th_.tqid);
-        std::cout << "chain tqids: " << th_.tqid << std::endl;
         chain.thids_t.insert(chain.thids_t.end(), thids_1.begin(), thids_1.end());
         chain.thids_b.insert(chain.thids_b.end(), thids_3.begin(), thids_3.end());
     }
@@ -59,8 +58,8 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         if (th1.end) return { th1.loc_to(), s0 };
         throw std::runtime_error("error in find_terminal (chain)");
     };
-    auto [loc_end, side_end] = find_terminal(chain.thid_r, 1, 0);
     auto [loc_bgn, side_bgn] = find_terminal(chain.thid_l, 0, 1);
+    auto [loc_end, side_end] = find_terminal(chain.thid_r, 1, 0);
 
     int s = 0; for (int t : chain.thids_t) s += thalfs[t].x;
     chain.pts.push_back({ .loc = loc_bgn, .val = 0, .adj = count_adj_tquads(chain.thid_l), .side = side_bgn });
@@ -87,7 +86,6 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         for (int thid: thids_b) { auto& th = thalfs[thid]; auto& l = th.loc_to(); buk -= th.x; if (f(l)) chain.pts.push_back({ .loc = l, .val = buk, .adj = 3, .side = 1}); }
         chain.bounds.push_back(oft);
 
-        std::cout << "iter cout :" << i << std::endl;
         // push ladder thalf points
         if (i == chain.thids_z.size() - 1) break;
         if      (th_r.bgn)   chain.pts.push_back({.loc = l1, .val = oft, .adj = a1, .side = 1 });

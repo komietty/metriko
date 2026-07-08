@@ -15,7 +15,7 @@ vec<std::tuple<int, double, double>> TmeshMut::allowed_range(int tqid) const {
     // 1回なら [r,1] か [0,r]）。境界頂点（HmLocOnV）は flood の壁として v_stop に集める。
     umap<int, double> lo, hi;
     vec v_stop(hm.nV, false);
-    for (auto& [thid, side] : data) {
+    for (auto& [thid, _] : data) {
         const auto& th = thalfs[thid];
         const auto& te = tedges[th.teid];
         int n = te.nids.size();

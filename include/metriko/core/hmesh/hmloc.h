@@ -60,6 +60,8 @@ inline Row3d get_ptloc_normal(
     }, hl);
 }
 
+
+
 inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
     Face f = hm.faces[fid];
     Vert v = hm.verts[vid];
@@ -72,6 +74,17 @@ inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
     Edge e = hm.edges[eid];
     for (auto h: f.adjHalfs()) if (h.edge() == e) return h;
     return std::nullopt;
+}
+
+inline auto loc_str(const HmLoc& l) {
+    return std::visit(overloaded{
+        [](const HmLocOnV& v){ return std::format("V(id={})", v.id); },
+        [](const HmLocOnC& c){ return std::format("C(id={})", c.id); },
+        [](const HmLocOnE& e){ return std::format("E(id={}, r={})", e.id, e.r); },
+        [](const HmLocOnH& h){ return std::format("H(id={}, r={})", h.id, h.r); },
+        [](const HmLocOnF& f){ return std::format("F(id={}, xy=({},{}))", f.id, f.xy.real(), f.xy.imag()); },
+        [](const HmLocOnP& p){ return std::format("P(id={}, uv=({},{}))", p.id, p.uv.real(), p.uv.imag()); },
+    }, l);
 }
 
 }

@@ -93,6 +93,7 @@ int main(int argc, char** argv) {
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
     visualizer::visualize_mesh_with_uv(hm->pos, hm->idx, uv1, "base_mesh", true);
+    visualizer::visualize_seam(*hm, seam, "seam", {}, false);
 
     ///--- gen mport, medge ---///
     auto mg = mc::Mgrph(*hm, uv2, cmbf->matching, cmbf->singular);
@@ -154,8 +155,8 @@ int main(int argc, char** argv) {
                 //tq.id != 53 &&
                 //tq.id != 69 &&
                 //tq.id != 70 &&
-                //tq.id != 131 &&
-                //tq.id != 140 &&
+                tq.id != 131 &&
+                tq.id != 140 &&
                 //tq.id != 146 &&
                 //tq.id != 149 &&
                 tq.id != 100 && // must
@@ -188,9 +189,13 @@ int main(int argc, char** argv) {
     }
 
     // collapse tquad simple chain
-    {
+    for (int tqid_: {
+        113,
+        141
+        //113
+    }){
         Tqchain chain;
-        tmm.collapse_tquad_chain_prepare(113, chain);
+        tmm.collapse_tquad_chain_prepare(tqid_, chain);
         tmm.collapse_tquad_chain_execute(chain);
 
         // visualize a thalf sequence colored by its index (= order in the list)
@@ -212,13 +217,13 @@ int main(int argc, char** argv) {
                 }
             }
             auto* cn = polyscope::registerCurveNetwork(name, ns, es);
-            cn->addEdgeScalarQuantity("order", order)->setEnabled(true);
-            cn->setRadius(0.003);
+            cn->addEdgeScalarQuantity(std::format("order: {}", tqid_), order)->setEnabled(true);
+            cn->setRadius(0.002);
         };
 
-        viz_order(chain.thids_z, "chain thids_z");
-        viz_order(chain.thids_t, "chain thids_t");
-        viz_order(chain.thids_b, "chain thids_b");
+        //viz_order(chain.thids_z, "chain thids_z");
+        //viz_order(chain.thids_t, "chain thids_t");
+        //viz_order(chain.thids_b, "chain thids_b");
 
         // visualize chain checkpoints (loc, val, side)
         {
@@ -232,11 +237,11 @@ int main(int argc, char** argv) {
                 adjcs.push_back(p.adj);
             }
             if (!pcs.empty()) {
-                auto* pc = polyscope::registerPointCloud("chain checkpoints", pcs);
+                auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tqid_), pcs);
                 pc->addScalarQuantity("val",  vals)->setEnabled(true);
                 pc->addScalarQuantity("side", sides);
                 pc->addScalarQuantity("adj",  adjcs);
-                pc->setPointRadius(0.006);
+                pc->setPointRadius(0.004);
             }
         }
     }
