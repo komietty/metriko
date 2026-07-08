@@ -81,9 +81,10 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         auto thids_b = tq_.thids((sr + 3) % 4);
 
         // push inter tquad points
+        auto btm = oft;
         auto f = [&](const auto& l) { return l != th_l.loc_fr() && l != th_l.loc_to() && l != th_r.loc_fr() && l != th_r.loc_to(); };
-        for (int thid: thids_t) { auto& th = thalfs[thid]; auto& l = th.loc_to(); oft += th.x; if (f(l)) chain.pts.push_back({ .loc = l, .val = oft, .adj = 3, .side = 0}); } auto buk = oft;
-        for (int thid: thids_b) { auto& th = thalfs[thid]; auto& l = th.loc_to(); buk -= th.x; if (f(l)) chain.pts.push_back({ .loc = l, .val = buk, .adj = 3, .side = 1}); }
+        for (int thid: thids_t) { auto& th = thalfs[thid]; auto& l = th.loc_to(); oft += th.x; if (f(l)) chain.pts.push_back({ .loc = l, .val = oft, .adj = 3, .side = 0}); }
+        for (int thid: thids_b) { auto& th = thalfs[thid]; auto& l = th.loc_to(); btm += th.x; if (f(l)) chain.pts.push_back({ .loc = l, .val = btm, .adj = 3, .side = 1}); }
         chain.bounds.push_back(oft);
 
         // push ladder thalf points

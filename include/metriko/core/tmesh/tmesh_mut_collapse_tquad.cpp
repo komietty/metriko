@@ -139,6 +139,9 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     vec<int> thids_end = consume_pool(loc_end, side_bgn, side_end == tqaux.side_thids_t.first);
     vec<vec<int>> chains;
 
+    std::println("l_bgn: {}, s_bgn: {}, invert: {}, thdis_bgn: {}", loc_str(loc_bgn), side_bgn, side_bgn == tqaux.side_thids_b.first, thids_bgn);
+    std::println("l_end: {}, s_end: {}, invert: {}, thdis_end: {}", loc_str(loc_end), side_end, side_end == tqaux.side_thids_t.first, thids_end);
+
     while (!qs.empty()) {
         double lo = qs.front().val_fr;
         double hi = lo;
