@@ -145,9 +145,11 @@ int main(int argc, char** argv) {
          */
 
         // collapse tquad
+        /*
         for (const TquadMut& tq : tmm.tquads) {
             if (tq.id == -1) continue;
             if (
+                //tq.id != 1
                 //tq.id != 56 &&
                 //tq.id != 14 &&
                 //tq.id != 44 &&
@@ -186,17 +188,21 @@ int main(int argc, char** argv) {
                 pc->setEnabled(false);
             }
         }
+        */
     }
 
     // collapse tquad simple chain
     for (int tqid_: {
-        113,
-        141
-        //113
+             1,
+             //    9
+             //100,
+             //111,
+             //113,
+             //141
     }){
         Tqchain chain;
         tmm.collapse_tquad_chain_prepare(tqid_, chain);
-        tmm.collapse_tquad_chain_execute(chain);
+        //tmm.collapse_tquad_chain_execute(chain);
 
         // visualize a thalf sequence colored by its index (= order in the list)
         auto viz_order = [&](const vec<int>& thids, const std::string& name) {
@@ -228,23 +234,23 @@ int main(int argc, char** argv) {
         // visualize chain checkpoints (loc, val, side)
         {
             std::vector<glm::vec3> pcs;
-            std::vector<double> vals, sides, adjcs;
+            std::vector<double> vals, adjcs;
             for (const auto& p : chain.pts) {
                 Row3d q = get_ptloc_pos(*hm, p.loc);
                 pcs.emplace_back(q.x(), q.y(), q.z());
                 vals.push_back(p.val);
-                sides.push_back(p.side);
                 adjcs.push_back(p.adj);
             }
             if (!pcs.empty()) {
                 auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tqid_), pcs);
                 pc->addScalarQuantity("val",  vals)->setEnabled(true);
-                pc->addScalarQuantity("side", sides);
                 pc->addScalarQuantity("adj",  adjcs);
                 pc->setPointRadius(0.004);
             }
         }
     }
+    /*
+    */
 
     /*
     // second loop
