@@ -4,12 +4,12 @@ using namespace metriko;
 void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
 
     struct Candidate {
-        int tqid;
-        int thid;
-        int s_fr;
-        int s_to;
-        int v_fr;
-        int v_to;
+        int  tqid;
+        int  thid;
+        bool t_fr;
+        bool t_to;
+        int  v_fr;
+        int  v_to;
     };
     vec<Candidate> candidates;
 
@@ -42,14 +42,10 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
                 vec<int> res;
                 HmLoc cur = a;
                 while (cur != b) {
-                    //std::println("iter");
                     auto it = rg::find_if(*side, [&](int t) { return thalfs[t].loc_fr() == cur; });
-                    if (it == side->end()) {
-                        std::println("side_end");
-                        break;
-                    }        // cannot continue on this side
+                    if (it == side->end()) { break; } // cannot continue on this side
                     res.push_back(*it);
-                    cur = thalfs[*it].loc_to();          // step loc_fr -> loc_to
+                    cur = thalfs[*it].loc_to(); // step loc_fr -> loc_to
                 }
                 if (cur == b) { if (a != fr) rg::reverse(res); return res; }  // normalize to fr -> to order
             }
@@ -63,7 +59,7 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
         auto tqid = tquad_of(std::min(v0, v1));
 
         if (s0 == s1) {
-            candidates.push_back({ .tqid = tqid, .thid = thid_of(l0, l1).value(), .s_fr = s0, .s_to = s1, .v_fr = v0, .v_to = v1 });
+            candidates.push_back({ .tqid = tqid, .thid = thid_of(l0, l1).value(), .t_fr = s0, .t_to = s1, .v_fr = v0, .v_to = v1 });
         } else {
             auto id0  = rg::find(tnodes, l0) - tnodes.begin();
             auto id1  = rg::find(tnodes, l1) - tnodes.begin();
@@ -76,15 +72,12 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             tedges.push_back({ .nids = nids });
             thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x });
             thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x });
-            candidates.push_back({ .tqid = tqid, .thid = thid0, .s_fr = s0, .s_to = s1, .v_fr = v0, .v_to = v1});
-            candidates.push_back({ .tqid = tqid, .thid = thid1, .s_fr = s1, .s_to = s0, .v_fr = v1, .v_to = v0});
+            candidates.push_back({ .tqid = tqid, .thid = thid0, .t_fr = s0, .t_to = s1, .v_fr = v0, .v_to = v1});
+            candidates.push_back({ .tqid = tqid, .thid = thid1, .t_fr = s1, .t_to = s0, .v_fr = v1, .v_to = v0});
         }
     }
 
-    auto& [l_bgn, v_bgn, a_bgn, s_bgn] = chain.pts.front(); // left
-    auto& [l_end, v_end, a_end, s_end] = chain.pts.back();  // right
-
-    auto consume_pool = [&](const HmLoc& loc, int side_to_stop, bool invert) {
+    auto consume_pool = [&](const HmLoc& loc, bool side_to_stop, bool invert) {
         vec<int> res;
         HmLoc cur = loc;
         while (true) {
@@ -94,7 +87,7 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             });
             if (it == candidates.end()) break;
             auto thid = it->thid;
-            auto flag = invert ? (it->s_fr == side_to_stop) : (it->s_to == side_to_stop);
+            auto flag = invert ? (it->t_fr == side_to_stop) : (it->t_to == side_to_stop);
             res.push_back(thid);
             cur = invert ? thalfs[thid].loc_fr() : thalfs[thid].loc_to();
             candidates.erase(it);
@@ -104,13 +97,14 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
         return res;
     };
 
-    vec<int> thids_bgn = consume_pool(l_bgn, s_end, s_bgn == 0);
-    vec<int> thids_end = consume_pool(l_end, s_bgn, s_end == 1);
+    auto& [l_bgn, v_bgn, a_bgn, is_top_bgn] = chain.pts.front(); // left
+    auto& [l_end, v_end, a_end, is_top_end] = chain.pts.back();  // right
+    vec<int> thids_bgn = consume_pool(l_bgn, is_top_end,  is_top_bgn);
+    vec<int> thids_end = consume_pool(l_end, is_top_bgn, !is_top_end);
     vec<vec<int>> chains;
 
-    std::println("l_bgn: {}, s_bgn: {}, a_bgn: {}, invert: {}, thdis_bgn: {}", loc_str(l_bgn), s_bgn, a_bgn, s_bgn == 1, thids_bgn);
-    std::println("l_end: {}, s_end: {}, a_end: {}, invert: {}, thdis_end: {}", loc_str(l_end), s_end, a_end, s_end == 0, thids_end);
-
+    //std::println("l_bgn: {}, s_bgn: {}, a_bgn: {}, invert: {}, thdis_bgn: {}", loc_str(l_bgn), s_bgn, a_bgn, s_bgn == 1, thids_bgn);
+    //std::println("l_end: {}, s_end: {}, a_end: {}, invert: {}, thdis_end: {}", loc_str(l_end), s_end, a_end, s_end == 0, thids_end);
 
     while (!candidates.empty()) {
         int lo = candidates.front().v_fr;
@@ -120,8 +114,8 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             hi = std::max({ hi, q.v_fr, q.v_to });
         }
         auto ext = [&](double v) { return v == lo || v == hi; };
-        if (auto it = rg::find_if(candidates, [&](auto& q) { return ext(q.v_fr); }); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_fr(), it->s_fr, false)); continue; }
-        if (auto it = rg::find_if(candidates, [&](auto& q) { return ext(q.v_to); }); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_to(), it->s_to, true));  continue; }
+        if (auto it = rg::find_if(candidates, [&](auto& q) { return ext(q.v_fr); }); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_fr(), it->t_fr, false)); continue; }
+        if (auto it = rg::find_if(candidates, [&](auto& q) { return ext(q.v_to); }); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_to(), it->t_to, true));  continue; }
         throw std::runtime_error("error in collapse_tquad_execute");
     }
 
@@ -175,43 +169,36 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
         }
     };
 
-    { // leftmost
-        const auto& th = thalfs[chain.thid_l];
-        auto cfr = count_adj_tquads(th.id);
-        auto cto = count_adj_tquads(th.twid);
-        bool ahd = th.loc_fr() == l_bgn;
-        extend(th, ahd, cfr, cto);
+    const auto& th_l = thalfs[chain.thid_l];
+    const auto& th_r = thalfs[chain.thid_r];
+    auto cfr_l = count_adj_tquads(th_l.id);
+    auto cto_l = count_adj_tquads(th_l.twid);
+    auto cfr_r = count_adj_tquads(th_r.id);
+    auto cto_r = count_adj_tquads(th_r.twid);
 
-        auto l0 = ahd ? th.loc_to(): th.loc_fr();
+    { // leftmost
+        bool ahd = th_l.loc_fr() == l_bgn;
+        extend(th_l, ahd, cfr_l, cto_l);
+        auto l0 = ahd ? th_l.loc_to(): th_l.loc_fr();
         auto l1 = thalfs[thids_bgn.back()].loc_to();
-        if (l1 == th.loc_fr() || l1 == th.loc_to()) { l1 = thalfs[thids_bgn.front()].loc_fr(); }
-        auto op = thids_of(l0, l1).value()
-            | vw::transform([&](int t) { return thalfs[t].twid; })
-            | rg::to<vec<int>>();
+        if (l1 == th_l.loc_fr() || l1 == th_l.loc_to()) { l1 = thalfs[thids_bgn.front()].loc_fr(); }
+        auto op = thids_of(l0, l1).value() | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>();
         replace(op, thids_bgn);
     }
     { // rightmost
-        const auto& th = thalfs[chain.thid_r];
-        auto cfr = count_adj_tquads(th.id);
-        auto cto = count_adj_tquads(th.twid);
-        bool ahd = th.loc_fr() == l_end;
-        extend(th, ahd, cfr, cto);
-
-        auto l0 = ahd ? th.loc_to(): th.loc_fr();
+        bool ahd = th_r.loc_fr() == l_end;
+        extend(th_r, ahd, cfr_r, cto_r);
+        auto l0 = ahd ? th_r.loc_to(): th_r.loc_fr();
         auto l1 = thalfs[thids_end.back()].loc_to();
-        if (l1 == th.loc_fr() || l1 == th.loc_to()) { l1 = thalfs[thids_end.front()].loc_fr(); }
-        auto op = thids_of(l0, l1).value()
-            | vw::transform([&](int t) { return thalfs[t].twid; })
-            | rg::to<vec<int>>();
+        if (l1 == th_r.loc_fr() || l1 == th_r.loc_to()) { l1 = thalfs[thids_end.front()].loc_fr(); }
+        auto op = thids_of(l0, l1).value() | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>();
         replace(op, thids_end);
     }
 
     for (auto& c: chains) {
         assert(c.size() >= 2);
         auto o = thids_of(thalfs[c.front()].loc_fr(), thalfs[c.back()].loc_to());
-        auto o2 = o.value()                                        // twins (surviving side), kept in fr->to order
-            | vw::transform([&](int t) { return thalfs[t].twid; })
-            | rg::to<vec<int>>();
+        auto o2 = o.value() | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>();
         std::println("chain");
         replace(o2, c);
     }

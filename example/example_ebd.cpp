@@ -193,8 +193,8 @@ int main(int argc, char** argv) {
 
     // collapse tquad simple chain
     for (int tqid_: {
-             1,
-             //    9
+             //1,
+             9,
              //100,
              //111,
              //113,
@@ -202,7 +202,7 @@ int main(int argc, char** argv) {
     }){
         Tqchain chain;
         tmm.collapse_tquad_chain_prepare(tqid_, chain);
-        //tmm.collapse_tquad_chain_execute(chain);
+        tmm.collapse_tquad_chain_execute(chain);
 
         // visualize a thalf sequence colored by its index (= order in the list)
         auto viz_order = [&](const vec<int>& thids, const std::string& name) {

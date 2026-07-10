@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
                     auto& tq1 = tmm.tquads[th1.tqid];
                     if (th0.id == -1) continue;
                     if (th1.id == -1) continue;
-                    if (th0.x != 0) continue;
+                    if (th0.x != 0)   continue;
                     if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
                     if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
                     tmm.collapse_thalf(th0.id);
