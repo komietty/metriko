@@ -100,6 +100,7 @@ int main(int argc, char** argv) {
     auto tm = Tmesh(mg);
     VecXd X = compute_quantization(tm, mg);
     validate_quantization(tm, X);
+    assert(tm.check_non_zero_tquad(X));
     visualizer::visualize_tedge(tm, mg, uv2, &X);
 
     TmeshMut tmm(mg, tm, X);
@@ -128,7 +129,6 @@ int main(int argc, char** argv) {
 
     for (int i = 0; i < 1; ++i) {
         // collapse thalf
-        /*
         for (ThalfMut th0 : tmm.thalfs) {
             if (th0.id == -1) continue;
             auto& th1 = tmm.thalfs[th0.twid];
@@ -142,67 +142,69 @@ int main(int argc, char** argv) {
             tmm.collapse_thalf(th0.id);
             validate_tmeshmut(tmm);
         }
-         */
 
         // collapse tquad
-        /*
-        for (const TquadMut& tq : tmm.tquads) {
-            if (tq.id == -1) continue;
-            if (
-                //tq.id != 1
-                //tq.id != 56 &&
-                //tq.id != 14 &&
-                //tq.id != 44 &&
-                //tq.id != 48 &&
-                //tq.id != 53 &&
-                //tq.id != 69 &&
-                //tq.id != 70 &&
-                tq.id != 131 &&
-                tq.id != 140 &&
-                //tq.id != 146 &&
-                //tq.id != 149 &&
-                tq.id != 100 && // must
-                tq.id != 111    // must
-                ) continue;
-            int tqid = tq.id;
-            Tqaux tqaux;
-            if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-                std::cout << "tq collapse: " << tq.id << std::endl;
-                tmm.collapse_tquad_execute(tq.id, tqaux);
-                validate_tmeshmut(tmm);
+        //for (const TquadMut& tq : tmm.tquads) {
+        //    if (tq.id == -1) continue;
+        //    int tqid = tq.id;
+        //    Tqaux tqaux;
+        //    if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+        //        std::cout << "tq collapse: " << tq.id << std::endl;
+        //        tmm.collapse_tquad_execute(tq.id, tqaux);
+        //        validate_tmeshmut(tmm);
 
-                std::vector<glm::vec3> pcs;
-                std::vector<double> vals;
-                std::vector<double> sides;
-                for (const auto& [loc, val, side] : tqaux.checkpoints) {
-                    Row3d p = get_ptloc_pos(*hm, loc);
-                    pcs.emplace_back(p.x(), p.y(), p.z());
-                    vals.push_back(val);
-                    sides.push_back(side);
-                }
-                auto* pc = polyscope::registerPointCloud(std::format("collapse pts tq {:03}", tqid), pcs);
-                pc->addScalarQuantity("val",  vals);
-                pc->addScalarQuantity("side", sides);
-                pc->setPointRadius(0.004);
-                pc->resetTransform();
-                pc->setEnabled(false);
-            }
-        }
+        //        std::vector<glm::vec3> pcs;
+        //        std::vector<double> vals;
+        //        std::vector<double> sides;
+        //        for (const auto& [loc, val, side] : tqaux.checkpoints) {
+        //            Row3d p = get_ptloc_pos(*hm, loc);
+        //            pcs.emplace_back(p.x(), p.y(), p.z());
+        //            vals.push_back(val);
+        //            sides.push_back(side);
+        //        }
+        //        auto* pc = polyscope::registerPointCloud(std::format("collapse pts tq {:03}", tqid), pcs);
+        //        pc->addScalarQuantity("val",  vals);
+        //        pc->addScalarQuantity("side", sides);
+        //        pc->setPointRadius(0.004);
+        //        pc->resetTransform();
+        //        pc->setEnabled(false);
+        //    }
+        //}
+        /*
         */
     }
 
     // collapse tquad simple chain
-    for (int tqid_: {
-             //1,
-             9,
-             //100,
-             //111,
-             //113,
-             //141
-    }){
+    for (auto& tq_: tmm.tquads){
         Tqchain chain;
-        tmm.collapse_tquad_chain_prepare(tqid_, chain);
-        tmm.collapse_tquad_chain_execute(chain);
+        Tqaux tqaux;
+        int tqid_ = tq_.id;
+        //if (tmm.collapse_tquad_prepare(tq_.id, tqaux)) {
+        //    std::cout << "tq collapse: " << tq_.id << std::endl;
+        //    tmm.collapse_tquad_execute(tq_.id, tqaux);
+        //    validate_tmeshmut(tmm);
+        //}
+        if (tqid_ != 24) continue;
+        if (tmm.collapse_tquad_chain_prepare(tqid_, chain)) {
+                std::cout << "tq collapse: " << tqid_ << std::endl;
+                tmm.collapse_tquad_chain_execute(chain);
+            if (tqid_ == 24) {
+                std::vector<glm::vec3> pcs;
+                std::vector<double> vals, adjcs;
+                for (const auto& p : chain.pts) {
+                    Row3d q = get_ptloc_pos(*hm, p.loc);
+                    pcs.emplace_back(q.x(), q.y(), q.z());
+                    vals.push_back(p.val);
+                    adjcs.push_back(p.adj);
+                    std::println("vals: {}, ahjs: {}", p.val, p.adj);
+                }
+                auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tqid_), pcs);
+                pc->addScalarQuantity("val", vals)->setEnabled(true);
+                pc->addScalarQuantity("adj", adjcs);
+                pc->setPointRadius(0.004);
+            }
+        }
+        /* */
 
         // visualize a thalf sequence colored by its index (= order in the list)
         auto viz_order = [&](const vec<int>& thids, const std::string& name) {
@@ -232,25 +234,28 @@ int main(int argc, char** argv) {
         //viz_order(chain.thids_b, "chain thids_b");
 
         // visualize chain checkpoints (loc, val, side)
-        {
-            std::vector<glm::vec3> pcs;
-            std::vector<double> vals, adjcs;
-            for (const auto& p : chain.pts) {
-                Row3d q = get_ptloc_pos(*hm, p.loc);
-                pcs.emplace_back(q.x(), q.y(), q.z());
-                vals.push_back(p.val);
-                adjcs.push_back(p.adj);
-            }
-            if (!pcs.empty()) {
-                auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tqid_), pcs);
-                pc->addScalarQuantity("val",  vals)->setEnabled(true);
-                pc->addScalarQuantity("adj",  adjcs);
-                pc->setPointRadius(0.004);
-            }
-        }
     }
-    /*
-    */
+    //for (auto tqid_ : {103}) {
+    //    Tqchain chain;
+    //    if (tmm.collapse_tquad_chain_prepare(tqid_, chain)) {
+    //        tmm.collapse_tquad_chain_execute(chain);
+    //        if (tqid_ == 103) {
+    //            std::vector<glm::vec3> pcs;
+    //            std::vector<double> vals, adjcs;
+    //            for (const auto& p : chain.pts) {
+    //                Row3d q = get_ptloc_pos(*hm, p.loc);
+    //                pcs.emplace_back(q.x(), q.y(), q.z());
+    //                vals.push_back(p.val);
+    //                adjcs.push_back(p.adj);
+    //                std::println("vals: {}, ahjs: {}", p.val, p.adj);
+    //            }
+    //            auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tqid_), pcs);
+    //            pc->addScalarQuantity("val", vals)->setEnabled(true);
+    //            pc->addScalarQuantity("adj", adjcs);
+    //            pc->setPointRadius(0.004);
+    //        }
+    //    }
+    //}
 
     /*
     // second loop

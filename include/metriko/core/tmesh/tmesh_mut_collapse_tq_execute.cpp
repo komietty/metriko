@@ -99,8 +99,10 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
 
     auto& [l_bgn, v_bgn, a_bgn, is_top_bgn] = chain.pts.front(); // left
     auto& [l_end, v_end, a_end, is_top_end] = chain.pts.back();  // right
-    vec<int> thids_bgn = consume_pool(l_bgn, is_top_end,  is_top_bgn);
-    vec<int> thids_end = consume_pool(l_end, is_top_bgn, !is_top_end);
+    std::println("is top bgn: {}", is_top_bgn);
+    std::println("is top end: {}", is_top_end);
+    vec<int> thids_bgn = consume_pool(l_bgn, !is_top_bgn,  is_top_bgn);
+    vec<int> thids_end = consume_pool(l_end, !is_top_end, !is_top_end);
     vec<vec<int>> chains;
 
     //std::println("l_bgn: {}, s_bgn: {}, a_bgn: {}, invert: {}, thdis_bgn: {}", loc_str(l_bgn), s_bgn, a_bgn, s_bgn == 1, thids_bgn);

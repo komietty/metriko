@@ -4,4 +4,5 @@ build/
 build-test/
 build-cli/
 .idea/
+thesis/
 imgui.ini

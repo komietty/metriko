@@ -144,13 +144,7 @@ struct TmeshMut {
     int step_prev(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error("step_prev"); return circular_prev(d, it)->thid; };
     int count_adj_tquads(int thid0) const {
         int count = 0, thid = thid0;
-        do { ++count;
-            std::println("iter: {}", count);
-            std::println("thid 1: {}", thid);
-            std::println("thid 2: {}", thalfs[thid].twid);
-            thid = step_next(thalfs[thid].twid);
-            std::println("thid 3: {}", thid);
-        }
+        do { ++count; thid = step_next(thalfs[thid].twid); }
         while (thid != thid0 && count <= thalfs.size());
         return count;
     }

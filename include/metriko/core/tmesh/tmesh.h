@@ -187,6 +187,13 @@ struct Tmesh {
         nTH = thalfs.size();
         nTQ = tquads.size();
     }
+
+    bool check_non_zero_tquad(const VecXd& X) const {
+        for (const auto& [id, data] : tquads) {
+            if (rg::all_of(data, [&](const Tdata& d) { return X[thalfs[d.thid].teid] == 0; })) return false;
+        }
+        return true;
+    }
 };
 
 inline const Tedge& Thalf::edge() const { return tm->tedges[teid]; }
