@@ -118,14 +118,23 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
 
         // push inter tquad points
         auto btm = oft;
-        auto f = [&](const ThalfMut& th) {
-            auto& l = th.loc_to();
+        //auto f = [&](const ThalfMut& th) {
+        //    auto& l = th.loc_to();
+        //    bool f1 = l != th_l.loc_fr() && l != th_l.loc_to() && l != th_r.loc_fr() && l != th_r.loc_to();
+        //    bool f2 = count_adj_tquads(th.twid) != 2;
+        //    return f1 && f2;
+        //};
+        //for (int thid: thids_t) { auto& th = thalfs[thid]; auto& l = th.loc_to(); oft += th.x; if (f(th)) chain.pts.push_back({ .loc = l, .val = oft, .adj = 3, .top = true}); }
+        //for (int thid: thids_b) { auto& th = thalfs[thid]; auto& l = th.loc_to(); btm += th.x; if (f(th)) chain.pts.push_back({ .loc = l, .val = btm, .adj = 3, .top = false}); }
+
+        auto f = [&](const HmLoc& l, int thid_at) {
             bool f1 = l != th_l.loc_fr() && l != th_l.loc_to() && l != th_r.loc_fr() && l != th_r.loc_to();
-            bool f2 = count_adj_tquads(th.twid) != 2;
+            bool f2 = count_adj_tquads(thid_at) != 2;   // adjacency around the pushed node
             return f1 && f2;
         };
-        for (int thid: thids_t) { auto& th = thalfs[thid]; auto& l = th.loc_to(); oft += th.x; if (f(th)) chain.pts.push_back({ .loc = l, .val = oft, .adj = 3, .top = true}); }
-        for (int thid: thids_b) { auto& th = thalfs[thid]; auto& l = th.loc_to(); btm += th.x; if (f(th)) chain.pts.push_back({ .loc = l, .val = btm, .adj = 3, .top = false}); }
+        for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; if (f(th.loc_fr(), th.id))   chain.pts.push_back({ .loc = th.loc_fr(), .val = oft, .adj = 3, .top = true  }); }
+        for (int thid: thids_b)               { auto& th = thalfs[thid]; btm += th.x; if (f(th.loc_to(), th.twid)) chain.pts.push_back({ .loc = th.loc_to(), .val = btm, .adj = 3, .top = false }); }
+
         chain.bounds.push_back(oft);
 
         // push ladder thalf points

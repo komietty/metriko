@@ -58,9 +58,11 @@ int main(int argc, char** argv) {
                 }
 
                 for (const TquadMut& tq: tmm.tquads) {
-                    Tqaux tqaux;
-                    if (tmm.collapse_tquad_prepare(tq.id, tqaux))
-                        tmm.collapse_tquad_execute(tq.id, tqaux);
+                    //Tqaux tqaux;
+                    //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) tmm.collapse_tquad_execute(tq.id, tqaux);
+
+                    Tqchain chain;
+                    if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
                 }
             }
         }

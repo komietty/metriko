@@ -44,6 +44,7 @@ void validate_tmeshmut(const TmeshMut& tm) {
             s[side] += x;
         }
         if (std::abs(s[0] - s[2]) > 1e-6 || std::abs(s[1] - s[3]) > 1e-6) {
+            std::println("s0: {}, s1: {}, s2: {}, s2: {}, tqid: {}", s[0], s[1], s[2], s[3], tq.id);
             throw new std::runtime_error("s[0] != s[2] || s[1] != s[3]");
         }
     }
@@ -52,7 +53,7 @@ void validate_tmeshmut(const TmeshMut& tm) {
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     hm = std::make_unique<Hmesh>(V, F);
-    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::Smoothest);
+    rawf = std::make_unique<FaceRosyField>(*hm, N, FieldType::CurvatureAligned);
     rawf->computeMatching(MatchingType::Principal);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*hm  , seam);
@@ -144,67 +145,56 @@ int main(int argc, char** argv) {
         }
 
         // collapse tquad
-        //for (const TquadMut& tq : tmm.tquads) {
-        //    if (tq.id == -1) continue;
-        //    int tqid = tq.id;
-        //    Tqaux tqaux;
-        //    if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
-        //        std::cout << "tq collapse: " << tq.id << std::endl;
-        //        tmm.collapse_tquad_execute(tq.id, tqaux);
-        //        validate_tmeshmut(tmm);
+        for (const TquadMut& tq : tmm.tquads) {
+            if (tq.id == -1) continue;
 
-        //        std::vector<glm::vec3> pcs;
-        //        std::vector<double> vals;
-        //        std::vector<double> sides;
-        //        for (const auto& [loc, val, side] : tqaux.checkpoints) {
-        //            Row3d p = get_ptloc_pos(*hm, loc);
-        //            pcs.emplace_back(p.x(), p.y(), p.z());
-        //            vals.push_back(val);
-        //            sides.push_back(side);
-        //        }
-        //        auto* pc = polyscope::registerPointCloud(std::format("collapse pts tq {:03}", tqid), pcs);
-        //        pc->addScalarQuantity("val",  vals);
-        //        pc->addScalarQuantity("side", sides);
-        //        pc->setPointRadius(0.004);
-        //        pc->resetTransform();
-        //        pc->setEnabled(false);
-        //    }
-        //}
-        /*
-        */
+            //Tqchain chain;
+            //if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) {
+            //    std::cout << "tq collapse: " << tq.id << std::endl;
+            //    tmm.collapse_tquad_chain_execute(chain);
+            //    validate_tmeshmut(tmm);
+            //}
+
+            //Tqaux tqaux;
+            //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
+            //    std::cout << "tq collapse: " << tq.id << std::endl;
+            //    tmm.collapse_tquad_execute(tq.id, tqaux);
+            //    validate_tmeshmut(tmm);
+            //}
+        }
     }
 
     // collapse tquad simple chain
     for (auto& tq_: tmm.tquads){
-        Tqchain chain;
-        Tqaux tqaux;
-        int tqid_ = tq_.id;
+        if (tq_.id != 1) continue;
+
+        //Tqaux tqaux;
         //if (tmm.collapse_tquad_prepare(tq_.id, tqaux)) {
         //    std::cout << "tq collapse: " << tq_.id << std::endl;
         //    tmm.collapse_tquad_execute(tq_.id, tqaux);
         //    validate_tmeshmut(tmm);
         //}
-        if (tqid_ != 24) continue;
-        if (tmm.collapse_tquad_chain_prepare(tqid_, chain)) {
-                std::cout << "tq collapse: " << tqid_ << std::endl;
-                tmm.collapse_tquad_chain_execute(chain);
-            if (tqid_ == 24) {
-                std::vector<glm::vec3> pcs;
-                std::vector<double> vals, adjcs;
-                for (const auto& p : chain.pts) {
-                    Row3d q = get_ptloc_pos(*hm, p.loc);
-                    pcs.emplace_back(q.x(), q.y(), q.z());
-                    vals.push_back(p.val);
-                    adjcs.push_back(p.adj);
-                    std::println("vals: {}, ahjs: {}", p.val, p.adj);
-                }
-                auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tqid_), pcs);
-                pc->addScalarQuantity("val", vals)->setEnabled(true);
-                pc->addScalarQuantity("adj", adjcs);
-                pc->setPointRadius(0.004);
+
+        if (tq_.id != 1) { continue; }
+        Tqchain chain;
+        if (tmm.collapse_tquad_chain_prepare(tq_.id, chain)) {
+            std::cout << "tq collapse: " << tq_.id << std::endl;
+            tmm.collapse_tquad_chain_execute(chain);
+            validate_tmeshmut(tmm);
+            std::vector<glm::vec3> pcs;
+            std::vector<double> vals, adjcs;
+            for (const auto& p : chain.pts) {
+                Row3d q = get_ptloc_pos(*hm, p.loc);
+                pcs.emplace_back(q.x(), q.y(), q.z());
+                vals.push_back(p.val);
+                adjcs.push_back(p.adj);
+                std::println("vals: {}, ahjs: {}", p.val, p.adj);
             }
+            auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tq_.id), pcs);
+            pc->addScalarQuantity("val", vals)->setEnabled(true);
+            pc->addScalarQuantity("adj", adjcs);
+            pc->setPointRadius(0.004);
         }
-        /* */
 
         // visualize a thalf sequence colored by its index (= order in the list)
         auto viz_order = [&](const vec<int>& thids, const std::string& name) {
@@ -225,7 +215,7 @@ int main(int argc, char** argv) {
                 }
             }
             auto* cn = polyscope::registerCurveNetwork(name, ns, es);
-            cn->addEdgeScalarQuantity(std::format("order: {}", tqid_), order)->setEnabled(true);
+            cn->addEdgeScalarQuantity(std::format("order: {}", tq_.id), order)->setEnabled(true);
             cn->setRadius(0.002);
         };
 
@@ -304,7 +294,8 @@ int main(int argc, char** argv) {
                 ns.emplace_back(b.x(), b.y(), b.z());
                 es.push_back({c, c + 1}); c += 2;
                 eside.push_back(d.side);
-                ex.push_back(th.x > 0 ? 1 : 0);
+                //ex.push_back(th.x > 0 ? 1 : 0);
+                ex.push_back(th.x);
                 er.push_back(th.r);
                 ethid.push_back(d.thid);
             }

@@ -69,6 +69,9 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             int thid0 = thalfs.size();
             int thid1 = thalfs.size() + 1;
             double x  = std::abs(v1 - v0);
+
+            std::println("x: {}", x);
+
             tedges.push_back({ .nids = nids });
             thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x });
             thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x });
@@ -212,6 +215,7 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             auto& th1 = thalfs[th0.twid];
             if (th0.tqid == id) { th0 = {}; th1 = {}; }
         }
+        std::println("tqid to be cleared: {}", tqid);
         data.clear();
         id = -1;
     }
