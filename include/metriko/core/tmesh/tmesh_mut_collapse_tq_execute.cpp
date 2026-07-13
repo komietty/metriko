@@ -128,21 +128,14 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
     auto replace = [&](const vec<int>& thids_replace, const vec<int>& chain) {
         size_t ci = 0;
         for (int old : thids_replace) {
-            // take the chain slice covering old's span (aligned by the node shared with chain's current pos)
-            const HmLoc& near = thalfs[chain[ci]].loc_fr();
-            const HmLoc& b    = thalfs[old].loc_fr() == near ? thalfs[old].loc_to() : thalfs[old].loc_fr();
+            const HmLoc& e0 = thalfs[old].loc_fr();
+            const HmLoc& e1 = thalfs[old].loc_to();
             vec<int> seg;
-            do { seg.push_back(chain[ci]); }
-            while (ci + 1 < chain.size() && thalfs[chain[ci++]].loc_to() != b);
-
-            //const HmLoc& e0 = thalfs[old].loc_fr();
-            //const HmLoc& e1 = thalfs[old].loc_to();
-            //vec<int> seg;
-            //while (true) {
-            //    seg.push_back(chain[ci]);
-            //    auto& to = thalfs[chain[ci]].loc_to(); ++ci;
-            //    if (ci >= chain.size() || to == e0 || to == e1) break;
-            //}
+            while (ci < chain.size()) {
+                seg.push_back(chain[ci]);
+                auto& to = thalfs[chain[ci]].loc_to(); ++ci;
+                if (ci >= chain.size() || to == e0 || to == e1) break;
+            }
 
             // same body as single-tquad replace, per element
             auto& [id, data] = tquads[thalfs[old].tqid];
@@ -229,7 +222,6 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             replace(op, c);
         }
     }
-
 
     // clean up
     for (int tqid: chain.tqids) {

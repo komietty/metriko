@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
         reg->setEnabled(false);
     }
 
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 5; ++i) {
         // collapse thalf
         for (ThalfMut th0 : tmm.thalfs) {
             if (th0.id == -1) continue;
@@ -147,12 +147,13 @@ int main(int argc, char** argv) {
         // collapse tquad
         for (const TquadMut& tq : tmm.tquads) {
             if (tq.id == -1) continue;
-            //Tqchain chain;
-            //if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) {
-            //    std::cout << "tq collapse: " << tq.id << std::endl;
-            //    tmm.collapse_tquad_chain_execute(chain);
-            //    //validate_tmeshmut(tmm);
-            //}
+            Tqchain chain;
+            if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) {
+                std::cout << "tq collapse: " << tq.id << std::endl;
+                tmm.collapse_tquad_chain_execute(chain);
+                validate_tmeshmut(tmm);
+            }
+
             //Tqaux tqaux;
             //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
             //    std::cout << "tq collapse: " << tq.id << std::endl;
@@ -166,12 +167,14 @@ int main(int argc, char** argv) {
     /* */
     for (auto& tq_: tmm.tquads) {
         if (tq_.id == -1) continue;
-        if (tq_.id > 69) continue;
+        continue;
+        //if (tq_.id > 69) continue;
 
         Tqchain chain;
         if (tmm.collapse_tquad_chain_prepare(tq_.id, chain)) {
             std::cout << "tq collapse: " << tq_.id << std::endl;
-            if (tq_.id != 69) tmm.collapse_tquad_chain_execute(chain);
+            //if (tq_.id != 69)
+                tmm.collapse_tquad_chain_execute(chain);
             validate_tmeshmut(tmm);
             if (tq_.id != 69) continue;
             std::vector<glm::vec3> pcs;
@@ -272,7 +275,7 @@ int main(int argc, char** argv) {
         if (tq.id == -1) continue;
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
-        std::vector<double> eside, ex, er, ethid;   // per-edge (thalf) params
+        std::vector<double> eside, ex, ey, er, ethid;   // per-edge (thalf) params
         size_t c = 0;
         for (const TdataMut& d : tq.data) {
             const ThalfMut& th = tmm.thalfs[d.thid];
@@ -284,9 +287,8 @@ int main(int argc, char** argv) {
                 ns.emplace_back(b.x(), b.y(), b.z());
                 es.push_back({c, c + 1}); c += 2;
                 eside.push_back(d.side);
-                //ex.push_back(th.x > 0 ? 1 : 0);
                 ex.push_back(th.x);
-                //ex.push_back(th.x);
+                ey.push_back(th.x > 0 ? 1 : 0);
                 er.push_back(th.r);
                 ethid.push_back(d.thid);
             }
@@ -295,7 +297,8 @@ int main(int argc, char** argv) {
         auto* cn = polyscope::registerCurveNetwork(std::format("tq {:03}", tq.id), ns, es);
         cn->addEdgeScalarQuantity("side", eside);
         auto cx = cn->addEdgeScalarQuantity("x", ex);
-        cx->setEnabled(true);
+        auto cy = cn->addEdgeScalarQuantity("y", ey);
+        cy->setEnabled(true);
         cn->addEdgeScalarQuantity("r", er);
         cn->addEdgeScalarQuantity("thid", ethid);
         cn->setMaterial("flat");
