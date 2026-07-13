@@ -9,7 +9,7 @@ namespace metriko {
 struct TmeshMut;
 
 struct Tqaux {
-    vec<std::tuple<HmLoc, double, int>> checkpoints = {};  // collapse point of tquad. (loc, val, side)
+    vec<std::tuple<HmLoc, double, double, int>> checkpoints = {};  // collapse point of tquad. (loc, val, ord, side)
     std::pair<int, vec<int>> side_thids_t = {};
     std::pair<int, vec<int>> side_thids_b = {};
     std::pair<int, int> side_thid_l = {};

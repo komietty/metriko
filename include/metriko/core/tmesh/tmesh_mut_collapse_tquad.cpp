@@ -37,34 +37,24 @@ bool TmeshMut::collapse_tquad_prepare(int tqid, Tqaux& tqaux) const {
     auto [loc_end, side_end] = find_terminal(thid_l, side_t, side_b);
     auto s = rg::fold_left(thids_t | vw::transform([&](int t){ return thalfs[t].x; }), 0., std::plus{});
 
-    vec<std::tuple<HmLoc, double, int>> aux;
-    aux.emplace_back(loc_bgn, 0, side_bgn);
-    aux.emplace_back(loc_end, s, side_end);
+    vec<std::tuple<HmLoc, double, double, int>> aux;
+    aux.emplace_back(loc_bgn, 0., 0., side_bgn);
+    aux.emplace_back(loc_end, s,  s,  side_end);
+
+    // ord: arc-length (th.r) accumulated per side, normalized to the quantized span s,
+    // so that top/btm keys are comparable and agree with the terminal values.
+    double rt_sum = 0; for (int t: thids_t) rt_sum += thalfs[t].r;
+    double rb_sum = 0; for (int t: thids_b) rb_sum += thalfs[t].r;
 
     auto v = 0.;
+    double rt = 0, rb = 0;
     auto f = [&](const HmLoc& l) { return l != th_l.loc_fr() && l != th_l.loc_to() && l != th_r.loc_fr() && l != th_r.loc_to(); };
-    for (int i: thids_t) { auto& th = thalfs[i]; auto& l = th.loc_to(); v += th.x; if (f(l)) aux.emplace_back(l, v, side_t); }
-    for (int i: thids_b) { auto& th = thalfs[i]; auto& l = th.loc_to(); v -= th.x; if (f(l)) aux.emplace_back(l, v, side_b); }
+    for (int i: thids_t) { auto& th = thalfs[i]; auto& l = th.loc_to(); v += th.x; rt += th.r; if (f(l)) aux.emplace_back(l, v, rt / rt_sum * s,     side_t); }
+    for (int i: thids_b) { auto& th = thalfs[i]; auto& l = th.loc_to(); v -= th.x; rb += th.r; if (f(l)) aux.emplace_back(l, v, s - rb / rb_sum * s, side_b); }
 
-    // sort by val. on ties (exactly one per side), put the one matching the previous element's side first
-    rg::stable_sort(aux, {}, [](const auto& t) { return std::get<1>(t); });
-    for (size_t i = 1; i + 1 < aux.size(); ++i) {
-        auto v1 = std::get<1>(aux[i]);
-        auto v2 = std::get<1>(aux[i + 1]);
-        auto s0 = std::get<2>(aux[i - 1]);
-        auto s1 = std::get<2>(aux[i]);
-        auto s2 = std::get<2>(aux[i + 1]);
-        if (v1 == v2) { assert(s1 != s2); if(s1 != s0) std::swap(aux[i], aux[i + 1]); }
-
-        //Row3d p0 = get_ptloc_pos(hm, std::get<0>(aux[i - 1]));
-        //Row3d p1 = get_ptloc_pos(hm, std::get<0>(aux[i]));
-        //Row3d p2 = get_ptloc_pos(hm, std::get<0>(aux[i + 1]));
-        //// pick the order whose path does not fold back:
-        //// d1 = straightness of (p0 -> p1 -> p2), d2 = straightness of (p0 -> p2 -> p1)
-        //double d1 = (p1 - p0).normalized().dot((p2 - p1).normalized());
-        //double d2 = (p2 - p0).normalized().dot((p1 - p2).normalized());
-        //if (d1 < 0 && d2 > d1) std::swap(aux[i], aux[i + 1]);
-    }
+    // sort by quantized val (keeps execute's |dval| accounting monotone),
+    // resolving val ties by the geometric arc-length key ord.
+    rg::stable_sort(aux, {}, [](const auto& t) { return std::pair(std::get<1>(t), std::get<2>(t)); });
 
     tqaux.checkpoints  = aux;
     tqaux.side_thid_l  = std::pair(side_l, thid_l);
@@ -100,8 +90,8 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     };
 
     for (int i = 0; i < tqaux.checkpoints.size() - 1; ++i) {
-        auto& [loc0, val0, side0] = tqaux.checkpoints[i];
-        auto& [loc1, val1, side1] = tqaux.checkpoints[i + 1];
+        auto& [loc0, val0, ord0, side0] = tqaux.checkpoints[i];
+        auto& [loc1, val1, ord1, side1] = tqaux.checkpoints[i + 1];
 
         if (side0 == side1) { qs.emplace_back(find_thid_in_tquad(loc0, loc1).value(), side0, side1, val0, val1); }
         else {
@@ -113,16 +103,19 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
             int thid0 = thalfs.size();
             int thid1 = thalfs.size() + 1;
             double x  = std::abs(val1 - val0);
+            double r  = 0;   // geometric length of the traced path
+            for (size_t k = 0; k + 1 < nids.size(); ++k)
+                r += (get_ptloc_pos(hm, tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tnodes[nids[k]])).norm();
             tedges.push_back({ .nids = nids });
-            thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x });
-            thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x });
+            thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x, .r = r });
+            thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x, .r = r });
             qs.emplace_back(thid0, side0, side1, val0, val1);
             qs.emplace_back(thid1, side1, side0, val1, val0);
         }
     }
 
-    auto& [loc_bgn, val_bgn, side_bgn] = tqaux.checkpoints.front();
-    auto& [loc_end, val_end, side_end] = tqaux.checkpoints.back();
+    auto& [loc_bgn, val_bgn, ord_bgn, side_bgn] = tqaux.checkpoints.front();
+    auto& [loc_end, val_end, ord_end, side_end] = tqaux.checkpoints.back();
 
     auto consume_pool = [&](const HmLoc& loc, int side_to_stop, bool invert) {
         vec<int> res;
@@ -151,17 +144,16 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
     //std::println("l_bgn: {}, s_bgn: {}, invert: {}, thdis_bgn: {}", loc_str(loc_bgn), side_bgn, side_bgn == tqaux.side_thids_b.first, thids_bgn);
     //std::println("l_end: {}, s_end: {}, invert: {}, thdis_end: {}", loc_str(loc_end), side_end, side_end == tqaux.side_thids_t.first, thids_end);
 
+    // assemble the remaining candidates into chains, starting each walk from a true
+    // chain end: a head (no candidate points into it) or a tail (points out of nothing).
+    // zero-span candidates can sit at the pool's val extremes mid-chain, so val
+    // extremality is not a valid proxy for chain ends.
+    auto is_head = [&](const Q& q) { return rg::none_of(qs, [&](const Q& o) { return thalfs[o.thid].loc_to() == thalfs[q.thid].loc_fr(); }); };
+    auto is_tail = [&](const Q& q) { return rg::none_of(qs, [&](const Q& o) { return thalfs[o.thid].loc_fr() == thalfs[q.thid].loc_to(); }); };
     while (!qs.empty()) {
-        double lo = qs.front().val_fr;
-        double hi = lo;
-        for (auto& q : qs) {
-            lo = std::min({ lo, q.val_fr, q.val_to });
-            hi = std::max({ hi, q.val_fr, q.val_to });
-        }
-        auto ext = [&](double v) { return v == lo || v == hi; };
-        if (auto it = rg::find_if(qs, [&](auto& q) { return ext(q.val_fr); }); it != qs.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_fr(), it->side_fr, false)); continue; }
-        if (auto it = rg::find_if(qs, [&](auto& q) { return ext(q.val_to); }); it != qs.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_to(), it->side_to, true));  continue; }
-        throw std::runtime_error("error in collapse_tquad_execute");
+        if (auto it = rg::find_if(qs, is_head); it != qs.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_fr(), it->side_fr, false)); continue; }
+        if (auto it = rg::find_if(qs, is_tail); it != qs.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_to(), it->side_to, true));  continue; }
+        throw std::runtime_error("collapse_tquad_execute: remaining candidates form a closed cycle");
     }
 
     auto replace = [&](int thid_replace, const vec<int>& chain) {
