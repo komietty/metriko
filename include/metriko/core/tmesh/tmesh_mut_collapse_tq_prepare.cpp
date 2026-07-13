@@ -98,8 +98,8 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     auto [loc_end, side_end] = find_terminal(chain.thid_r, false, true);
 
     int s = 0; for (int t : chain.thids_t) s += thalfs[t].x;
-    chain.pts.push_back({ .loc = loc_bgn, .val = 0, .adj = count_adj_tquads(chain.thid_l), .top = side_bgn });
-    chain.pts.push_back({ .loc = loc_end, .val = s, .adj = count_adj_tquads(chain.thid_r), .top = side_end });
+    chain.pts.push_back({ .loc = loc_bgn, .val = 0, .ord = 0.0,       .adj = count_adj_tquads(chain.thid_l), .top = side_bgn });
+    chain.pts.push_back({ .loc = loc_end, .val = s, .ord = double(s), .adj = count_adj_tquads(chain.thid_r), .top = side_end });
 
     auto oft = 0;
 
@@ -132,19 +132,29 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
             bool f2 = count_adj_tquads(thid_at) != 2;   // adjacency around the pushed node
             return f1 && f2;
         };
-        for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; if (f(th.loc_fr(), th.id))   chain.pts.push_back({ .loc = th.loc_fr(), .val = oft, .adj = 3, .top = true  }); }
-        for (int thid: thids_b)               { auto& th = thalfs[thid]; btm += th.x; if (f(th.loc_to(), th.twid)) chain.pts.push_back({ .loc = th.loc_to(), .val = btm, .adj = 3, .top = false }); }
+        // ord: arc-length (th.r) accumulated per side, normalized to this tquad's quantized
+        // span so that top/btm keys are comparable and agree with the junction values.
+        auto   base = double(oft);
+        int    span = 0;   for (int t : thids_t) span   += thalfs[t].x;
+        double rt_sum = 0; for (int t : thids_t) rt_sum += thalfs[t].r;
+        double rb_sum = 0; for (int t : thids_b) rb_sum += thalfs[t].r;
+        double rt = 0, rb = 0;
+        for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (f(th.loc_fr(), th.id))   chain.pts.push_back({ .loc = th.loc_fr(), .val = oft, .ord = base + rt / rt_sum * span, .adj = 3, .top = true  }); }
+        for (int thid: thids_b)               { auto& th = thalfs[thid]; btm += th.x; rb += th.r; if (f(th.loc_to(), th.twid)) chain.pts.push_back({ .loc = th.loc_to(), .val = btm, .ord = base + rb / rb_sum * span, .adj = 3, .top = false }); }
 
         chain.bounds.push_back(oft);
 
         // push ladder thalf points
         if (i == chain.thids_z.size() - 1) break;
-        if      (th_r.bgn)   chain.pts.push_back({.loc = l1, .val = oft, .adj = a1, .top = false });
-        else if (th_twn.bgn) chain.pts.push_back({.loc = l0, .val = oft, .adj = a0, .top = true  });
-        else if (th_r.end)   chain.pts.push_back({.loc = l0, .val = oft, .adj = a0, .top = true  });
-        else if (th_twn.end) chain.pts.push_back({.loc = l1, .val = oft, .adj = a1, .top = false });
+        if      (th_r.bgn)   chain.pts.push_back({.loc = l1, .val = oft, .ord = double(oft), .adj = a1, .top = false });
+        else if (th_twn.bgn) chain.pts.push_back({.loc = l0, .val = oft, .ord = double(oft), .adj = a0, .top = true  });
+        else if (th_r.end)   chain.pts.push_back({.loc = l0, .val = oft, .ord = double(oft), .adj = a0, .top = true  });
+        else if (th_twn.end) chain.pts.push_back({.loc = l1, .val = oft, .ord = double(oft), .adj = a1, .top = false });
     }
 
-    rg::stable_sort(chain.pts, {}, &Tqpoint::val);
+    // sort by quantized val (keeps execute's |dval| accounting monotone),
+    // resolving val ties by the geometric arc-length key ord.
+    rg::stable_sort(chain.pts, {}, [](const Tqpoint& p) { return std::pair(p.val, p.ord); });
+
     return true;
 }

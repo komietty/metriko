@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
         reg->setEnabled(false);
     }
 
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 5; ++i) {
         // collapse thalf
         for (ThalfMut th0 : tmm.thalfs) {
             if (th0.id == -1) continue;
@@ -147,14 +147,13 @@ int main(int argc, char** argv) {
         // collapse tquad
         for (const TquadMut& tq : tmm.tquads) {
             if (tq.id == -1) continue;
-
-            //Tqchain chain;
-            //if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) {
-            //    std::cout << "tq collapse: " << tq.id << std::endl;
-            //    tmm.collapse_tquad_chain_execute(chain);
-            //    validate_tmeshmut(tmm);
-            //}
-
+            //if (tq.id >= 39) continue;
+            Tqchain chain;
+            if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) {
+                std::cout << "tq collapse: " << tq.id << std::endl;
+                tmm.collapse_tquad_chain_execute(chain);
+                validate_tmeshmut(tmm);
+            }
             //Tqaux tqaux;
             //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) {
             //    std::cout << "tq collapse: " << tq.id << std::endl;
@@ -165,35 +164,30 @@ int main(int argc, char** argv) {
     }
 
     // collapse tquad simple chain
+    /* */
     for (auto& tq_: tmm.tquads){
-        if (tq_.id != 1) continue;
+        if (tq_.id == -1) continue;
+        if (tq_.id != 39) continue;
+        continue;
 
-        //Tqaux tqaux;
-        //if (tmm.collapse_tquad_prepare(tq_.id, tqaux)) {
-        //    std::cout << "tq collapse: " << tq_.id << std::endl;
-        //    tmm.collapse_tquad_execute(tq_.id, tqaux);
-        //    validate_tmeshmut(tmm);
-        //}
-
-        if (tq_.id != 1) { continue; }
         Tqchain chain;
         if (tmm.collapse_tquad_chain_prepare(tq_.id, chain)) {
             std::cout << "tq collapse: " << tq_.id << std::endl;
             tmm.collapse_tquad_chain_execute(chain);
             validate_tmeshmut(tmm);
-            std::vector<glm::vec3> pcs;
-            std::vector<double> vals, adjcs;
-            for (const auto& p : chain.pts) {
-                Row3d q = get_ptloc_pos(*hm, p.loc);
-                pcs.emplace_back(q.x(), q.y(), q.z());
-                vals.push_back(p.val);
-                adjcs.push_back(p.adj);
-                std::println("vals: {}, ahjs: {}", p.val, p.adj);
-            }
-            auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tq_.id), pcs);
-            pc->addScalarQuantity("val", vals)->setEnabled(true);
-            pc->addScalarQuantity("adj", adjcs);
-            pc->setPointRadius(0.004);
+            //std::vector<glm::vec3> pcs;
+            //std::vector<double> vals, adjcs;
+            //for (const auto& p : chain.pts) {
+            //    Row3d q = get_ptloc_pos(*hm, p.loc);
+            //    pcs.emplace_back(q.x(), q.y(), q.z());
+            //    vals.push_back(p.val);
+            //    adjcs.push_back(p.adj);
+            //    std::println("vals: {}, ahjs: {}", p.val, p.adj);
+            //}
+            //auto* pc = polyscope::registerPointCloud(std::format("chain checkpoints: {}", tq_.id), pcs);
+            //pc->addScalarQuantity("val", vals)->setEnabled(true);
+            //pc->addScalarQuantity("adj", adjcs);
+            //pc->setPointRadius(0.004);
         }
 
         // visualize a thalf sequence colored by its index (= order in the list)
@@ -294,8 +288,8 @@ int main(int argc, char** argv) {
                 ns.emplace_back(b.x(), b.y(), b.z());
                 es.push_back({c, c + 1}); c += 2;
                 eside.push_back(d.side);
-                //ex.push_back(th.x > 0 ? 1 : 0);
-                ex.push_back(th.x);
+                ex.push_back(th.x > 0 ? 1 : 0);
+                //ex.push_back(th.x);
                 er.push_back(th.r);
                 ethid.push_back(d.thid);
             }

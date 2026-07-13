@@ -20,9 +20,10 @@ struct Tqaux {
 
 struct Tqpoint {
     HmLoc loc;
-    int   val = -1;
-    int   adj = -1; // adjancy count
-    bool  top = false;
+    int    val = -1;
+    double ord = -1; // geometric sort key: arc-length (th.r) position along the spine, per-tquad normalized
+    int    adj = -1; // adjancy count
+    bool   top = false;
 };
 
 struct Tqchain {

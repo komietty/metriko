@@ -54,8 +54,8 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
     };
 
     for (int i = 0; i < chain.pts.size() - 1; ++i) {
-        auto& [l0, v0, adj0, s0] = chain.pts[i];
-        auto& [l1, v1, adj1, s1] = chain.pts[i + 1];
+        auto& [l0, v0, ord0, adj0, s0] = chain.pts[i];
+        auto& [l1, v1, ord1, adj1, s1] = chain.pts[i + 1];
         auto tqid = tquad_of(std::min(v0, v1));
 
         if (s0 == s1) {
@@ -69,12 +69,13 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             int thid0 = thalfs.size();
             int thid1 = thalfs.size() + 1;
             double x  = std::abs(v1 - v0);
-
-            std::println("x: {}", x);
+            double r = 0;   // geometric length of the traced path
+            for (size_t k = 0; k + 1 < nids.size(); ++k)
+                r += (get_ptloc_pos(hm, tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tnodes[nids[k]])).norm();
 
             tedges.push_back({ .nids = nids });
-            thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x });
-            thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x });
+            thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x, .r = r });
+            thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x, .r = r });
             candidates.push_back({ .tqid = tqid, .thid = thid0, .t_fr = s0, .t_to = s1, .v_fr = v0, .v_to = v1});
             candidates.push_back({ .tqid = tqid, .thid = thid1, .t_fr = s1, .t_to = s0, .v_fr = v1, .v_to = v0});
         }
@@ -100,8 +101,8 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
         return res;
     };
 
-    auto& [l_bgn, v_bgn, a_bgn, is_top_bgn] = chain.pts.front(); // left
-    auto& [l_end, v_end, a_end, is_top_end] = chain.pts.back();  // right
+    auto& [l_bgn, v_bgn, o_bgn, a_bgn, is_top_bgn] = chain.pts.front(); // left
+    auto& [l_end, v_end, o_end, a_end, is_top_end] = chain.pts.back();  // right
     std::println("is top bgn: {}", is_top_bgn);
     std::println("is top end: {}", is_top_end);
     vec<int> thids_bgn = consume_pool(l_bgn, !is_top_bgn,  is_top_bgn);
@@ -111,16 +112,12 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
     //std::println("l_bgn: {}, s_bgn: {}, a_bgn: {}, invert: {}, thdis_bgn: {}", loc_str(l_bgn), s_bgn, a_bgn, s_bgn == 1, thids_bgn);
     //std::println("l_end: {}, s_end: {}, a_end: {}, invert: {}, thdis_end: {}", loc_str(l_end), s_end, a_end, s_end == 0, thids_end);
 
+    auto is_head = [&](const Candidate& q) { return rg::none_of(candidates, [&](const Candidate& r) { return thalfs[r.thid].loc_to() == thalfs[q.thid].loc_fr(); }); };
+    auto is_tail = [&](const Candidate& q) { return rg::none_of(candidates, [&](const Candidate& r) { return thalfs[r.thid].loc_fr() == thalfs[q.thid].loc_to(); }); };
+
     while (!candidates.empty()) {
-        int lo = candidates.front().v_fr;
-        int hi = lo;
-        for (auto& q : candidates) {
-            lo = std::min({ lo, q.v_fr, q.v_to });
-            hi = std::max({ hi, q.v_fr, q.v_to });
-        }
-        auto ext = [&](double v) { return v == lo || v == hi; };
-        if (auto it = rg::find_if(candidates, [&](auto& q) { return ext(q.v_fr); }); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_fr(), it->t_fr, false)); continue; }
-        if (auto it = rg::find_if(candidates, [&](auto& q) { return ext(q.v_to); }); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_to(), it->t_to, true));  continue; }
+        if (auto it = rg::find_if(candidates, is_head); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_fr(), it->t_fr, false)); continue; }
+        if (auto it = rg::find_if(candidates, is_tail); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].loc_to(), it->t_to, true));  continue; }
         throw std::runtime_error("error in collapse_tquad_execute");
     }
 

@@ -55,6 +55,15 @@ bool TmeshMut::collapse_tquad_prepare(int tqid, Tqaux& tqaux) const {
         auto s1 = std::get<2>(aux[i]);
         auto s2 = std::get<2>(aux[i + 1]);
         if (v1 == v2) { assert(s1 != s2); if(s1 != s0) std::swap(aux[i], aux[i + 1]); }
+
+        //Row3d p0 = get_ptloc_pos(hm, std::get<0>(aux[i - 1]));
+        //Row3d p1 = get_ptloc_pos(hm, std::get<0>(aux[i]));
+        //Row3d p2 = get_ptloc_pos(hm, std::get<0>(aux[i + 1]));
+        //// pick the order whose path does not fold back:
+        //// d1 = straightness of (p0 -> p1 -> p2), d2 = straightness of (p0 -> p2 -> p1)
+        //double d1 = (p1 - p0).normalized().dot((p2 - p1).normalized());
+        //double d2 = (p2 - p0).normalized().dot((p1 - p2).normalized());
+        //if (d1 < 0 && d2 > d1) std::swap(aux[i], aux[i + 1]);
     }
 
     tqaux.checkpoints  = aux;
