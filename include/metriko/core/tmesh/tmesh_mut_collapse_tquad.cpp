@@ -166,12 +166,12 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         data.insert(it, repl.begin(), repl.end());
     };
 
-    auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain, int count_fr, int count_to) {
+    auto extend_and_replace = [&](const ThalfMut& th, bool ahd, const vec<int>& chain, bool not_consume) {
         auto step = [&](int thid) { return ahd ? step_next(thid) : step_prev(thid); };
         auto& th1 = thalfs[step(th.id)];    // nxt or prv
         auto& th2 = thalfs[step(th1.twid)]; // ahd or bhd
         auto& [id, data] = tquads[th2.tqid];
-        if (count_fr == 4 || count_to == 4) {
+        if (not_consume) {
             auto it = rg::find(data, th2.id, &TdataMut::thid);
             auto si = it->side;
             thalfs[th.id].tqid = id;
@@ -183,7 +183,6 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
             auto& th2_twn = thalfs[th2.twid];
             std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
             tedges[th2.teid].insert_locs(nids);
-
             if      (th.bgn)     { if (th2.loc_fr() == th.loc_fr())     th2.bgn = true; else th2_twn.bgn = true; }
             else if (th_twn.bgn) { if (th2.loc_fr() == th_twn.loc_fr()) th2.bgn = true; else th2_twn.bgn = true; }
             else if (th.end)     { if (th2.loc_to() == th.loc_to())     th2.end = true; else th2_twn.end = true; }
@@ -192,14 +191,16 @@ void TmeshMut::collapse_tquad_execute(int tqid, Tqaux& tqaux) {
         replace(th1.twid, chain);
     };
 
+    auto on_polyline = [&](const HmLoc& l) { return rg::any_of(tqaux.checkpoints, [&](const auto& c) { return std::get<0>(c) == l; }); };
     const auto& th_r = thalfs[tqaux.side_thid_r.second];
     const auto& th_l = thalfs[tqaux.side_thid_l.second];
-    int c_r_fr = count_adj_tquads(th_r.id);
-    int c_l_fr = count_adj_tquads(th_l.id);
-    int c_r_to = count_adj_tquads(th_r.twid);
-    int c_l_to = count_adj_tquads(th_l.twid);
-    extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn, c_r_fr, c_r_to);
-    extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end, c_l_fr, c_l_to);
+    int c_r_fr = count_adj_tquads(th_r.id) == 4   && !on_polyline(th_r.loc_fr());
+    int c_r_to = count_adj_tquads(th_r.twid) == 4 && !on_polyline(th_r.loc_to());
+    int c_l_fr = count_adj_tquads(th_l.id) == 4   && !on_polyline(th_l.loc_fr());
+    int c_l_to = count_adj_tquads(th_l.twid) == 4 && !on_polyline(th_l.loc_to());
+
+    extend_and_replace(th_r, tqaux.thid_r_merge_to_ahead, thids_bgn, c_r_fr || c_r_to);
+    extend_and_replace(th_l, tqaux.thid_l_merge_to_ahead, thids_end, c_l_fr || c_l_to);
 
     for (auto& c: chains) {
         assert(c.size() >= 2);
