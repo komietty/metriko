@@ -47,9 +47,9 @@ void TmeshMut::collapse_thalf(int thid) {
         assert(it_twn_adj->side == it_twn->side);
 
         // 1: collapse to the prv/nxt edge
-        // 2: insert missing segments to the adjacent edge
-        if (collapse_to_prev) { te_prv.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_after(te_crr.nids); else te_twn_adj.insert_locs_front(te_crr.nids); }
-        else                  { te_nxt.nids = nids; if (th_crr.cano) te_twn_adj.insert_locs_front(te_crr.nids); else te_twn_adj.insert_locs_after(te_crr.nids); }
+        // 2: insert missing segments to the adjacent edge.
+        if (collapse_to_prev) { te_prv.nids = nids; te_twn_adj.insert_locs(te_crr.nids); }
+        else                  { te_nxt.nids = nids; te_twn_adj.insert_locs(te_crr.nids); }
     }
 
     // remove the data from tquads which have collapsed thalfs

@@ -95,7 +95,7 @@ add_library(${PROJECT_NAME} STATIC
         include/metriko/core/tmesh/tmesh_mut_collapse_tq_prepare.cpp
         include/metriko/core/tmesh/tmesh_mut_collapse_tq_execute.cpp
         include/metriko/core/quantization/quantization.h
-        include/metriko/core/geodesic/heat_method.h
+        include/metriko/core/hmesh/heat_method.h
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)

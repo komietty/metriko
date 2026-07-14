@@ -40,8 +40,6 @@ struct Tqchain {
 struct TedgeMut {
     vec<int> nids = {};
     void insert_locs(const vec<int>& locs);
-    void insert_locs_front(vec<int> locs) { nids.insert(nids.begin(), locs.begin(), locs.end()); }
-    void insert_locs_after(vec<int> locs) { nids.insert(nids.end()  , locs.begin(), locs.end()); }
 };
 
 struct ThalfMut {

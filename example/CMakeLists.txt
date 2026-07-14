@@ -5,5 +5,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/.. "metriko")
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/polyscope/ "polyscope")
-add_executable(${PROJECT_NAME} example_ebd.cpp)
+add_executable(${PROJECT_NAME} example_ebd_cut.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE metriko polyscope)
+
+add_executable(example_ebd_cut example_ebd_cut.cpp)
+target_link_libraries(example_ebd_cut PRIVATE metriko polyscope)
