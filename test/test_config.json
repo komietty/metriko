@@ -7,6 +7,7 @@
      "vectorfield": "smoothest",
      "meshes": [
        "torus_1",
+       "torus",
        "icosphere_4",
        "icosphere_5"
      ]
@@ -18,6 +19,14 @@
     "meshes": [
       "icosphere_3",
       "icosphere_4"
+    ]
+  },
+  {
+    "gridscale": 0.03,
+    "expected": "expected_allowed.json",
+    "vectorfield": "smoothest",
+    "meshes": [
+      "spot"
     ]
   }
 ]

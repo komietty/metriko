@@ -26,43 +26,47 @@ int main(int argc, char** argv) {
         CHECK(tmm.tquads.size() == tm.tquads.size());
 
         if (ft == FieldType::Smoothest) {
-            for (ThalfMut th0 : tmm.thalfs) {
-                auto& th1 = tmm.thalfs[th0.twid];
-                auto& tq0 = tmm.tquads[th0.tqid];
-                auto& tq1 = tmm.tquads[th1.tqid];
-                if (th0.id == -1) continue;
-                if (th1.id == -1) continue;
-                if (th0.x != 0) continue;
-                if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
-                if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-                tmm.collapse_thalf(th0.id);
-            }
-
-            for (const TquadMut& tq: tmm.tquads) {
-                Tqaux tqaux;
-                if (tmm.collapse_tquad_prepare(tq.id, tqaux))
-                    tmm.collapse_tquad_execute(tq.id, tqaux);
-            }
-        } else {
-            for (int i = 0; i < 20; ++i) {
-                for (ThalfMut th0 : tmm.thalfs) {
-                    auto& th1 = tmm.thalfs[th0.twid];
+            for (int i = 0; i < 5; ++i) {
+                for (const ThalfMut& th0: tmm.thalfs) {
+                    if (th0.id == -1) continue;             // guards before any indexing:
+                    auto& th1 = tmm.thalfs[th0.twid];       // cleared thalfs have twid/tqid == -1
+                    if (th1.id == -1) continue;
+                    if (th0.x != 0) continue;
                     auto& tq0 = tmm.tquads[th0.tqid];
                     auto& tq1 = tmm.tquads[th1.tqid];
-                    if (th0.id == -1) continue;
-                    if (th1.id == -1) continue;
-                    if (th0.x != 0)   continue;
                     if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
                     if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
                     tmm.collapse_thalf(th0.id);
                 }
 
                 for (const TquadMut& tq: tmm.tquads) {
-                    //Tqaux tqaux;
-                    //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) tmm.collapse_tquad_execute(tq.id, tqaux);
-
+                    if (tq.id == -1) continue;
                     Tqchain chain;
                     if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
+                    //Tqaux tqaux;
+                    //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) tmm.collapse_tquad_execute(tq.id, tqaux);
+                }
+            }
+        } else {
+            for (int i = 0; i < 20; ++i) {
+                for (const ThalfMut& th0 : tmm.thalfs) {
+                    if (th0.id == -1) continue;
+                    auto& th1 = tmm.thalfs[th0.twid];
+                    if (th1.id == -1) continue;
+                    if (th0.x != 0)   continue;
+                    auto& tq0 = tmm.tquads[th0.tqid];
+                    auto& tq1 = tmm.tquads[th1.tqid];
+                    if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+                    if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+                    tmm.collapse_thalf(th0.id);
+                }
+
+                for (const TquadMut& tq: tmm.tquads) {
+                    if (tq.id == -1) continue;
+                    Tqchain chain;
+                    if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
+                    //Tqaux tqaux;
+                    //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) tmm.collapse_tquad_execute(tq.id, tqaux);
                 }
             }
         }
@@ -71,10 +75,14 @@ int main(int argc, char** argv) {
         auto opp_balanced = [&](const TmeshMut& m) -> bool {
             for (const TquadMut& q : m.tquads) {
                 if (q.data.empty()) continue;
+                if (q.id == -1) continue;
                 double s[4] = {0, 0, 0, 0};
                 for (const auto& [thid, side] : q.data) {
                     int x = m.thalfs[thid].x;
-                    if (x == 0) return false;
+                    if (x == 0) {
+                        std::println("thid: {}, tqid: {}", thid, m.thalfs[thid].tqid);
+                        return false;
+                    }
                     s[side] += x;
                 }
                 std::cout << "s[0]: " << s[0] << std::endl;

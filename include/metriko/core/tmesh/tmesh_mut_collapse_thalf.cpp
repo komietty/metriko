@@ -22,19 +22,8 @@ void TmeshMut::collapse_thalf(int thid) {
     int cout_fr = count_adj_tquads(th_crr.id);
     int cout_to = count_adj_tquads(th_twn.id);
 
-    auto merge_into = [&](TedgeMut& te, const vec<int>& nids) {
-        auto& tn = te.nids;
-        int f = nids.front();
-        int b = nids.back();
-        if      (tn.front() == b) { tn.insert(tn.begin(), nids.begin(), nids.end() - 1); } // prepend [f..b-1]
-        else if (tn.back()  == f) { tn.insert(tn.end(),   nids.begin() + 1, nids.end()); } // append  [f+1..b]
-        else if (tn.front() == f) { vec<int> s(nids.begin() + 1, nids.end()); rg::reverse(s); tn.insert(tn.begin(), s.begin(), s.end()); } // prepend reverse([f+1..b])
-        else if (tn.back()  == b) { vec<int> s(nids.begin(), nids.end() - 1); rg::reverse(s); tn.insert(tn.end(),   s.begin(), s.end()); } // append  reverse([f..b-1])
-        else throw std::runtime_error("merge_into: no shared corner");
-    };
-
-    if      (cout_fr == 2) { merge_into(te_prv, te_crr.nids); }
-    else if (cout_to == 2) { merge_into(te_nxt, te_crr.nids); }
+    if      (cout_fr == 2) { te_prv.insert_locs(te_crr.nids); }
+    else if (cout_to == 2) { te_nxt.insert_locs(te_crr.nids); }
     else {
         bool collapse_to_prev = it_crr->side != it_prv->side;
 
