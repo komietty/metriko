@@ -43,8 +43,6 @@ int main(int argc, char** argv) {
                     if (tq.id == -1) continue;
                     Tqchain chain;
                     if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
-                    //Tqaux tqaux;
-                    //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) tmm.collapse_tquad_execute(tq.id, tqaux);
                 }
             }
         } else {
@@ -65,8 +63,6 @@ int main(int argc, char** argv) {
                     if (tq.id == -1) continue;
                     Tqchain chain;
                     if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
-                    //Tqaux tqaux;
-                    //if (tmm.collapse_tquad_prepare(tq.id, tqaux)) tmm.collapse_tquad_execute(tq.id, tqaux);
                 }
             }
         }

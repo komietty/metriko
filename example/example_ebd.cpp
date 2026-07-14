@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
         cn->addEdgeScalarQuantity("r", er);
         cn->addEdgeScalarQuantity("thid", ethid);
         cn->setMaterial("flat");
-        cn->setRadius(0.0007); cn->resetTransform();
+        cn->setRadius(0.0002); cn->resetTransform();
     }
 
     polyscope::show(); return 0; // early return!

@@ -36,7 +36,7 @@ void TmeshMut::collapse_thalf(int thid) {
         }();
 
         auto region = allowed_range(tq_crr.id);
-        auto path   = approx_shortest_path(20, hm, *p_fr, *p_to, region);
+        auto path   = approx_shortest_path(30, hm, *p_fr, *p_to, region);
         auto nid0   = p_fr - tnodes.data();
         auto nid1   = p_to - tnodes.data();
         auto nids   = add_new_path(path, nid0, nid1);

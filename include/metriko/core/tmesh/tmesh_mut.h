@@ -151,10 +151,6 @@ struct TmeshMut {
     vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
 
     void collapse_thalf(int thid);
-    bool collapse_tquad_prepare(int tqid, Tqaux& tqaux) const;
-    void collapse_tquad_execute(int tqid, Tqaux& tqaux);
-
-    
     bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;
     void collapse_tquad_chain_execute(Tqchain& chain);
 

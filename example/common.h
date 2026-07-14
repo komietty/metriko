@@ -269,7 +269,7 @@ inline void visualize_tedge(
     //c->addEdgeScalarQuantity("count", count);
     c->setEnabled(show);
     c->resetTransform();
-    c->setRadius(0.0004);
+    c->setRadius(0.00015);
     c->setMaterial("flat");
 }
 

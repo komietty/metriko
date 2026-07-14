@@ -4,6 +4,7 @@
 // demo: collapse the TmeshMut, then cut the original hmesh along the collapsed
 // t-mesh (emesh_cutting) and display the resulting cut mesh with its patch
 // boundaries.
+#include <fstream>
 #include <igl/readOBJ.h>
 #include <polyscope/surface_mesh.h>
 #include <polyscope/curve_network.h>
@@ -15,43 +16,84 @@
 
 using namespace metriko;
 
+// binary cache for the expensive field -> parameterization stage (debug convenience).
+// keyed by mesh path + gridscale; delete the .cache file when N or solver flags change.
+static bool load_cache(const std::string& p, VecXc& uv2, VecXi& matching, VecXi& singular, std::vector<bool>& seam) {
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return false;
+    int64_t nu, nm, ns, ne;
+    f.read((char*)&nu, 8); f.read((char*)&nm, 8); f.read((char*)&ns, 8); f.read((char*)&ne, 8);
+    uv2.resize(nu); matching.resize(nm); singular.resize(ns);
+    f.read((char*)uv2.data(),      nu * (int64_t)sizeof(complex));
+    f.read((char*)matching.data(), nm * (int64_t)sizeof(int));
+    f.read((char*)singular.data(), ns * (int64_t)sizeof(int));
+    std::vector<char> sb(ne);
+    f.read(sb.data(), ne);
+    seam.assign(sb.begin(), sb.end());
+    return (bool)f;
+}
+
+static void save_cache(const std::string& p, const VecXc& uv2, const VecXi& matching, const VecXi& singular, const std::vector<bool>& seam) {
+    std::ofstream f(p, std::ios::binary);
+    int64_t nu = uv2.size(), nm = matching.size(), ns = singular.size(), ne = (int64_t)seam.size();
+    f.write((char*)&nu, 8); f.write((char*)&nm, 8); f.write((char*)&ns, 8); f.write((char*)&ne, 8);
+    f.write((char*)uv2.data(),      nu * (int64_t)sizeof(complex));
+    f.write((char*)matching.data(), nm * (int64_t)sizeof(int));
+    f.write((char*)singular.data(), ns * (int64_t)sizeof(int));
+    std::vector<char> sb(seam.begin(), seam.end());
+    f.write(sb.data(), ne);
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::cerr << "usage: example_ebd_cut <mesh.obj> <gridscale>\n"; return 1; }
     constexpr int N = 4;
 
-    ///--- field -> parameterization (same pipeline as example_ebd) ---///
+    ///--- field -> parameterization (same pipeline as example_ebd; cached) ---///
     MatXd V; MatXi F;
     igl::readOBJ(argv[1], V, F);
     Hmesh hm(V, F);
-    FaceRosyField rawf(hm, N, FieldType::Smoothest);
-    rawf.computeMatching(MatchingType::Principal);
-    auto seam = compute_seam(rawf);
-    auto cutm = compute_cut_mesh(hm, seam);
-    auto cmbf = compute_combbed_field(rawf, seam);
 
-    MatXd ext(hm.nF, 3 * N);
-    for (Face f: hm.faces)
-        for (int k = 0; k < N; ++k) {
-            complex c = cmbf->field(f.id, k);
-            ext.block(f.id, 3 * k, 1, 3) = (c.real() * f.basisX() + c.imag() * f.basisY()).normalized();
+    VecXc uv2; VecXi matching, singular; std::vector<bool> seam;
+    const std::string cache = std::format("{}.{}.cache", argv[1], argv[2]);
+
+    if (load_cache(cache, uv2, matching, singular, seam)) {
+        std::println("loaded cache: {}", cache);
+    } else {
+        FaceRosyField rawf(hm, N, FieldType::Smoothest);
+        rawf.computeMatching(MatchingType::Principal);
+        seam = compute_seam(rawf);
+        auto cutm = compute_cut_mesh(hm, seam);
+        auto cmbf = compute_combbed_field(rawf, seam);
+
+        MatXd ext(hm.nF, 3 * N);
+        for (Face f: hm.faces)
+            for (int k = 0; k < N; ++k) {
+                complex c = cmbf->field(f.id, k);
+                ext.block(f.id, 3 * k, 1, 3) = (c.real() * f.basisX() + c.imag() * f.basisY()).normalized();
+            }
+
+        RosyParameterization rp(hm, *cutm, ext, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
+        rp.seamless = false;
+        rp.localInjectivity = true;
+        rp.verbose = false;
+        rp.setup();
+        rp.integ();
+
+        uv2.resize(hm.nF * 3);
+        for (const Face f: hm.faces) {
+            uv2(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
+            uv2(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
+            uv2(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
         }
 
-    RosyParameterization rp(hm, *cutm, ext, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
-    rp.seamless = false;
-    rp.localInjectivity = true;
-    rp.verbose = false;
-    rp.setup();
-    rp.integ();
-
-    VecXc uv2(hm.nF * 3);
-    for (const Face f: hm.faces) {
-        uv2(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
-        uv2(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
-        uv2(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
+        matching = cmbf->matching;
+        singular = cmbf->singular;
+        save_cache(cache, uv2, matching, singular, seam);
+        std::println("saved cache: {}", cache);
     }
 
     ///--- motorcycle graph -> tmesh -> quantization ---///
-    auto mg = mc::Mgrph(hm, uv2, cmbf->matching, cmbf->singular);
+    auto mg = mc::Mgrph(hm, uv2, matching, singular);
     auto tm = Tmesh(mg);
     VecXd X = compute_quantization(tm, mg);
     TmeshMut tmm(mg, tm, X);
@@ -132,6 +174,22 @@ int main(int argc, char** argv) {
 
     auto* base = polyscope::registerSurfaceMesh("base mesh", hm.pos, hm.idx);
     base->setEnabled(false);
+
+    //{ // TEMP: face 5018 segments
+    //    std::vector<glm::vec3> ns; std::vector<std::array<size_t, 2>> es; size_t c = 0;
+    //    for (const auto& th: tmm.thalfs) {
+    //        if (th.id == -1 || !th.cano) continue;
+    //        const auto& nids = tmm.tedges[th.teid].nids;
+    //        for (size_t k = 0; k + 1 < nids.size(); ++k) {
+    //            if (emesh::common_face(hm, tmm.tnodes[nids[k]], tmm.tnodes[nids[k + 1]]) != 5018) continue;
+    //            Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
+    //            Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
+    //            ns.emplace_back(a.x(), a.y(), a.z()); ns.emplace_back(b.x(), b.y(), b.z());
+    //            es.push_back({c, c + 1}); c += 2;
+    //        }
+    //    }
+    //    polyscope::registerCurveNetwork("face 5018 segments", ns, es);
+    //}
 
     auto* cut = polyscope::registerSurfaceMesh("cut mesh", hm_cut->pos, hm_cut->idx);
     cut->setEdgeWidth(1.0);

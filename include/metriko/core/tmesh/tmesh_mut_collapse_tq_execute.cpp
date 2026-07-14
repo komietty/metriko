@@ -63,7 +63,7 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
         } else {
             auto id0  = rg::find(tnodes, l0) - tnodes.begin();
             auto id1  = rg::find(tnodes, l1) - tnodes.begin();
-            auto path = approx_shortest_path(20, hm, l0, l1, regions[tqid]);
+            auto path = approx_shortest_path(30, hm, l0, l1, regions[tqid]);
             auto nids = add_new_path(path, id0, id1);
             int teid  = tedges.size();
             int thid0 = thalfs.size();
@@ -121,9 +121,9 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
         throw std::runtime_error("error in collapse_tquad_execute");
     }
 
-    std::cout << "thids_bgn size: " << thids_bgn.size() << std::endl;
-    std::cout << "thids_end size: " << thids_end.size() << std::endl;
-    for (auto& c: chains) { std::cout << "chain size: " << c.size() << std::endl; }
+    //std::cout << "thids_bgn size: " << thids_bgn.size() << std::endl;
+    //std::cout << "thids_end size: " << thids_end.size() << std::endl;
+    //for (auto& c: chains) { std::cout << "chain size: " << c.size() << std::endl; }
 
     auto replace = [&](const vec<int>& thids_replace, const vec<int>& chain) {
         size_t ci = 0;

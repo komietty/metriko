@@ -32,7 +32,23 @@ inline int common_face(const Hmesh& hm, const HmLoc& a, const HmLoc& b) {
     throw std::runtime_error("common_face: endpoints share no face");
 }
 
-// (half, r) in the legacy convention (r weights the TAIL) when the point sits on an edge
+// the edge shared by two locations: a straight segment whose endpoints share an
+// edge lies ON that edge (nullopt when the segment is a face chord)
+inline std::optional<int> common_edge(const Hmesh& hm, const HmLoc& a, const HmLoc& b) {
+    auto edges_of = [&](const HmLoc& l, vec<int>& out) {
+        std::visit(overloaded{
+            [&](const HmLocOnV& v) { for (Half h : hm.verts[v.id].adjHalfs()) out.push_back(h.edge().id); },
+            [&](const HmLocOnE& e) { out.push_back(e.id); },
+            [&](const HmLocOnH& h) { out.push_back(hm.halfs[h.id].edge().id); },
+            [&](const auto&)       {},   // OnF: interior point, no incident edge
+        }, l);
+    };
+    vec<int> ea, eb;
+    edges_of(a, ea); edges_of(b, eb);
+    for (int x : ea) for (int y : eb) if (x == y) return x;
+    return std::nullopt;
+}
+
 inline std::optional<std::pair<Half, double>> half_ratio_of(const Hmesh& hm, const HmLoc& l) {
     return std::visit(overloaded{
         [&](const HmLocOnE& e) -> std::optional<std::pair<Half, double>> {
@@ -92,7 +108,7 @@ inline void face_cutting(
         DirEdge h = halfs.back();
         halfs.pop_back();
 
-        vec<DirEdge> poly = {h};
+        vec poly = {h};
         int sta = h.i0;
         int cur = h.i1;
 
@@ -112,8 +128,8 @@ inline void face_cutting(
                 double ang = std::atan2(f.normal().dot(d_prev.cross(d_cand)), d_prev.dot(d_cand));
                 if (ang > best) { best = ang; best_it = it; }
             }
-            if (best_it == halfs.end())
-                throw std::runtime_error(std::format("face_cutting: open chain (face {})", f.id));
+
+            if (best_it == halfs.end()) throw std::runtime_error(std::format("face_cutting: open chain (face {})", f.id));
 
             poly.push_back(*best_it);
             cur = best_it->i1;
@@ -123,8 +139,8 @@ inline void face_cutting(
         /// 3: ear-clip the piece in the face plane (concave-capable, keeps CCW
         ///    orientation so no flipped faces can be produced)
         vec<int> cyc;
-        for (auto& e: poly) cyc.push_back(e.i0);
-        if (cyc.size() < 3) continue;   // zero-area piece (e.g. a segment lying on a mesh edge)
+        for (auto& [i0, i1]: poly) cyc.push_back(i0);
+        if (cyc.size() < 3) continue;
 
         while (cyc.size() > 3) {
             bool clipped = false;
@@ -148,22 +164,18 @@ inline void face_cutting(
                 cyc.erase(cyc.begin() + (long)k);
                 clipped = true;
             }
-            if (!clipped)
-                throw std::runtime_error(std::format("face_cutting: ear clipping failed (face {}, size {})", f.id, cyc.size()));
+            if (!clipped) throw std::runtime_error(std::format("face_cutting: ear clipping failed (face {}, size {})", f.id, cyc.size()));
         }
         tris.push_back({cyc[0], cyc[1], cyc[2]});
     }
 }
 
-// Cut the original mesh for tutte parameterization.
-// `data` receives one HalfData per segment direction; the two directions of a
-// segment are adjacent, so the twin of data[i] is always data[i ^ 1] (unsorted).
 inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
-    const Hmesh& hm,         // input hmesh
-    const TmeshMut& tmm,     // input tmesh (post-collapse; new traced edges included)
-    const vec<bool>& seam0,  //
-          vec<bool>& seam1,  //
-    vec<HalfData>& data      //
+    const Hmesh& hm,
+    const TmeshMut& tmm,
+    const vec<bool>& seam0,
+          vec<bool>& seam1,
+    vec<HalfData>& data
 ) {
     std::map<int, vec<std::pair<int, int>>> cuts; // face id -> segment endpoints
 
@@ -214,16 +226,19 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         for (int k = 0; k < n_sgs; ++k) {
             const HmLoc& fr = tmm.tnodes[nids[k]];
             const HmLoc& to = tmm.tnodes[nids[k + 1]];
-            double v0 = sum / total; sum += len[k];
-            double v1 = sum / total;
+            double v0  = sum / total; sum += len[k];
+            double v1  = sum / total;
+            double v0i = 1 - v0;
+            double v1i = 1 - v1;
             int i0 = vid_of(nids[k]);
             int i1 = vid_of(nids[k + 1]);
-            int l = n_sgs - k - 1;
-            cuts[common_face(hm, fr, to)].emplace_back(i0, i1);
+            int l  = n_sgs - k - 1;
+            // on-edge segments cut nothing: the edge subdivision already realizes them
+            if (!common_edge(hm, fr, to)) cuts[common_face(hm, fr, to)].emplace_back(i0, i1);
             sgms.push_back({
                 i0, i1,
-                HalfData{ Half(),     v0,     v1, th.id,   th.tqid,                  -1, k },
-                HalfData{ Half(), 1 - v1, 1 - v0, th.twid, tmm.thalfs[th.twid].tqid, -1, l }
+                HalfData{Half(), v0,  v1,  th.id,   th.tqid,                  -1, k},
+                HalfData{Half(), v1i, v0i, th.twid, tmm.thalfs[th.twid].tqid, -1, l}
             });
         }
     }
@@ -232,10 +247,10 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     tris.reserve(hm.nF * 2);
     for (Face f: hm.faces) { face_cutting(f, cuts[f.id], vpos, h_aux, tris); }
 
-    MatXi face_info((int)tris.size(), 3);
-    MatXd vert_info((int)vpos.size(), 3);
-    for (int i = 0; i < (int)vpos.size(); i++) { vert_info.row(i) = vpos[i]; }
-    for (int i = 0; i < (int)tris.size(); i++) { face_info.row(i) << tris[i][0], tris[i][1], tris[i][2]; }
+    MatXi face_info(tris.size(), 3);
+    MatXd vert_info(vpos.size(), 3);
+    for (int i = 0; i < vpos.size(); i++) { vert_info.row(i) = vpos[i]; }
+    for (int i = 0; i < tris.size(); i++) { face_info.row(i) << tris[i][0], tris[i][1], tris[i][2]; }
 
     auto hm_cut = std::make_unique<Hmesh>(vert_info, face_info);
     seam1 = std::vector(hm_cut->nE, false);
@@ -255,15 +270,13 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     std::unordered_map<EdgeKey, Half, EdgeKeyHash> half_by_verts;
     half_by_verts.reserve(hm_cut->nH * 2);
 
-    for (Half h: hm_cut->halfs) {
-        half_by_verts.insert({EdgeKey{h.tail().id, h.head().id}, h});
-    }
+    for (Half h: hm_cut->halfs) { half_by_verts.insert({EdgeKey{h.tail().id, h.head().id}, h}); }
 
     // propagate seam flags: walk the split chain along each seam edge of the original mesh
     for (Edge e: hm.edges) {
         if (!seam0[e.id]) continue;
         Half h = e.half();
-        vec<int> chain = { h.tail().id };
+        vec chain = { h.tail().id };
         for (auto it = h_aux[h.id].rbegin(); it != h_aux[h.id].rend(); ++it) chain.push_back(it->second);  // tail -> head (descending r)
         chain.push_back(h.head().id);
         for (size_t k = 0; k + 1 < chain.size(); ++k)
@@ -273,12 +286,12 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     // annotate the cut halfedges: both directions pushed adjacently, twin = index ^ 1
     data.clear();
     data.reserve(sgms.size() * 2);
-    for (auto& s: sgms) {
-        Half h0 = half_by_verts.at({s.i0, s.i1});
-        s.d0.half = h0;        s.d0.twin = (int)data.size() + 1;
-        s.d1.half = h0.twin(); s.d1.twin = (int)data.size();
-        data.push_back(s.d0);
-        data.push_back(s.d1);
+    for (auto& [i0, i1, d0, d1]: sgms) {
+        Half h0 = half_by_verts.at({i0, i1});
+        d0.half = h0;        d0.twin = (int)data.size() + 1;
+        d1.half = h0.twin(); d1.twin = (int)data.size();
+        data.push_back(d0);
+        data.push_back(d1);
     }
 
     return hm_cut;
