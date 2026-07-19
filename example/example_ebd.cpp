@@ -8,12 +8,6 @@
 #include "metriko/core/quantization/quantization.h"
 #include "common.h"
 #include "igl/upsample.h"
-#include "metriko/core/tmesh/emesh_subdivide.h"
-#include "metriko/core/tmesh/emesh_collapse_util.h"
-#include "metriko/core/tmesh/emesh_collapse_ehalf.h"
-#include "metriko/core/tmesh/emesh_collapse_equad.h"
-#include "metriko/core/tmesh/emesh_postprocess.h"
-#include "metriko/core/tmesh/emesh_tutte_params.h"
 #include "metriko/core/hmesh/hpath.h"
 #include "metriko/core/tmesh/tmesh_mut.h"
 
@@ -157,6 +151,14 @@ int main(int argc, char** argv) {
             }
         }
     }
+
+    tmm.collapse_valid();
+
+    for (const auto& [teid, nids] : tmm.tedges) {
+        if (!nids.empty()) tmm.collapse_tedge_short_segment(teid);
+    }
+
+    tmm.collapse_valid();
 
     // collapse tquad simple chain
     for (auto& tq_: tmm.tquads) {

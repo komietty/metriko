@@ -57,4 +57,5 @@ void TmeshMut::collapse_thalf(int thid) {
     tq_twn.data.erase(it_twn);
     th_crr = {};
     th_twn = {};
+    te_crr = {};
 }

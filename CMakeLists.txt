@@ -93,6 +93,7 @@ add_library(${PROJECT_NAME} STATIC
         include/metriko/core/tmesh/tmesh_mut_collapse_thalf.cpp
         include/metriko/core/tmesh/tmesh_mut_collapse_tq_prepare.cpp
         include/metriko/core/tmesh/tmesh_mut_collapse_tq_execute.cpp
+        include/metriko/core/tmesh/tmesh_mut_postprocess.cpp
         include/metriko/core/quantization/quantization.h
         include/metriko/core/hmesh/heat_method.h
 )

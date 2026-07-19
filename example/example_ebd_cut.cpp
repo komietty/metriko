@@ -6,13 +6,15 @@
 // boundaries.
 #include <fstream>
 #include <igl/readOBJ.h>
+#include <igl/slim.h>
 #include <polyscope/surface_mesh.h>
 #include <polyscope/curve_network.h>
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
 #include "metriko/core/tmesh/tmesh_mut.h"
-#include "metriko/core/emesh/emesh_cutting.h"
+#include "metriko/core/tutte/tutte_cutting.h"
+#include "metriko/core/tutte/tutte_params.h"
 
 using namespace metriko;
 
@@ -119,6 +121,10 @@ int main(int argc, char** argv) {
         }
     }
 
+    for (const auto& [teid, nids] : tmm.tedges) { if (!nids.empty()) tmm.collapse_tedge_short_segment(teid); }
+    for (const auto& [teid, nids] : tmm.tedges) { if (!nids.empty()) tmm.collapse_tedge_vert_snapping(teid); }
+    for (const auto& [teid, nids] : tmm.tedges) { if (!nids.empty()) tmm.collapse_tedge_short_segment(teid); }
+
     ///--- validate tedge nid chains: duplicated / backtracking nodes break the cut ---///
     for (const auto& th: tmm.thalfs) {
         if (th.id == -1 || !th.cano) continue;
@@ -140,7 +146,7 @@ int main(int argc, char** argv) {
     ///--- cut the original mesh along the collapsed t-mesh ---///
     vec<bool> seam1;
     vec<HalfData> hdata;
-    auto hm_cut = emesh::compute_embedding_cut_hmesh(hm, tmm, seam, seam1, hdata);
+    auto hm_cut = compute_embedding_cut_hmesh(hm, tmm, seam, seam1, hdata);
     std::println("cut mesh: V {} F {} (original: V {} F {})", hm_cut->pos.rows(), hm_cut->idx.rows(), hm.pos.rows(), hm.idx.rows());
     std::println("patch boundary halfedges: {}", hdata.size());
     std::println("euler characteristic: {} (closed manifold iff 2E == 3F: {})",
@@ -193,6 +199,49 @@ int main(int argc, char** argv) {
 
     auto* cut = polyscope::registerSurfaceMesh("cut mesh", hm_cut->pos, hm_cut->idx);
     cut->setEdgeWidth(1.0);
+
+    ///--- tutte parameterization (pre-SLIM initial uv) ---///
+    std::sort(hdata.begin(), hdata.end());   // compute_tutte_parameterization groups halfedges via equal_range on tqid
+    MatXd uv;
+    if (compute_tutte_parameterization(*hm_cut, tmm, seam1, hdata, uv)) {
+        cut->addParameterizationQuantity("tutte uv", uv);
+
+        ///--- SLIM (refine the tutte uv) ---///
+        {
+            // cut along the seams so the uv becomes per-vertex
+            auto hm2 = compute_cut_mesh(*hm_cut, seam1);
+
+            MatXd uv_init(hm2->nV, 2);
+            for (auto v: hm2->verts) uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
+
+            // pin the seam (boundary) vertices softly to the tutte uv
+            std::vector<int> b_;
+            std::vector<Row2d> bc_;
+            for (auto v: hm2->verts) {
+                if (!v.isBoundary()) continue;
+                b_.push_back(v.id);
+                bc_.push_back(uv_init.row(v.id));
+            }
+            VecXi b = Eigen::Map<VecXi>(b_.data(), (int)b_.size());
+            MatXd bc((int)bc_.size(), 2);
+            for (int i = 0; i < (int)bc_.size(); ++i) bc.row(i) = bc_[i];
+
+            igl::SLIMData sData;
+            sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
+            slim_precompute(hm2->pos, hm2->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
+            slim_solve(sData, 100);
+            std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
+
+            auto* surf = polyscope::registerSurfaceMesh("slim result", hm2->pos, hm2->idx);
+            auto* prms = surf->addVertexParameterizationQuantity("uv", sData.V_o);
+            surf->setEdgeWidth(0.7);
+            prms->setEnabled(true);
+            prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+            prms->setCheckerSize(1);
+        }
+    } else {
+        std::println("[tutte] compute_tutte_parameterization failed");
+    }
 
     { // patch boundaries (t-mesh edges on the cut mesh), colored by tquad id
         std::vector<glm::vec3> ns;

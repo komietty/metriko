@@ -5,11 +5,8 @@
 #define METRIKO_EMESH_H
 
 #include "tmesh.h"
-#include "emesh_subdivide.h"
-#include <queue>
 #include <map>
 #include <set>
-#include <iostream>
 
 namespace metriko {
 struct Emesh;

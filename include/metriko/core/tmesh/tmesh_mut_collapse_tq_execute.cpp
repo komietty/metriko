@@ -73,7 +73,7 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             for (size_t k = 0; k + 1 < nids.size(); ++k)
                 r += (get_ptloc_pos(hm, tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tnodes[nids[k]])).norm();
 
-            tedges.push_back({ .nids = nids });
+            tedges.push_back({ .id = teid, .nids = nids });
             thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x, .r = r });
             thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x, .r = r });
             candidates.push_back({ .tqid = tqid, .thid = thid0, .t_fr = s0, .t_to = s1, .v_fr = v0, .v_to = v1});
@@ -159,7 +159,7 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
             thalfs[th.id].tqid = id;
             data.insert(ahd ? it : it + 1, TdataMut{ th.id, si });
         } else {
-            auto& [nids]  = tedges[th.teid];
+            auto& nids    = tedges[th.teid].nids;
             auto& th_twn  = thalfs[th.twid];
             auto& tq_twn  = tquads[th_twn.tqid];
             auto& th2_twn = thalfs[th2.twid];
@@ -229,7 +229,8 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
         for (const auto& [thid, _]: data) {
             auto& th0 = thalfs[thid];
             auto& th1 = thalfs[th0.twid];
-            if (th0.tqid == id) { th0 = {}; th1 = {}; }
+            auto& te  = tedges[th0.teid];
+            if (th0.tqid == id) { th0 = {}; th1 = {}; te = {}; }
         }
         data.clear();
         id = -1;

@@ -1,8 +1,6 @@
 #ifndef METRIKO_EXAMPLE_COMMON_H
 #define METRIKO_EXAMPLE_COMMON_H
 #include "metriko/core/hmesh/utilities.h"
-#include "metriko/core/tmesh/emesh_subdivide.h"
-#include "metriko/core/tmesh/emesh.h"
 
 namespace metriko::visualizer {
 
@@ -377,55 +375,55 @@ inline void debug_tquad_sides(
 // =======================================================================
 // 1. 細分化された TrackedDenseMesh の可視化 (3D座標の再構築を含む)
 // =======================================================================
-inline void visualize_tracked_mesh(
-    const TrackedDenseMesh& dmesh,
-    const Hmesh& base_hm,
-    const VecXc& base_cf,
-    const std::string& name = "subdiv_mesh",
-    bool show = true
-) {
-    // 1. 親FaceのローカルUVから、曲面上の正確な3D座標を復元する
-    std::vector pos(dmesh.num_verts, glm::vec3(0.0f));
-    std::vector visited(dmesh.num_verts, false);
-    MatXd uv(dmesh.polygons.size() * 3, 2);
-
-    for (size_t i = 0; i < dmesh.polygons.size(); ++i) {
-        const auto& poly = dmesh.polygons[i];
-        const auto& f_uvs = dmesh.uvs[i];
-        int parent_fid = dmesh.face2parent[i];
-
-        for (size_t j = 0; j < poly.size(); ++j) {
-            uv.row(i * poly.size() + j) << f_uvs[j].real(), f_uvs[j].imag();
-
-            int vid = poly[j];
-            if (!visited[vid]) {
-                // conversion_2d_3d を使ってUV平面から3D空間へ写像
-                Row3d p = conversion_2d_3d(base_hm.faces[parent_fid], base_cf, f_uvs[j]);
-                pos[vid] = glm::vec3(p.x(), p.y(), p.z());
-                visited[vid] = true;
-            }
-        }
-    }
-
-    // 2. Polyscope用のFace配列（三角形）を構築
-    std::vector<std::array<size_t, 3>> faces;
-    faces.reserve(dmesh.polygons.size());
-    for (const auto& poly : dmesh.polygons) {
-        faces.push_back({ (size_t)poly[0], (size_t)poly[1], (size_t)poly[2] });
-    }
-
-    // 3. Polyscopeに登録
-    auto surf = polyscope::registerSurfaceMesh(name, pos, faces);
-    surf->setSurfaceColor(glm::vec3(0.8f, 0.9f, 1.0f)); // 爽やかな水色
-    surf->setEdgeWidth(1.0f);
-    surf->setEdgeColor(glm::vec3(0.2f, 0.2f, 0.2f));
-    surf->setEnabled(show);
-
-    auto prms = surf->addParameterizationQuantity("uv", uv);
-    prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-    prms->setCheckerSize(1.);
-    prms->setEnabled(false);
-}
+//inline void visualize_tracked_mesh(
+//    const TrackedDenseMesh& dmesh,
+//    const Hmesh& base_hm,
+//    const VecXc& base_cf,
+//    const std::string& name = "subdiv_mesh",
+//    bool show = true
+//) {
+//    // 1. 親FaceのローカルUVから、曲面上の正確な3D座標を復元する
+//    std::vector pos(dmesh.num_verts, glm::vec3(0.0f));
+//    std::vector visited(dmesh.num_verts, false);
+//    MatXd uv(dmesh.polygons.size() * 3, 2);
+//
+//    for (size_t i = 0; i < dmesh.polygons.size(); ++i) {
+//        const auto& poly = dmesh.polygons[i];
+//        const auto& f_uvs = dmesh.uvs[i];
+//        int parent_fid = dmesh.face2parent[i];
+//
+//        for (size_t j = 0; j < poly.size(); ++j) {
+//            uv.row(i * poly.size() + j) << f_uvs[j].real(), f_uvs[j].imag();
+//
+//            int vid = poly[j];
+//            if (!visited[vid]) {
+//                // conversion_2d_3d を使ってUV平面から3D空間へ写像
+//                Row3d p = conversion_2d_3d(base_hm.faces[parent_fid], base_cf, f_uvs[j]);
+//                pos[vid] = glm::vec3(p.x(), p.y(), p.z());
+//                visited[vid] = true;
+//            }
+//        }
+//    }
+//
+//    // 2. Polyscope用のFace配列（三角形）を構築
+//    std::vector<std::array<size_t, 3>> faces;
+//    faces.reserve(dmesh.polygons.size());
+//    for (const auto& poly : dmesh.polygons) {
+//        faces.push_back({ (size_t)poly[0], (size_t)poly[1], (size_t)poly[2] });
+//    }
+//
+//    // 3. Polyscopeに登録
+//    auto surf = polyscope::registerSurfaceMesh(name, pos, faces);
+//    surf->setSurfaceColor(glm::vec3(0.8f, 0.9f, 1.0f)); // 爽やかな水色
+//    surf->setEdgeWidth(1.0f);
+//    surf->setEdgeColor(glm::vec3(0.2f, 0.2f, 0.2f));
+//    surf->setEnabled(show);
+//
+//    auto prms = surf->addParameterizationQuantity("uv", uv);
+//    prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+//    prms->setCheckerSize(1.);
+//    prms->setEnabled(false);
+//}
 
 // ---
 inline void visualize_mapped_mnodes(
@@ -446,103 +444,6 @@ inline void visualize_mapped_mnodes(
     pc->addScalarQuantity("mnode_id", nid_vals);
     pc->setPointRadius(0.002);
     pc->setMaterial("flat");
-}
-
-// =======================================================================
-// 2. Dijkstraでスナップされた Emesh の経路 (Eedge) の可視化
-// =======================================================================
-inline void visualize_eedge(
-    const Emesh& em,
-    const VecXd& X,
-    const std::string& prefix = "",
-    bool show = true
-) {
-    vec<glm::vec3> ns;
-    vec<std::array<size_t, 2>> es;
-    vec<double> eeid;
-    vec<double> flag;
-    vec<double> r;
-    vec<double> x;
-    size_t counter = 0;
-
-    vec flag_idcs = {
-        //7,
-        //25,
-        //26,
-        //57,
-        //82,
-        //164,
-        //107,
-        114,
-        //230,
-        //231,
-        //211,
-        //212,
-        //12
-    };
-
-    for (const auto& ee: em.eedges) {
-        for (Half h: ee.halfs) {
-            Row3d p1 = h.tail().pos();
-            Row3d p2 = h.head().pos();
-
-            ns.emplace_back(p1.x(), p1.y(), p1.z());
-            ns.emplace_back(p2.x(), p2.y(), p2.z());
-            es.emplace_back(std::array{counter, counter + 1});
-
-            eeid.emplace_back(ee.id);
-            flag.emplace_back(rg::contains(flag_idcs, ee.id) ? 1 : 0);
-            r.emplace_back(ee.len);
-            x.emplace_back(X[ee.id]);
-            counter += 2;
-        }
-    }
-
-    auto c = polyscope::registerCurveNetwork(prefix + "emesh_edges", ns, es);
-    c->setColor(glm::vec4(1.0, 0.15, 0.15, 1.0));
-    c->addEdgeScalarQuantity("eeid", eeid);
-    c->addEdgeScalarQuantity("flag", flag)->setEnabled(true);
-    c->addEdgeScalarQuantity("R", r);
-    c->addEdgeScalarQuantity("X", x);
-    c->setEnabled(show);
-    c->resetTransform();
-
-    c->setRadius(0.0009);
-    c->setMaterial("flat");
-}
-
-inline void visualize_equad(
-    const Emesh& em,
-    const Equad& eq
-) {
-    vec<glm::vec3> ns;
-    vec<std::array<size_t, 2>> es;
-    vec<double> eeids;
-    vec<double> x;
-    size_t counter = 0;
-
-    // すべての Eedge (スナップされた物理ハーフエッジパス) を走査
-    for (const auto& d: eq.data) {
-        const auto& eh = em.ehalfs[d.ehid];
-        for (Half h: eh.halfs) {
-            Row3d p1 = h.tail().pos();
-            Row3d p2 = h.head().pos();
-
-            ns.emplace_back(p1.x(), p1.y(), p1.z());
-            ns.emplace_back(p2.x(), p2.y(), p2.z());
-            es.emplace_back(std::array{counter, counter + 1});
-            x.emplace_back(eh.x);
-            counter += 2;
-        }
-    }
-
-    auto c = polyscope::registerCurveNetwork("equad-" + std::to_string(eq.id), ns, es);
-    c->setColor(glm::vec4(1.0, 0.15, 0.15, 1.0));
-    c->addEdgeScalarQuantity("X", x);
-    c->resetTransform();
-
-    c->setRadius(0.0003);
-    c->setMaterial("flat");
 }
 
 template <typename Container>

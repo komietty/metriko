@@ -2,11 +2,11 @@
 #define METRIKO_TUTTE_CUTTING_H
 #include <set>
 #include <unordered_map>
-#include "./emesh.h"
+#include "./tutte.h"
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/tmesh/tmesh_mut.h"
 
-namespace metriko::emesh {
+namespace metriko {
 
 // split points on an original halfedge: (ratio in the tail-weighted convention,
 // cut-mesh vertex index), ordered along the halfedge
@@ -14,40 +14,6 @@ using EdgeSplits = std::set<std::pair<double, int>>;
 
 // a directed edge of the subdivided face; exists only while cutting one face
 struct DirEdge { int i0; int i1; };
-
-// the face shared by two locations (a segment always lies inside one face)
-inline int common_face(const Hmesh& hm, const HmLoc& a, const HmLoc& b) {
-    auto faces_of = [&](const HmLoc& l, vec<int>& out) {
-        std::visit(overloaded{
-            [&](const HmLocOnV& v) { for (Half h : hm.verts[v.id].adjHalfs()) out.push_back(h.face().id); },
-            [&](const HmLocOnE& e) { out.push_back(hm.edges[e.id].face0().id); out.push_back(hm.edges[e.id].face1().id); },
-            [&](const HmLocOnH& h) { Half hh = hm.halfs[h.id]; out.push_back(hh.face().id); out.push_back(hh.twin().face().id); },
-            [&](const HmLocOnF& f) { out.push_back(f.id); },
-            [&](const auto&)       { throw std::runtime_error("common_face: unsupported loc"); },
-        }, l);
-    };
-    vec<int> fa, fb;
-    faces_of(a, fa); faces_of(b, fb);
-    for (int x : fa) for (int y : fb) if (x == y) return x;
-    throw std::runtime_error("common_face: endpoints share no face");
-}
-
-// the edge shared by two locations: a straight segment whose endpoints share an
-// edge lies ON that edge (nullopt when the segment is a face chord)
-inline std::optional<int> common_edge(const Hmesh& hm, const HmLoc& a, const HmLoc& b) {
-    auto edges_of = [&](const HmLoc& l, vec<int>& out) {
-        std::visit(overloaded{
-            [&](const HmLocOnV& v) { for (Half h : hm.verts[v.id].adjHalfs()) out.push_back(h.edge().id); },
-            [&](const HmLocOnE& e) { out.push_back(e.id); },
-            [&](const HmLocOnH& h) { out.push_back(hm.halfs[h.id].edge().id); },
-            [&](const auto&)       {},   // OnF: interior point, no incident edge
-        }, l);
-    };
-    vec<int> ea, eb;
-    edges_of(a, ea); edges_of(b, eb);
-    for (int x : ea) for (int y : eb) if (x == y) return x;
-    return std::nullopt;
-}
 
 inline std::optional<std::pair<Half, double>> half_ratio_of(const Hmesh& hm, const HmLoc& l) {
     return std::visit(overloaded{
@@ -209,8 +175,8 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
 
     for (const auto& th: tmm.thalfs) {
         if (th.id == -1 || !th.cano) continue;
-        const auto& [nids] = tmm.tedges[th.teid];
-        const int   n_sgs  = (int)nids.size() - 1;
+        const auto& nids  = tmm.tedges[th.teid].nids;
+        const int   n_sgs = (int)nids.size() - 1;
 
         // boundary spacing by geometric arc length: uv lengths are unavailable for
         // edges created by collapse, and any monotone spacing is valid for tutte
@@ -234,11 +200,13 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
             int i1 = vid_of(nids[k + 1]);
             int l  = n_sgs - k - 1;
             // on-edge segments cut nothing: the edge subdivision already realizes them
-            if (!common_edge(hm, fr, to)) cuts[common_face(hm, fr, to)].emplace_back(i0, i1);
+            auto eo = try_get_edge(hm, fr, to);
+            auto fo = try_get_face(hm, fr, to);
+            if (!eo.has_value()) cuts[fo.value().id].emplace_back(i0, i1);
             sgms.push_back({
-                i0, i1,
-                HalfData{Half(), v0,  v1,  th.id,   th.tqid,                  -1, k},
-                HalfData{Half(), v1i, v0i, th.twid, tmm.thalfs[th.twid].tqid, -1, l}
+                .i0 = i0, .i1 = i1,
+                .d0 = HalfData{.half = Half(), .v0 = v0,  .v1 = v1,  .thid = th.id,   .tqid = th.tqid,                  .twin = -1, .order = k},
+                .d1 = HalfData{.half = Half(), .v0 = v1i, .v1 = v0i, .thid = th.twid, .tqid = tmm.thalfs[th.twid].tqid, .twin = -1, .order = l}
             });
         }
     }

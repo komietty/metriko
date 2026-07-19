@@ -38,6 +38,7 @@ struct Tqchain {
 };
 
 struct TedgeMut {
+    int id = -1;
     vec<int> nids = {};
     void insert_locs(const vec<int>& locs);
 };
@@ -109,6 +110,7 @@ struct TmeshMut {
 
         for (const Tedge& te : tm.tedges) {
             TedgeMut tem {};
+            tem.id = te.id;
             tem.nids.reserve(te.segs.size() + 1);
             tem.nids.push_back(te.segs.front().fr_nid);
             for (const mc::Msgmt& sg : te.segs) tem.nids.push_back(sg.to_nid);
@@ -150,7 +152,10 @@ struct TmeshMut {
 
     vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
 
+    void collapse_valid();
     void collapse_thalf(int thid);
+    void collapse_tedge_vert_snapping(int teid);
+    void collapse_tedge_short_segment(int teid);
     bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;
     void collapse_tquad_chain_execute(Tqchain& chain);
 
@@ -165,8 +170,8 @@ struct TmeshMut {
     }
 };
 
-inline const HmLoc& ThalfMut::loc_fr() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
-inline const HmLoc& ThalfMut::loc_to() const { const auto& [nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
+inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
+inline const HmLoc& ThalfMut::loc_to() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
 
 inline void TedgeMut::insert_locs(const vec<int>& locs) {
     int f = locs.front();
