@@ -5,7 +5,6 @@ namespace metriko {
 void TmeshMut::collapse_valid() {
     // 1: two segments from two adjacent tedge shold not be too close to each other
     // 2: three nodes from same tedge should not belong to on the vertices of same triangle
-
     // report tedge pairs leaving a shared node (singularity / junction) at an angle
     // narrower than min_angle: such wedges become slivers in the tutte cutting
     constexpr double min_angle = PI / 12.;   // 15 deg
@@ -49,6 +48,30 @@ void TmeshMut::collapse_valid() {
                 std::println("[collapse_valid] node {} {}: tedge {} / {} meet at {:.2f} deg", nid, loc_str(tnodes[nid]), a.teid, b.teid, gap * 180. / PI);
         }
     }
+}
+
+void TmeshMut::collapse_tedge_edge_snapping(int teid) {
+    constexpr double delta = 0.05;
+    const auto& nids = tedges[teid].nids;
+
+    const int nid = nids.back();
+    Row3d p = get_ptloc_pos(hm, tnodes[nid]);
+
+    std::visit(overloaded{
+        [&](const HmLocOnF& f) {
+            for (Half h: hm.faces[f.id].adjHalfs()) {
+                Row3d a  = h.tail().pos();
+                Row3d d1 = h.vec();
+                Row3d d2 = p - a;
+                double t = d2.dot(d1) / d1.squaredNorm();
+                if ((d2 - t * d1).norm() > delta * d1.norm()) continue;
+                double r = h.isCanonical() ? t : 1 - t;
+                tnodes[nid] = HmLocOnE{.id = h.edge().id, .r = r};
+                return;
+            }
+        },
+        [&](const auto&) {},   // OnV (singularity etc.): nothing to do
+    }, tnodes[nid]);
 }
 
 void TmeshMut::collapse_tedge_vert_snapping(int teid) {

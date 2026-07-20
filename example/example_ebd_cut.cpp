@@ -165,7 +165,7 @@ int main(int argc, char** argv) {
             }
         int unpaired = 0, duplicated = 0;
         for (const auto& [k, c]: cnt) {
-            if (c > 1)                            { if (duplicated++ < 10) std::println("[error] duplicated halfedge ({} -> {}) x{}", k.first, k.second, c); }
+            if (c > 1)                              { if (duplicated++ < 10) std::println("[error] duplicated halfedge ({} -> {}) x{}", k.first, k.second, c); }
             if (!cnt.contains({k.second, k.first})) { if (unpaired++   < 10) std::println("[error] unpaired halfedge ({} -> {})", k.first, k.second); }
         }
         if (unpaired || duplicated)
@@ -180,22 +180,6 @@ int main(int argc, char** argv) {
 
     auto* base = polyscope::registerSurfaceMesh("base mesh", hm.pos, hm.idx);
     base->setEnabled(false);
-
-    //{ // TEMP: face 5018 segments
-    //    std::vector<glm::vec3> ns; std::vector<std::array<size_t, 2>> es; size_t c = 0;
-    //    for (const auto& th: tmm.thalfs) {
-    //        if (th.id == -1 || !th.cano) continue;
-    //        const auto& nids = tmm.tedges[th.teid].nids;
-    //        for (size_t k = 0; k + 1 < nids.size(); ++k) {
-    //            if (emesh::common_face(hm, tmm.tnodes[nids[k]], tmm.tnodes[nids[k + 1]]) != 5018) continue;
-    //            Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
-    //            Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
-    //            ns.emplace_back(a.x(), a.y(), a.z()); ns.emplace_back(b.x(), b.y(), b.z());
-    //            es.push_back({c, c + 1}); c += 2;
-    //        }
-    //    }
-    //    polyscope::registerCurveNetwork("face 5018 segments", ns, es);
-    //}
 
     auto* cut = polyscope::registerSurfaceMesh("cut mesh", hm_cut->pos, hm_cut->idx);
     cut->setEdgeWidth(1.0);
@@ -229,7 +213,7 @@ int main(int argc, char** argv) {
             igl::SLIMData sData;
             sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
             slim_precompute(hm2->pos, hm2->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-            slim_solve(sData, 100);
+            slim_solve(sData, 30);
             std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
 
             auto* surf = polyscope::registerSurfaceMesh("slim result", hm2->pos, hm2->idx);

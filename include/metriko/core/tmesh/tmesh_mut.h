@@ -155,6 +155,7 @@ struct TmeshMut {
     void collapse_valid();
     void collapse_thalf(int thid);
     void collapse_tedge_vert_snapping(int teid);
+    void collapse_tedge_edge_snapping(int teid);
     void collapse_tedge_short_segment(int teid);
     bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;
     void collapse_tquad_chain_execute(Tqchain& chain);

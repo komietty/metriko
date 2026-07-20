@@ -38,6 +38,7 @@ inline void face_cutting(
     const vec<std::pair<int, int>>& sgs, // segment endpoints (cut-mesh vertex indices)
     const vec<Row3d>& vpos,              // vertex position
     const vec<EdgeSplits>& splits,       // split points per original halfedge
+    const std::unordered_map<int, vec<int>>& lines, // vertex -> (tquad,side) lines through it
     vec<std::array<int, 3>>& tris        // output triangles (appended, CCW wrt f)
 ) {
     if (sgs.empty() && splits[f.half().id].empty() && splits[f.half().next().id].empty() && splits[f.half().prev().id].empty()) {
@@ -67,6 +68,19 @@ inline void face_cutting(
     const Row3d by  = f.basisY();
     auto pos2 = [&](int vid) { Row3d d = vpos[vid] - org; return complex(d.dot(bx), d.dot(by)); };
     auto cr   = [](complex u, complex v) { return (std::conj(u) * v).imag(); };
+
+    // three vertices on one patch side are collinear in the tutte uv (a side maps
+    // to a straight rectangle side, possibly spanning several tedges joined at
+    // junctions), so such a triangle collapses in uv even when well-shaped in 3d
+    auto on_one_line = [&](int va, int vb, int vc) {
+        auto ia = lines.find(va); if (ia == lines.end()) return false;
+        auto ib = lines.find(vb); if (ib == lines.end()) return false;
+        auto ic = lines.find(vc); if (ic == lines.end()) return false;
+        for (int x: ia->second) for (int y: ib->second) for (int z: ic->second)
+            if (x == y && y == z) return true;
+        return false;
+    };
+    constexpr double penalty = 100.;   // dominates min_angle in (-pi, pi]
 
     /// 2: trace the pieces by the leftmost-turn rule (max signed CCW angle).
     ///    reflex turns are legal, and every chain must close.
@@ -108,10 +122,20 @@ inline void face_cutting(
         for (auto& [i0, i1]: poly) cyc.push_back(i0);
         if (cyc.size() < 3) continue;
 
+        // interior angles of a CCW triangle in the face plane (all positive);
+        // negative for a CW triangle, so it also ranks invalid choices last
+        auto min_angle = [&](int va, int vb, int vc) {
+            complex a = pos2(va), b = pos2(vb), c = pos2(vc);
+            return std::min({std::arg((c - a) / (b - a)),
+                             std::arg((a - b) / (c - b)),
+                             std::arg((b - c) / (a - c))});
+        };
+
         while (cyc.size() > 3) {
-            bool clipped = false;
             const size_t n = cyc.size();
-            for (size_t k = 0; k < n && !clipped; ++k) {
+            size_t best_k = n;
+            double best_q = std::numeric_limits<double>::lowest();
+            for (size_t k = 0; k < n; ++k) {
                 int va = cyc[(k + n - 1) % n];
                 int vb = cyc[k];
                 int vc = cyc[(k + 1) % n];
@@ -126,12 +150,23 @@ inline void face_cutting(
                 }
                 if (!empty) continue;
 
-                tris.push_back({va, vb, vc});
-                cyc.erase(cyc.begin() + (long)k);
-                clipped = true;
+                // quality of this clip: the worst interior angle it commits to.
+                // a quad also fixes the remaining triangle, so score the pair —
+                // this picks the better diagonal and avoids slivers whenever the
+                // other choice is available
+                double q = min_angle(va, vb, vc);
+                if (n == 4) q = std::min(q, min_angle(vc, cyc[(k + 2) % n], va));
+                if (on_one_line(va, vb, vc))                         q -= penalty;
+                if (n == 4 && on_one_line(vc, cyc[(k + 2) % n], va)) q -= penalty;
+                if (q > best_q) { best_q = q; best_k = k; }
             }
-            if (!clipped) throw std::runtime_error(std::format("face_cutting: ear clipping failed (face {}, size {})", f.id, cyc.size()));
+            if (best_k == n) throw std::runtime_error(std::format("face_cutting: ear clipping failed (face {}, size {})", f.id, cyc.size()));
+            if (best_q < -4) std::println("[warn] face_cutting: uv-degenerate triangle unavoidable (face {})", f.id);
+            tris.push_back({cyc[(best_k + n - 1) % n], cyc[best_k], cyc[(best_k + 1) % n]});
+            cyc.erase(cyc.begin() + (long)best_k);
         }
+        if (on_one_line(cyc[0], cyc[1], cyc[2]))
+            std::println("[warn] face_cutting: uv-degenerate triangle unavoidable (face {})", f.id);
         tris.push_back({cyc[0], cyc[1], cyc[2]});
     }
 }
@@ -156,6 +191,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     // nid -> cut-mesh vertex index: tnode identity replaces epsilon-based position
     // matching. creates the vertex and registers the edge split exactly once.
     std::unordered_map<int, int> vid_of_nid;
+    std::unordered_map<int, vec<int>> vert_lines; // cut vertex -> (tquad,side) lines through it
     auto vid_of = [&](int nid) -> int {
         if (auto it = vid_of_nid.find(nid); it != vid_of_nid.end()) return it->second;
         const HmLoc& l = tmm.tnodes[nid];
@@ -178,6 +214,16 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         const auto& nids  = tmm.tedges[th.teid].nids;
         const int   n_sgs = (int)nids.size() - 1;
 
+        // both patches bordered by this tedge see its nodes on one straight
+        // rectangle side in the tutte uv; key the line as tqid * 4 + side
+        const auto& tw = tmm.thalfs[th.twid];
+        const int   la = th.tqid * 4 + tmm.tquads[th.tqid].side_of(th);
+        const int   lb = tw.tqid * 4 + tmm.tquads[tw.tqid].side_of(tw);
+        auto add_line = [&](int vid, int line) {
+            auto& ls = vert_lines[vid];
+            if (std::find(ls.begin(), ls.end(), line) == ls.end()) ls.push_back(line);
+        };
+
         // boundary spacing by geometric arc length: uv lengths are unavailable for
         // edges created by collapse, and any monotone spacing is valid for tutte
         double total = 0;
@@ -198,6 +244,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
             double v1i = 1 - v1;
             int i0 = vid_of(nids[k]);
             int i1 = vid_of(nids[k + 1]);
+            for (int i: {i0, i1}) { add_line(i, la); add_line(i, lb); }
             int l  = n_sgs - k - 1;
             // on-edge segments cut nothing: the edge subdivision already realizes them
             auto eo = try_get_edge(hm, fr, to);
@@ -213,7 +260,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
 
     vec<std::array<int, 3>> tris;
     tris.reserve(hm.nF * 2);
-    for (Face f: hm.faces) { face_cutting(f, cuts[f.id], vpos, h_aux, tris); }
+    for (Face f: hm.faces) { face_cutting(f, cuts[f.id], vpos, h_aux, vert_lines, tris); }
 
     MatXi face_info(tris.size(), 3);
     MatXd vert_info(vpos.size(), 3);
