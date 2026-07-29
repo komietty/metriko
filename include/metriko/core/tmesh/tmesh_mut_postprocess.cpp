@@ -1,22 +1,72 @@
-
+#include <set>
 #include "./tmesh_mut.h"
 
 namespace metriko {
-void TmeshMut::collapse_valid() {
+bool TmeshMut::collapse_valid_snap(Vert v) {
+
+    for (auto& [id, nids]: tedges) {
+        if (id == -1) continue;
+        if (rg::any_of(nids, [&](int nid) {
+            auto* l = std::get_if<HmLocOnV>(&tnodes[nid]);
+            return l && l->id == v.id;
+        })) return false;
+    }
+
+
+
+    return true;
+}
+
+bool TmeshMut::collapse_valid() {
+
+    auto faces_of = [&](const HmLoc& l, vec<int>& out) {
+        std::visit(overloaded{
+            [&](const HmLocOnV& v) { for (Half h: hm.verts[v.id].adjHalfs()) out.push_back(h.face().id); },
+            //[&](const HmLocOnE& e) { out.push_back(hm.edges[e.id].face0().id); out.push_back(hm.edges[e.id].face1().id); },
+            //[&](const HmLocOnH& h) { Half hh = hm.halfs[h.id]; out.push_back(hh.face().id); out.push_back(hh.twin().face().id); },
+            //[&](const HmLocOnF& f) { out.push_back(f.id); },
+            [&](const auto&)       {},
+        }, l);
+    };
+
+    bool ok = true;
+    for (auto& tq: tquads) {
+        if (tq.id == -1) continue;
+        for (int side = 0; side < 4; side++) {
+            // tnodes in same side must not pass three vertices of the same face
+            umap<int, int> count;
+            std::set<int>  seen;
+            for (int thid: tq.thids(side)) {
+            for (int nid: tedges[thalfs[thid].teid].nids) {
+                if (!seen.insert(nid).second) continue;
+                vec<int> fids;
+                faces_of(tnodes[nid], fids);
+                for (int fid: fids)
+                    if (++count[fid] == 3) {
+                        std::println("[collapse_valid] tquad {} side {}: face {} holds 3+ nodes", tq.id, side, fid);
+                        ok = false;
+                    }
+            }}
+        }
+    }
+    return ok;
+
+    for (auto& [id, nids]: tedges) {
+        if (id == -1) continue;
+    }
+
+    /*
     // 1: two segments from two adjacent tedge shold not be too close to each other
     // 2: three nodes from same tedge should not belong to on the vertices of same triangle
     // report tedge pairs leaving a shared node (singularity / junction) at an angle
     // narrower than min_angle: such wedges become slivers in the tutte cutting
     constexpr double min_angle = PI / 12.;   // 15 deg
-
     struct Port { int teid; bool at_front; double ang; };
-
     umap<int, vec<Port>> node_ports;
-    for (const auto& th: thalfs) {
-        if (th.id == -1 || !th.cano) continue;
-        const auto& nids = tedges[th.teid].nids;
-        node_ports[nids.front()].push_back({.teid = th.teid, .at_front = true,  .ang = 0});
-        node_ports[nids.back() ].push_back({.teid = th.teid, .at_front = false, .ang = 0});
+    for (const auto& [id, nids]: tedges) {
+        if (id == -1) continue;
+        node_ports[nids.front()].push_back({.teid = id, .at_front = true,  .ang = 0});
+        node_ports[nids.back() ].push_back({.teid = id, .at_front = false, .ang = 0});
     }
 
     for (auto& [nid, ports]: node_ports) {
@@ -48,6 +98,114 @@ void TmeshMut::collapse_valid() {
                 std::println("[collapse_valid] node {} {}: tedge {} / {} meet at {:.2f} deg", nid, loc_str(tnodes[nid]), a.teid, b.teid, gap * 180. / PI);
         }
     }
+    */
+}
+
+static bool is_in_face(Face face, const HmLoc& l) {
+    return std::visit(overloaded{
+        [&](const HmLocOnV& v) { for (Half h_: face.adjHalfs()) { if (h_.tail().id == v.id) return true; } return false; },
+        [&](const HmLocOnE& e) { for (Half h_: face.adjHalfs()) { if (h_.edge().id == e.id) return true; } return false; },
+        [&](const HmLocOnH& h) { for (Half h_: face.adjHalfs()) { if (h_.id == h.id)        return true; } return false; },
+        [&](const HmLocOnF& f) { return f.id == face.id; },
+        [&](const auto&) -> bool { throw std::runtime_error("not implemented"); },
+    }, l);
+};
+
+void TmeshMut::collapse_tedge_0(int teid) {
+    int last_nid = tedges[teid].nids.back();
+    vec<std::pair<int, int>> te_tails; // teid, the latest nid
+    vec<std::pair<int, int>> te_heads; // teid, the smallest nid
+
+    for (auto& [id, nids]: tedges) {
+        if (id == -1) continue;
+        if (last_nid == nids.front()) te_tails.emplace_back(id, 0);
+        if (last_nid == nids.back())  te_heads.emplace_back(id, nids.size());
+    }
+
+    if (auto* l = std::get_if<HmLocOnF>(&tnodes[last_nid])) {
+        Vert  v = {};
+        Face  f = hm.faces[l->id];
+        Row3d p = get_ptloc_pos(hm, *l);
+        auto  d = 1e6;
+
+        for (auto h: f.adjHalfs()) {
+            Vert v1 = h.tail();
+            auto d1 = (v1.pos() - p).norm();
+            if (d1 < d && collapse_valid_snap(v1)) { d = d1; v = v1; }
+        }
+
+        tnodes[last_nid] = HmLocOnV{.id = v.id};
+
+        for (auto h: v.adjHalfs()) {
+            Face f1 = h.face();
+            for (auto& [i_, j_]: te_tails) { auto& nids = tedges[i_].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f1, tnodes[nids[k]])) j_ = std::max(j_, k); } }
+            for (auto& [i_, j_]: te_heads) { auto& nids = tedges[i_].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f1, tnodes[nids[k]])) j_ = std::min(j_, k); } }
+        }
+
+        for (auto& [i_, j_]: te_tails) { auto& nids = tedges[i_].nids; if (j_ >= 2)              nids.erase(nids.begin() + 1, nids.begin() + j_);   }
+        for (auto& [i_, j_]: te_heads) { auto& nids = tedges[i_].nids; if (j_ + 2 < nids.size()) nids.erase(nids.begin() + j_ + 1, nids.end() - 1); }
+    }
+}
+
+void TmeshMut::collapse_tedge_1() {
+    Vert v_min = {};
+    auto d_min = 1e6;
+    auto i_min = -1;
+    auto e_min = -1;
+
+    auto cb = [&](const HmLoc& l, int teid,  int iter, Vert v) {
+        if (!collapse_valid_snap(v) || !collapse_valid()) return;
+        Row3d p = get_ptloc_pos(hm, l);
+        auto  d = (v.pos() - p).norm();
+        if (d < d_min) {
+            e_min = teid;
+            i_min = iter;
+            v_min = v;
+            d_min = d;
+        }
+    };
+
+    for (auto& [teid, nids]: tedges) {
+        if (teid == -1) continue;
+        for (int nid: nids) {
+            std::visit(overloaded{
+                [&](const HmLocOnE& l) {
+                    cb(l, teid, nid, hm.edges[l.id].vert0());
+                    cb(l, teid, nid, hm.edges[l.id].vert1());
+                },
+                [&](const HmLocOnH& l) {
+                    cb(l, teid, nid, hm.halfs[l.id].edge().vert0());
+                    cb(l, teid, nid, hm.halfs[l.id].edge().vert1());
+                },
+                [&](const HmLocOnF& l) {
+                    cb(l, teid, nid, hm.faces[l.id].half().tail());
+                    cb(l, teid, nid, hm.faces[l.id].half().head());
+                    cb(l, teid, nid, hm.faces[l.id].half().crnr().vert());
+                },
+                [&](const auto&) {},
+            }, tnodes[nid]);
+        }
+    }
+
+    if (i_min != -1) {
+        auto& [teid, nids] = tedges[e_min];
+        int ii = rg::find(nids, i_min) - nids.begin();
+
+        auto in_ring = [&](int k) {
+            for (auto h: v_min.adjHalfs()) if (is_in_face(h.face(), tnodes[nids[k]])) return true;
+            return false;
+        };
+        int k_min = ii;
+        int k_max = ii;
+        while (k_min > 0               && in_ring(k_min - 1)) --k_min;
+        while (k_max + 1 < nids.size() && in_ring(k_max + 1)) ++k_max;
+
+        if (k_max - ii >= 2) nids.erase(nids.begin() + ii + 1,    nids.begin() + k_max);
+        if (ii - k_min >= 2) nids.erase(nids.begin() + k_min + 1, nids.begin() + ii);
+        tnodes[i_min] = HmLocOnV{.id = v_min.id};
+    } else {
+        std::println("not found");
+    }
 }
 
 void TmeshMut::collapse_tedge_edge_snapping(int teid) {
@@ -70,7 +228,7 @@ void TmeshMut::collapse_tedge_edge_snapping(int teid) {
                 return;
             }
         },
-        [&](const auto&) {},   // OnV (singularity etc.): nothing to do
+        [&](const auto&) {},
     }, tnodes[nid]);
 }
 

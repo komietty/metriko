@@ -152,8 +152,11 @@ struct TmeshMut {
 
     vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
 
-    void collapse_valid();
+    bool collapse_valid();
+    bool collapse_valid_snap(Vert v);
     void collapse_thalf(int thid);
+    void collapse_tedge_0(int teid);
+    void collapse_tedge_1();
     void collapse_tedge_vert_snapping(int teid);
     void collapse_tedge_edge_snapping(int teid);
     void collapse_tedge_short_segment(int teid);

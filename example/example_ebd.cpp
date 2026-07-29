@@ -154,8 +154,20 @@ int main(int argc, char** argv) {
 
     tmm.collapse_valid();
 
+    for (const auto& [teid, nids] : tmm.tedges) { if (!nids.empty()) tmm.collapse_tedge_0(teid); }
+
+    for (int i = 0; i < 300; ++i) { tmm.collapse_tedge_1(); }
+
     for (const auto& [teid, nids] : tmm.tedges) {
-        if (!nids.empty()) tmm.collapse_tedge_short_segment(teid);
+        if (teid == -1) continue;
+        for (int nid : nids) {
+            std::visit(overloaded{
+                [&](const HmLocOnE& e) { std::println("eid: {}", e.id); },
+                [&](const HmLocOnH& h) { std::println("hid: {}", h.id); },
+                [&](const HmLocOnF& f) { std::println("fid: {}", f.id); },
+                [&](const auto&) { },
+            }, tmm.tnodes[nid]);
+        }
     }
 
     tmm.collapse_valid();
@@ -219,7 +231,7 @@ int main(int argc, char** argv) {
         cn->addEdgeScalarQuantity("r", er);
         cn->addEdgeScalarQuantity("thid", ethid);
         cn->setMaterial("flat");
-        cn->setRadius(0.0002); cn->resetTransform();
+        cn->setRadius(0.0005); cn->resetTransform();
     }
 
     polyscope::show(); return 0; // early return!
