@@ -2,346 +2,155 @@
 #include "./tmesh_mut.h"
 
 namespace metriko {
-bool TmeshMut::collapse_valid_snap(Vert v) {
+bool TmeshMut::collapse_valid_snap_0(Vert v) {
+    //for (int nid = 0; nid < tnodes.size(); nid++) {
+    //    if (teids[nid] == -1) continue;
+    //    auto* l = std::get_if<HmLocOnV>(&tnodes[nid]);
+    //    if (l && l->id == v.id) return false;
+    //}
 
-    for (auto& [id, nids]: tedges) {
-        if (id == -1) continue;
+    for (auto& [id, nids]: live_tedges()) {
         if (rg::any_of(nids, [&](int nid) {
             auto* l = std::get_if<HmLocOnV>(&tnodes[nid]);
             return l && l->id == v.id;
         })) return false;
     }
+    return true;
+}
 
+bool TmeshMut::collapse_valid_snap_1(Vert snap_vrt, int snap_nid) {
 
+    for (auto& tq: live_tquads()) {
+    for (int side = 0; side < 4; side++) {
+
+        std::set<int>  nids = {};
+        umap<int, int> fids = {};
+
+        for (int i: tq.thids(side)) {
+        for (int j: tedges[thalfs[i].teid].nids) { nids.insert(j); }}
+
+        for (int nid: nids) {
+            if (nid == snap_nid) {
+                for (Half h: hm.verts[snap_vrt.id].adjHalfs()) fids[h.face().id]++;
+            } else if (auto* l = std::get_if<HmLocOnV>(&tnodes[nid])) {
+                for (Half h: hm.verts[l->id].adjHalfs()) fids[h.face().id]++;
+            }
+        }
+
+        for (auto c: fids | std::views::values) { if (c >= 3) return false; }
+
+    }}
 
     return true;
 }
 
-bool TmeshMut::collapse_valid() {
-
-    auto faces_of = [&](const HmLoc& l, vec<int>& out) {
-        std::visit(overloaded{
-            [&](const HmLocOnV& v) { for (Half h: hm.verts[v.id].adjHalfs()) out.push_back(h.face().id); },
-            //[&](const HmLocOnE& e) { out.push_back(hm.edges[e.id].face0().id); out.push_back(hm.edges[e.id].face1().id); },
-            //[&](const HmLocOnH& h) { Half hh = hm.halfs[h.id]; out.push_back(hh.face().id); out.push_back(hh.twin().face().id); },
-            //[&](const HmLocOnF& f) { out.push_back(f.id); },
-            [&](const auto&)       {},
-        }, l);
-    };
-
-    bool ok = true;
-    for (auto& tq: tquads) {
-        if (tq.id == -1) continue;
-        for (int side = 0; side < 4; side++) {
-            // tnodes in same side must not pass three vertices of the same face
-            umap<int, int> count;
-            std::set<int>  seen;
-            for (int thid: tq.thids(side)) {
-            for (int nid: tedges[thalfs[thid].teid].nids) {
-                if (!seen.insert(nid).second) continue;
-                vec<int> fids;
-                faces_of(tnodes[nid], fids);
-                for (int fid: fids)
-                    if (++count[fid] == 3) {
-                        std::println("[collapse_valid] tquad {} side {}: face {} holds 3+ nodes", tq.id, side, fid);
-                        ok = false;
-                    }
-            }}
-        }
-    }
-    return ok;
-
-    for (auto& [id, nids]: tedges) {
-        if (id == -1) continue;
-    }
-
-    /*
-    // 1: two segments from two adjacent tedge shold not be too close to each other
-    // 2: three nodes from same tedge should not belong to on the vertices of same triangle
-    // report tedge pairs leaving a shared node (singularity / junction) at an angle
-    // narrower than min_angle: such wedges become slivers in the tutte cutting
-    constexpr double min_angle = PI / 12.;   // 15 deg
-    struct Port { int teid; bool at_front; double ang; };
-    umap<int, vec<Port>> node_ports;
-    for (const auto& [id, nids]: tedges) {
-        if (id == -1) continue;
-        node_ports[nids.front()].push_back({.teid = id, .at_front = true,  .ang = 0});
-        node_ports[nids.back() ].push_back({.teid = id, .at_front = false, .ang = 0});
-    }
-
-    for (auto& [nid, ports]: node_ports) {
-        if (ports.size() < 2) continue;
-
-        // tangent-plane basis at the node
-        Row3d o   = get_ptloc_pos(hm, tnodes[nid]);
-        Row3d nrm = get_ptloc_normal(hm, tnodes[nid]);
-        Row3d t   = std::abs(nrm.x()) < 0.9 ? Row3d(1, 0, 0) : Row3d(0, 1, 0);
-        Row3d u   = nrm.cross(t).normalized();
-        Row3d w   = nrm.cross(u);
-
-        // outgoing direction of the first segment of each incident tedge
-        for (auto& p: ports) {
-            const auto& nids = tedges[p.teid].nids;
-            int nb = p.at_front ? nids[1] : nids[nids.size() - 2];
-            Row3d d = get_ptloc_pos(hm, tnodes[nb]) - o;
-            p.ang = std::atan2(d.dot(w), d.dot(u));
-        }
-        rg::sort(ports, {}, &Port::ang);
-
-        // adjacent angular gaps (with wrap-around)
-        for (size_t i = 0; i < ports.size(); ++i) {
-            const auto& a = ports[i];
-            const auto& b = ports[(i + 1) % ports.size()];
-            double gap = b.ang - a.ang;
-            if (i + 1 == ports.size()) gap += TwoPI;
-            if (gap < min_angle)
-                std::println("[collapse_valid] node {} {}: tedge {} / {} meet at {:.2f} deg", nid, loc_str(tnodes[nid]), a.teid, b.teid, gap * 180. / PI);
-        }
-    }
-    */
-}
-
-static bool is_in_face(Face face, const HmLoc& l) {
-    return std::visit(overloaded{
-        [&](const HmLocOnV& v) { for (Half h_: face.adjHalfs()) { if (h_.tail().id == v.id) return true; } return false; },
-        [&](const HmLocOnE& e) { for (Half h_: face.adjHalfs()) { if (h_.edge().id == e.id) return true; } return false; },
-        [&](const HmLocOnH& h) { for (Half h_: face.adjHalfs()) { if (h_.id == h.id)        return true; } return false; },
-        [&](const HmLocOnF& f) { return f.id == face.id; },
-        [&](const auto&) -> bool { throw std::runtime_error("not implemented"); },
-    }, l);
-};
-
-void TmeshMut::collapse_tedge_0(int teid) {
-    int last_nid = tedges[teid].nids.back();
-    vec<std::pair<int, int>> te_tails; // teid, the latest nid
+void TmeshMut::collapse_tedge_snap_joint(int teid) {
+    auto  last_nid = tedges[teid].nids.back();
+    auto* loc = std::get_if<HmLocOnF>(&tnodes[last_nid]);
+    if (!loc) return;
+    vec<std::pair<int, int>> te_tails; // teid, the biggest  nid
     vec<std::pair<int, int>> te_heads; // teid, the smallest nid
 
-    for (auto& [id, nids]: tedges) {
-        if (id == -1) continue;
+    for (auto& [id, nids]: live_tedges()) {
         if (last_nid == nids.front()) te_tails.emplace_back(id, 0);
         if (last_nid == nids.back())  te_heads.emplace_back(id, nids.size());
     }
 
-    if (auto* l = std::get_if<HmLocOnF>(&tnodes[last_nid])) {
-        Vert  v = {};
-        Face  f = hm.faces[l->id];
-        Row3d p = get_ptloc_pos(hm, *l);
-        auto  d = 1e6;
-
-        for (auto h: f.adjHalfs()) {
-            Vert v1 = h.tail();
-            auto d1 = (v1.pos() - p).norm();
-            if (d1 < d && collapse_valid_snap(v1)) { d = d1; v = v1; }
-        }
-
-        tnodes[last_nid] = HmLocOnV{.id = v.id};
-
-        for (auto h: v.adjHalfs()) {
-            Face f1 = h.face();
-            for (auto& [i_, j_]: te_tails) { auto& nids = tedges[i_].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f1, tnodes[nids[k]])) j_ = std::max(j_, k); } }
-            for (auto& [i_, j_]: te_heads) { auto& nids = tedges[i_].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f1, tnodes[nids[k]])) j_ = std::min(j_, k); } }
-        }
-
-        for (auto& [i_, j_]: te_tails) { auto& nids = tedges[i_].nids; if (j_ >= 2)              nids.erase(nids.begin() + 1, nids.begin() + j_);   }
-        for (auto& [i_, j_]: te_heads) { auto& nids = tedges[i_].nids; if (j_ + 2 < nids.size()) nids.erase(nids.begin() + j_ + 1, nids.end() - 1); }
-    }
-}
-
-void TmeshMut::collapse_tedge_1() {
+    auto p = get_ptloc_pos(hm, *loc);
+    auto d_min = 1e9;
     Vert v_min = {};
-    auto d_min = 1e6;
-    auto i_min = -1;
-    auto e_min = -1;
-
-    auto cb = [&](const HmLoc& l, int teid,  int iter, Vert v) {
-        if (!collapse_valid_snap(v) || !collapse_valid()) return;
-        Row3d p = get_ptloc_pos(hm, l);
-        auto  d = (v.pos() - p).norm();
-        if (d < d_min) {
-            e_min = teid;
-            i_min = iter;
-            v_min = v;
-            d_min = d;
-        }
-    };
-
-    for (auto& [teid, nids]: tedges) {
-        if (teid == -1) continue;
-        for (int nid: nids) {
-            std::visit(overloaded{
-                [&](const HmLocOnE& l) {
-                    cb(l, teid, nid, hm.edges[l.id].vert0());
-                    cb(l, teid, nid, hm.edges[l.id].vert1());
-                },
-                [&](const HmLocOnH& l) {
-                    cb(l, teid, nid, hm.halfs[l.id].edge().vert0());
-                    cb(l, teid, nid, hm.halfs[l.id].edge().vert1());
-                },
-                [&](const HmLocOnF& l) {
-                    cb(l, teid, nid, hm.faces[l.id].half().tail());
-                    cb(l, teid, nid, hm.faces[l.id].half().head());
-                    cb(l, teid, nid, hm.faces[l.id].half().crnr().vert());
-                },
-                [&](const auto&) {},
-            }, tnodes[nid]);
-        }
+    for (Vert v: hm.faces[loc->id].adjHalfs() | vw::transform(&Half::tail)) {
+        auto d = (v.pos() - p).squaredNorm();
+        if (d < d_min && collapse_valid_snap_0(v)) { d_min = d; v_min = v; }
     }
 
-    if (i_min != -1) {
-        auto& [teid, nids] = tedges[e_min];
-        int ii = rg::find(nids, i_min) - nids.begin();
-
-        auto in_ring = [&](int k) {
-            for (auto h: v_min.adjHalfs()) if (is_in_face(h.face(), tnodes[nids[k]])) return true;
-            return false;
-        };
-        int k_min = ii;
-        int k_max = ii;
-        while (k_min > 0               && in_ring(k_min - 1)) --k_min;
-        while (k_max + 1 < nids.size() && in_ring(k_max + 1)) ++k_max;
-
-        if (k_max - ii >= 2) nids.erase(nids.begin() + ii + 1,    nids.begin() + k_max);
-        if (ii - k_min >= 2) nids.erase(nids.begin() + k_min + 1, nids.begin() + ii);
-        tnodes[i_min] = HmLocOnV{.id = v_min.id};
-    } else {
-        std::println("not found");
+    for (Face f: v_min.adjHalfs() | vw::transform(&Half::face)) {
+        for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f, tnodes[nids[k]])) j = std::max(j, k); }}
+        for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f, tnodes[nids[k]])) j = std::min(j, k); }}
     }
+
+    for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; if (j >= 2)              nids.erase(nids.begin() + 1, nids.begin() + j);   }
+    for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; if (j + 2 < nids.size()) nids.erase(nids.begin() + j + 1, nids.end() - 1); }
+    tnodes[last_nid] = HmLocOnV{.id = v_min.id};
 }
 
-void TmeshMut::collapse_tedge_edge_snapping(int teid) {
-    constexpr double delta = 0.05;
-    const auto& nids = tedges[teid].nids;
+void TmeshMut::collapse_tedge_snap_inter(int teid, int nid, Vert v) {
+    auto in_ring = [&](const HmLoc& l) { return rg::any_of(v.adjHalfs(), [&](Half h) { return is_in_face(h.face(), l); });};
 
-    const int nid = nids.back();
-    Row3d p = get_ptloc_pos(hm, tnodes[nid]);
-
-    std::visit(overloaded{
-        [&](const HmLocOnF& f) {
-            for (Half h: hm.faces[f.id].adjHalfs()) {
-                Row3d a  = h.tail().pos();
-                Row3d d1 = h.vec();
-                Row3d d2 = p - a;
-                double t = d2.dot(d1) / d1.squaredNorm();
-                if ((d2 - t * d1).norm() > delta * d1.norm()) continue;
-                double r = h.isCanonical() ? t : 1 - t;
-                tnodes[nid] = HmLocOnE{.id = h.edge().id, .r = r};
-                return;
-            }
-        },
-        [&](const auto&) {},
-    }, tnodes[nid]);
-}
-
-void TmeshMut::collapse_tedge_vert_snapping(int teid) {
-    constexpr double delta = 0.05;   // snap when within 10% of the carrier edge length
     auto& nids = tedges[teid].nids;
 
-    // shared nodes (junctions / crossings / other tedges' endpoints) must not move
-    vec shared(tnodes.size(), false);
-    for (int i = 0; i < tedges.size(); ++i) {
-        if (i == teid) continue;
-        for (int nid: tedges[i].nids) shared[nid] = true;
-    }
+    auto it = rg::find(nids, nid);
+    if (it == nids.end()) return;   // trimmed away by an earlier snap
+    int i_cur = rg::find(nids, nid) - nids.begin();
+    int i_min = i_cur;
+    int i_max = i_cur;
+    while (i_min > 0               && in_ring(tnodes[nids[i_min - 1]])) --i_min;
+    while (i_max < nids.size() - 1 && in_ring(tnodes[nids[i_max + 1]])) ++i_max;
 
-    // vertices already occupied by any tnode: snapping onto them would create an
-    // accidental junction between unrelated tedges
-    vec v_used(hm.nV, false);
-    for (const auto& te: tedges)
-        for (int nid: te.nids)
-            if (auto* v = std::get_if<HmLocOnV>(&tnodes[nid])) v_used[v->id] = true;
+    //for (int i = i_min + 1; i < i_max; i++) teids[nids[i]] = -1;
+    if (i_max - i_cur >= 2) nids.erase(nids.begin() + i_cur + 1, nids.begin() + i_max);
+    if (i_cur - i_min >= 2) nids.erase(nids.begin() + i_min + 1, nids.begin() + i_cur);
+    tnodes[nid] = HmLocOnV{.id = v.id};
+}
 
-    /// 1: snap exclusive interior nodes onto a nearby mesh vertex
-    for (size_t i = 1; i + 1 < nids.size(); ++i) {
-        int nid = nids[i];
-        if (shared[nid]) continue;
 
-        int vid = -1;
+void TmeshMut::collapse_tedge_snap(bool flag) {
+    // 1: snap joint tnodes
+    for (auto& [teid, nids]: live_tedges()) { collapse_tedge_snap_joint(teid); }
+
+    struct Cand { int nid; int eid; Vert v; double d; };
+    vec candidates(tnodes.size(), vec<Cand>{});
+
+    // 2.0: snap inter tnodes
+    for (auto& [teid, nids]: live_tedges()) {
+    for (int i = 1; i < nids.size() - 1; i++) {
+        auto nid = nids[i];
+        auto pos = get_ptloc_pos(hm, tnodes[nid]);
+
         std::visit(overloaded{
-            [&](const HmLocOnE& e) {
-                Edge ed = hm.edges[e.id];
-                if      (e.r     < delta) vid = ed.vert0().id;
-                else if (1 - e.r < delta) vid = ed.vert1().id;
+            [&](const HmLocOnH& l) {
+                Vert v0 = hm.halfs[l.id].tail();
+                Vert v1 = hm.halfs[l.id].head();
+                candidates[nid].emplace_back(nid, teid, v0, (v0.pos() - pos).squaredNorm());
+                candidates[nid].emplace_back(nid, teid, v1, (v1.pos() - pos).squaredNorm());
             },
-            [&](const HmLocOnH& hh) {
-                Half h = hm.halfs[hh.id];
-                if      (hh.r     < delta) vid = h.tail().id;
-                else if (1 - hh.r < delta) vid = h.head().id;
+            [&](const HmLocOnE& l) {
+                Vert v0 = hm.edges[l.id].vert0();
+                Vert v1 = hm.edges[l.id].vert1();
+                candidates[nid].emplace_back(nid, teid, v0, (v0.pos() - pos).squaredNorm());
+                candidates[nid].emplace_back(nid, teid, v1, (v1.pos() - pos).squaredNorm());
             },
-            [&](const HmLocOnF& f) {
-                Row3d p = get_ptloc_pos(hm, tnodes[nid]);
-                for (Half h: hm.faces[f.id].adjHalfs())
-                    if ((h.tail().pos() - p).norm() < delta * h.vec().norm()) { vid = h.tail().id; break; }
+            [&](const HmLocOnF& l) {
+                Vert v0 = hm.faces[l.id].half().tail();
+                Vert v1 = hm.faces[l.id].half().head();
+                Vert v2 = hm.faces[l.id].half().crnr().vert();
+                candidates[nid].emplace_back(nid, teid, v0, (v0.pos() - pos).squaredNorm());
+                candidates[nid].emplace_back(nid, teid, v1, (v1.pos() - pos).squaredNorm());
+                candidates[nid].emplace_back(nid, teid, v2, (v2.pos() - pos).squaredNorm());
             },
-            [&](const auto&) {},   // OnV: nothing to do
+            [&](const auto&) {},
         }, tnodes[nid]);
-        if (vid < 0) continue;
+    }}
 
-        // allow the snap only if the vertex is free, or occupied by our direct chain
-        // neighbor (that case merges in the dedup pass below)
-        auto at_v = [&](int n) { auto* v = std::get_if<HmLocOnV>(&tnodes[n]); return v && v->id == vid; };
-        if (v_used[vid] && !at_v(nids[i - 1]) && !at_v(nids[i + 1])) continue;
+    // 2.1: sort candidates in inner/outer order
+    for (auto& c: candidates) rg::sort(c, {}, &Cand::d);
+    rg::sort(candidates, {}, [](const vec<Cand>& c) { return c.empty() ? 1e9 : c.front().d; });
 
-        tnodes[nid] = HmLocOnV{vid};
-        v_used[vid] = true;
-    }
-
-    /// 2: dedup — snapping can land neighboring nodes on the same vertex
-    for (size_t i = 0; i + 1 < nids.size();) {
-        auto* a = std::get_if<HmLocOnV>(&tnodes[nids[i]]);
-        auto* b = std::get_if<HmLocOnV>(&tnodes[nids[i + 1]]);
-        bool dup = nids[i] == nids[i + 1] || (a && b && a->id == b->id);
-        if (!dup) { ++i; continue; }
-        bool can_drop_b = !shared[nids[i + 1]] && i + 1 < nids.size() - 1;   // interior, non-shared
-        bool can_drop_a = !shared[nids[i]]     && i > 0;
-        if      (can_drop_b) nids.erase(nids.begin() + (long)i + 1);   // stay at i:
-        else if (can_drop_a) nids.erase(nids.begin() + (long)i);      // 3+ nodes may coincide
-        else ++i;   // both are endpoints/shared: leave for validation to flag
-    }
-}
-
-void TmeshMut::collapse_tedge_short_segment(int teid) {
-    auto& nids = tedges[teid].nids;
-    vec shared(tnodes.size(), false);
-
-    for (int i = 0; i < tedges.size(); ++i) {
-        if (i == teid) continue;
-        for (int nid: tedges[i].nids) shared[nid] = true;
-    }
-
-    auto faces_of = [&](const HmLoc& l, vec<int>& out) {
-        std::visit(overloaded{
-            [&](const HmLocOnV& v) { for (Half h : hm.verts[v.id].adjHalfs()) out.push_back(h.face().id); },
-            [&](const HmLocOnE& e) { out.push_back(hm.edges[e.id].face0().id); out.push_back(hm.edges[e.id].face1().id); },
-            [&](const HmLocOnH& h) { Half hh = hm.halfs[h.id]; out.push_back(hh.face().id); out.push_back(hh.twin().face().id); },
-            [&](const HmLocOnF& f) { out.push_back(f.id); },
-            [&](const auto&)       {},
-        }, l);
-    };
-
-    // drop an interior node when both incident segments lie in one common face:
-    // the face is planar and convex, so the straightened chord stays inside it
-    for (size_t i = 1; i + 1 < nids.size();) {
-        int n1 = nids[i];
-        if (shared[n1]) { ++i; continue; }
-
-        vec<int> f0, f1, f2;
-        faces_of(tnodes[nids[i - 1]], f0);
-        faces_of(tnodes[n1],          f1);
-        faces_of(tnodes[nids[i + 1]], f2);
-
-        bool same_face = false;
-        for (int a: f0)
-        for (int b: f1)
-        for (int c: f2) if (a == b && b == c) { same_face = true; goto done; }
-        done:;
-
-        if (same_face) { nids.erase(nids.begin() + i); }
-        else ++i;
+    // 2.2: snap if it's valid
+    if (flag) {
+        for (auto& c: candidates) {
+        for (auto& [nid, eid, vrt, _]: c) {
+            if (collapse_valid_snap_0(vrt) && collapse_valid_snap_1(vrt, nid) ) {
+                collapse_tedge_snap_inter(eid, nid, vrt);
+                break;
+            }
+        }}
+    } else {
+        for (auto& c: candidates) {
+            if (c.size() == 0) continue;
+            auto& [nid, eid, vrt, _] = c.front();
+            if (collapse_valid_snap_0(vrt) && collapse_valid_snap_1(vrt, nid) ) { collapse_tedge_snap_inter(eid, nid, vrt); }
+        }
     }
 }
-
-// simplification objective:
-// 1: straighter is better
-// 2: fewer nodes are better
-// 3: snapped to vertex or edge is better not to create sliver with tutte cutting
 }

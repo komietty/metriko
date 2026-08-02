@@ -28,6 +28,7 @@ bool find_simple_chain(const TmeshMut& tm, vec<int>& seq) {
 bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     auto& tq = tquads[tqid];
     int side = -1;
+    if (tq.id == -1) return false;
     if (tq.thids(0).size() == 1 && tq.thids(2).size() == 1 && thalfs[tq.thids(0).front()].x == 0) side = 0;
     if (tq.thids(1).size() == 1 && tq.thids(3).size() == 1 && thalfs[tq.thids(1).front()].x == 0) side = 1;
     if (side == -1) return false;

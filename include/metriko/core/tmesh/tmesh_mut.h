@@ -152,14 +152,19 @@ struct TmeshMut {
 
     vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
 
-    bool collapse_valid();
-    bool collapse_valid_snap(Vert v);
+    auto live_tedges() const { return tedges | vw::filter([](const TedgeMut& te) { return te.id != -1; }); }
+    auto live_tedges()       { return tedges | vw::filter([](      TedgeMut& te) { return te.id != -1; }); }
+    auto live_tquads() const { return tquads | vw::filter([](const TquadMut& tq) { return tq.id != -1; }); }
+    auto live_tquads()       { return tquads | vw::filter([](      TquadMut& tq) { return tq.id != -1; }); }
+
+    bool collapse_valid_snap_0(Vert v);
+    bool collapse_valid_snap_1(Vert snap_vrt, int snap_nid);
+
+    void collapse_tedge_snap(bool flag);
+    void collapse_tedge_snap_inter(int teid, int nid, Vert v);
+    void collapse_tedge_snap_joint(int teid);
+
     void collapse_thalf(int thid);
-    void collapse_tedge_0(int teid);
-    void collapse_tedge_1();
-    void collapse_tedge_vert_snapping(int teid);
-    void collapse_tedge_edge_snapping(int teid);
-    void collapse_tedge_short_segment(int teid);
     bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;
     void collapse_tquad_chain_execute(Tqchain& chain);
 

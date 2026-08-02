@@ -2,8 +2,9 @@
 #define METRIKO_EXAMPLE_COMMON_H
 #include "metriko/core/hmesh/utilities.h"
 
-namespace metriko::visualizer {
+using namespace metriko;
 
+namespace metriko::visualizer {
 inline void visualize_frosy_field(
     polyscope::SurfaceMesh* surf,
     const Hmesh& hm,
@@ -267,7 +268,7 @@ inline void visualize_tedge(
     //c->addEdgeScalarQuantity("count", count);
     c->setEnabled(show);
     c->resetTransform();
-    c->setRadius(0.00015);
+    c->setRadius(0.0005);
     c->setMaterial("flat");
 }
 
@@ -579,8 +580,32 @@ inline void visualize_seam(
     c->resetTransform();
     c->setRadius(0.001);
 }
-
 }
 
+static bool load_cache(const std::string& p, VecXc& uv2, VecXi& matching, VecXi& singular, std::vector<bool>& seam) {
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return false;
+    int64_t nu, nm, ns, ne;
+    f.read((char*)&nu, 8); f.read((char*)&nm, 8); f.read((char*)&ns, 8); f.read((char*)&ne, 8);
+    uv2.resize(nu); matching.resize(nm); singular.resize(ns);
+    f.read((char*)uv2.data(),      nu * (int64_t)sizeof(complex));
+    f.read((char*)matching.data(), nm * (int64_t)sizeof(int));
+    f.read((char*)singular.data(), ns * (int64_t)sizeof(int));
+    std::vector<char> sb(ne);
+    f.read(sb.data(), ne);
+    seam.assign(sb.begin(), sb.end());
+    return (bool)f;
+}
+
+static void save_cache(const std::string& p, const VecXc& uv2, const VecXi& matching, const VecXi& singular, const std::vector<bool>& seam) {
+    std::ofstream f(p, std::ios::binary);
+    int64_t nu = uv2.size(), nm = matching.size(), ns = singular.size(), ne = (int64_t)seam.size();
+    f.write((char*)&nu, 8); f.write((char*)&nm, 8); f.write((char*)&ns, 8); f.write((char*)&ne, 8);
+    f.write((char*)uv2.data(),      nu * (int64_t)sizeof(complex));
+    f.write((char*)matching.data(), nm * (int64_t)sizeof(int));
+    f.write((char*)singular.data(), ns * (int64_t)sizeof(int));
+    std::vector<char> sb(seam.begin(), seam.end());
+    f.write(sb.data(), ne);
+}
 #endif
 

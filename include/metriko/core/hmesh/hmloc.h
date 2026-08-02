@@ -120,5 +120,16 @@ inline auto loc_str(const HmLoc& l) {
     }, l);
 }
 
+inline bool is_in_face(Face face, const HmLoc& l) {
+    return std::visit(overloaded{
+        [&](const HmLocOnV& v) { for (Half h_: face.adjHalfs()) { if (h_.tail().id == v.id) return true; } return false; },
+        [&](const HmLocOnE& e) { for (Half h_: face.adjHalfs()) { if (h_.edge().id == e.id) return true; } return false; },
+        [&](const HmLocOnH& h) { for (Half h_: face.adjHalfs()) { if (h_.id == h.id)        return true; } return false; },
+        [&](const HmLocOnF& f) { return f.id == face.id; },
+        [&](const auto&) -> bool { throw std::runtime_error("not implemented"); },
+    }, l);
+};
+
+
 }
 #endif

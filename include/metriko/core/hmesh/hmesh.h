@@ -147,27 +147,36 @@ struct Hmesh {
 };
 
 struct AdjBase {
+    using value_type      = Half;
+    using difference_type = std::ptrdiff_t;
     Half h;
     bool bgn;
     bool ccw;
+    AdjBase() : h{-1, nullptr}, bgn(false), ccw(true) { }
     AdjBase(Half h, bool ccw) : h(h), bgn(false), ccw(ccw) { }
     Half operator*() const { return h; }
-    bool operator!=(const AdjBase& a) const { return !bgn || h.id != a.h.id; }
+    bool operator==(const AdjBase& a) const { return bgn && h.id == a.h.id; }
 };
 
 struct AdjVH : AdjBase {
+    AdjVH() = default;
     AdjVH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
     AdjVH& operator++() { h = ccw ? h.prev().twin() : h.twin().next(); bgn = true; return *this; }
+    AdjVH  operator++(int) { auto t = *this; ++*this; return t; }
 };
 
 struct AdjFH: AdjBase {
+    AdjFH() = default;
     AdjFH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
     AdjFH& operator++() { h = ccw ? h.next() : h.prev(); bgn = true; return *this; }
+    AdjFH  operator++(int) { auto t = *this; ++*this; return t; }
 };
 
 struct AdjLH : AdjBase {
+    AdjLH() = default;
     AdjLH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
     AdjLH& operator++() { h = ccw ? h.next() : h.prev(); bgn = true; return *this; }
+    AdjLH  operator++(int) { auto t = *this; ++*this; return t; }
 };
 
 template<typename N>

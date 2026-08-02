@@ -8,6 +8,7 @@
 #include <igl/readOBJ.h>
 #include <igl/slim.h>
 #include <polyscope/surface_mesh.h>
+#include <polyscope/point_cloud.h>
 #include <polyscope/curve_network.h>
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
@@ -21,37 +22,9 @@
 #include "metriko/core/qex/gen_q_edge.h"
 #include "metriko/core/qex/gen_q_face.h"
 #include "metriko/core/qex/refinement.h"
-#include "polyscope/point_cloud.h"
+#include "common.h"
 
 using namespace metriko;
-
-// binary cache for the expensive field -> parameterization stage (debug convenience).
-// keyed by mesh path + gridscale; delete the .cache file when N or solver flags change.
-static bool load_cache(const std::string& p, VecXc& uv2, VecXi& matching, VecXi& singular, std::vector<bool>& seam) {
-    std::ifstream f(p, std::ios::binary);
-    if (!f) return false;
-    int64_t nu, nm, ns, ne;
-    f.read((char*)&nu, 8); f.read((char*)&nm, 8); f.read((char*)&ns, 8); f.read((char*)&ne, 8);
-    uv2.resize(nu); matching.resize(nm); singular.resize(ns);
-    f.read((char*)uv2.data(),      nu * (int64_t)sizeof(complex));
-    f.read((char*)matching.data(), nm * (int64_t)sizeof(int));
-    f.read((char*)singular.data(), ns * (int64_t)sizeof(int));
-    std::vector<char> sb(ne);
-    f.read(sb.data(), ne);
-    seam.assign(sb.begin(), sb.end());
-    return (bool)f;
-}
-
-static void save_cache(const std::string& p, const VecXc& uv2, const VecXi& matching, const VecXi& singular, const std::vector<bool>& seam) {
-    std::ofstream f(p, std::ios::binary);
-    int64_t nu = uv2.size(), nm = matching.size(), ns = singular.size(), ne = (int64_t)seam.size();
-    f.write((char*)&nu, 8); f.write((char*)&nm, 8); f.write((char*)&ns, 8); f.write((char*)&ne, 8);
-    f.write((char*)uv2.data(),      nu * (int64_t)sizeof(complex));
-    f.write((char*)matching.data(), nm * (int64_t)sizeof(int));
-    f.write((char*)singular.data(), ns * (int64_t)sizeof(int));
-    std::vector<char> sb(seam.begin(), seam.end());
-    f.write(sb.data(), ne);
-}
 
 int main(int argc, char** argv) {
     if (argc < 3) { std::cerr << "usage: example_ebd_cut <mesh.obj> <gridscale>\n"; return 1; }
@@ -128,28 +101,12 @@ int main(int argc, char** argv) {
         }
     }
 
+    auto t0 = std::chrono::steady_clock::now();
+    tmm.collapse_tedge_snap(false);
+    tmm.collapse_tedge_snap(true);
+    auto t1 = std::chrono::steady_clock::now();
+    std::println("[time] snap: {:.3f}s", std::chrono::duration<double>(t1 - t0).count());
 
-    //for (const auto& [teid, nids] : tmm.tedges) { if (!nids.empty()) tmm.collapse_tedge_short_segment(teid); }
-    //for (const auto& [teid, nids] : tmm.tedges) { if (!nids.empty()) tmm.collapse_tedge_vert_snapping(teid); }
-    //for (const auto& [teid, nids] : tmm.tedges) { if (!nids.empty()) tmm.collapse_tedge_short_segment(teid); }
-
-    for (const auto& [teid, nids] : tmm.tedges) { if (!nids.empty()) tmm.collapse_tedge_0(teid); }
-
-    for (int i = 0; i < 300; ++i) { tmm.collapse_tedge_1(); }
-
-    //for (const auto& [teid, nids] : tmm.tedges) {
-    //    if (teid == -1) continue;
-    //    for (int nid : nids) {
-    //        std::visit(overloaded{
-    //            [&](const HmLocOnE& e) { std::println("eid: {}", e.id); },
-    //            [&](const HmLocOnH& h) { std::println("hid: {}", h.id); },
-    //            [&](const HmLocOnF& f) { std::println("fid: {}", f.id); },
-    //            [&](const auto&) { },
-    //        }, tmm.tnodes[nid]);
-    //    }
-    //}
-
-    tmm.collapse_valid();
 
     ///--- validate tedge nid chains: duplicated / backtracking nodes break the cut ---///
     for (const auto& th: tmm.thalfs) {
@@ -167,8 +124,10 @@ int main(int argc, char** argv) {
 
     ///--- cut the original mesh along the collapsed t-mesh ---///
     vec<bool> seam1;
+    VecXi matching1;
+    VecXi singular1;
     vec<HalfData> hdata;
-    auto hm_emb = compute_embedding_cut_hmesh(hm, tmm, seam, seam1, hdata);
+    auto hm_emb = compute_embedding_cut_hmesh(hm, tmm, seam, matching, singular, seam1, matching1, singular1, hdata);
     auto hm_cut = compute_cut_mesh(*hm_emb, seam1);
 
     // --- validate: every halfedge must have its opposite pair. ---
@@ -197,6 +156,34 @@ int main(int argc, char** argv) {
 
     auto* base = polyscope::registerSurfaceMesh("base mesh", hm.pos, hm.idx);           base->setEnabled(false);
     auto* embd = polyscope::registerSurfaceMesh("embd mesh", hm_emb->pos, hm_emb->idx); embd->setEdgeWidth(1.);
+
+    { // tnodes not snapped to a vertex, by carrier type
+        std::vector<glm::vec3> ps;
+        std::vector<double> type, ids;
+        std::set<int> seen;   // shared nodes (junctions/crossings) appear in several chains
+        for (const auto& [teid, nids]: tmm.tedges) {
+            if (teid == -1) continue;
+            for (int nid: nids) {
+                if (!seen.insert(nid).second) continue;
+                double t = -1, id = -1;
+                std::visit(overloaded{
+                    [&](const HmLocOnE& e) { t = 0; id = e.id; },
+                    [&](const HmLocOnH& h) { t = 1; id = h.id; },
+                    [&](const HmLocOnF& f) { t = 2; id = f.id; },
+                    [&](const auto&)       {},
+                }, tmm.tnodes[nid]);
+                if (t < 0) continue;   // OnV: snapped, skip
+                Row3d p = get_ptloc_pos(hm, tmm.tnodes[nid]);
+                ps.emplace_back(p.x(), p.y(), p.z());
+                type.push_back(t);
+                ids.push_back(id);
+            }
+        }
+        auto* pc = polyscope::registerPointCloud("unsnapped tnodes", ps);
+        pc->addScalarQuantity("type (0:E 1:H 2:F)", type)->setEnabled(true);
+        pc->addScalarQuantity("carrier id", ids);
+        pc->setPointRadius(0.002);
+    }
 
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
     std::sort(hdata.begin(), hdata.end());
@@ -233,7 +220,13 @@ int main(int argc, char** argv) {
             prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
             prms->setCheckerSize(1);
 
+            for (int fid: vec{317, 940}){ // TEMP: mark face 317 on the cut mesh
+                std::vector<double> mark(hm_cut->nF, 0.);
+                if (fid < hm_cut->nF) mark[fid] = 1.;
+                surf->addFaceScalarQuantity("face_" + std::to_string(fid), mark)->setEnabled(true);
+            }
         }
+
 
         // ------ qex on the slim result ------
         {
@@ -246,12 +239,7 @@ int main(int argc, char** argv) {
                 cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
             }}
 
-            VecXi matching2 = VecXi::Zero(hm_emb->nE);
-            VecXi singular2 = VecXi::Zero(hm_emb->nV);
-            matching2 = matching;
-            singular2 = singular;
-
-            qex::sanitization(*hm_emb, matching2, singular2, 4, cfn);
+            qex::sanitization(*hm_emb, matching1, singular1, 4, cfn);
 
             std::vector<qex::Qport> q_ports;
             std::vector<qex::Qvert> vqvs, eqvs, fqvs;
@@ -277,21 +265,20 @@ int main(int argc, char** argv) {
             eq->resetTransform();
             fq->resetTransform();
 
+            /**/
             qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
             qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
             qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
 
-
             // display qport
-            /*
             std::vector<glm::vec3> QP;
             std::vector<int> QP_idx, QP_fid, QP_dir, QP_n, QP_p;
             std::vector<int> QP_sid_vert, QP_sid_edge, QP_sid_face;
             std::vector<double> QP_u, QP_v;
             std::vector<double> QP_flag(q_ports.size(), 0);
             for (const auto& q: q_ports) {
-                Face f = hm_cut->faces[q.fid];
-                Row3d p = conversion_2d_3d(f, uv2, q.uv + q.dir * 0.15);
+                Face f = hm_emb->faces[q.fid];
+                Row3d p = conversion_2d_3d(f, cfn, q.uv + q.dir * 0.15);
                 QP.emplace_back(p.x(), p.y(), p.z());
                 QP_idx.emplace_back(q.idx);
                 QP_fid.emplace_back(f.id);
@@ -323,27 +310,26 @@ int main(int argc, char** argv) {
             qp->addScalarQuantity("QP0_next", QP_n);
             qp->addScalarQuantity("QP0_prev", QP_p);
             qp->addScalarQuantity("QP_flag", QP_flag);
-            */
 
-            auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching2, q_ports);
-            auto qfaces = qex::generate_q_faces(q_ports, qedges);
+            //auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
+            //auto qfaces = qex::generate_q_faces(q_ports, qedges);
 
-            int l = (int)qfaces.size();
-            MatXd pos(l * 4, 3);
-            MatXi idx(l, 4);
-            for (int i = 0; i < l; i++)
-            for (int j = 0; j < 4; j++) {
-                pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
-                idx(i, j) = i * 4 + j;
-            }
-            std::println("[qex] extracted {} quads", l);
-            MatXd pos_refined;
-            MatXi idx_refined;
-            qex::refinement_hmesh(pos, idx, hm.pos, hm.idx, pos_refined, idx_refined);
-            auto* quad = polyscope::registerSurfaceMesh("quad mesh", pos_refined, idx_refined);
-            //auto* quad = polyscope::registerSurfaceMesh("quad mesh", pos, idx);
-            quad->setShadeStyle(polyscope::MeshShadeStyle::Flat);
-            quad->setEdgeWidth(1.);
+            //int l = (int)qfaces.size();
+            //MatXd pos(l * 4, 3);
+            //MatXi idx(l, 4);
+            //for (int i = 0; i < l; i++)
+            //for (int j = 0; j < 4; j++) {
+            //    pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
+            //    idx(i, j) = i * 4 + j;
+            //}
+            //std::println("[qex] extracted {} quads", l);
+            //MatXd pos_refined;
+            //MatXi idx_refined;
+            //qex::refinement_hmesh(pos, idx, hm.pos, hm.idx, pos_refined, idx_refined);
+            //auto* quad = polyscope::registerSurfaceMesh("quad mesh", pos_refined, idx_refined);
+            //quad->setShadeStyle(polyscope::MeshShadeStyle::Flat);
+            //quad->setEdgeWidth(1.);
+            //*/
         }
     } else std::println("[tutte] compute_tutte_parameterization failed");
 

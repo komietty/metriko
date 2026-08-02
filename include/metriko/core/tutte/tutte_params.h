@@ -5,8 +5,6 @@
 #ifndef TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H
 #define TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H
 
-#ifndef EXAMPLE_EBD_CPP_EMESH_TUTTE_PARAMS_H
-#define EXAMPLE_EBD_CPP_EMESH_TUTTE_PARAMS_H
 #include "tutte.h"
 #include "metriko/core/tmesh/tmesh_mut.h"
 
@@ -215,24 +213,24 @@ inline bool apply_transition(
     double len0 = (uv0a - uv0).norm();
     double len1 = (uv1a - uv1).norm();
     if (std::abs(len0 - len1) > 1e-6) {
-        std::cout << "[Scale Mismatch] len0: " << len0 << ", len1: " << len1 << " (diff: " << std::abs(len0 - len1) << ")" << std::endl;
+        std::cout << "[Scale Mismatch] len0: " << len0 << ", len1: " << len1 << " (diff: " << std::abs(len0 - len1) << ")" << '\n';
     }
 
     if (verbose) {
-        std::cout << "h0 tail: " << h0.tail().id << std::endl;
-        std::cout << "h0 head: " << h0.head().id << std::endl;
-        std::cout << "h1 tail: " << h1.tail().id << std::endl;
-        std::cout << "h1 head: " << h1.head().id << std::endl;
-        std::cout << "cid: " << h0.prev().crnr().id << std::endl;
+        std::cout << "h0 tail: " << h0.tail().id << '\n';
+        std::cout << "h0 head: " << h0.head().id << '\n';
+        std::cout << "h1 tail: " << h1.tail().id << '\n';
+        std::cout << "h1 head: " << h1.head().id << '\n';
+        std::cout << "cid: " << h0.prev().crnr().id << '\n';
         //uv0a = Vec2d(-8, -8.21001);
     }
 
 
     if (verbose) {
-        std::cout << "uv0 : " <<  uv0.transpose()  << std::endl;
-        std::cout << "uv0a: " <<  uv0a.transpose() << std::endl;
-        std::cout << "uv1 : " <<  uv1.transpose()  << std::endl;
-        std::cout << "uv1a: " <<  uv1a.transpose() << std::endl;
+        std::cout << "uv0 : " <<  uv0.transpose()  << '\n';
+        std::cout << "uv0a: " <<  uv0a.transpose() << '\n';
+        std::cout << "uv1 : " <<  uv1.transpose()  << '\n';
+        std::cout << "uv1a: " <<  uv1a.transpose() << '\n';
     }
 
     for (int i = 0; i < 4; i++) {
@@ -243,9 +241,9 @@ inline bool apply_transition(
         if ((v1 - v2).norm() < 1e-5) {
 
             if (verbose) {
-                std::cout << "rot : " <<  rot  << std::endl;
-                std::cout << "v1: " <<  v1.transpose() << std::endl;
-                std::cout << "v2: " <<  v2.transpose()  << std::endl;
+                std::cout << "rot : " <<  rot  << '\n';
+                std::cout << "v1: " <<  v1.transpose() << '\n';
+                std::cout << "v2: " <<  v2.transpose()  << '\n';
             }
             for (SprsD::InnerIterator it(m1, 0); it; ++it) {
                 int ir = it.row();
@@ -266,7 +264,7 @@ inline bool apply_transition(
         Vec2d v2 = uv0a - uv0;
 
         if ((v1 - v2).norm() < 1e-9) {
-            std::cout << "[Flip Detected] パッチが反転しています！ hid: " << h.id << std::endl;
+            std::cout << "[Flip Detected] パッチが反転しています！ hid: " << h.id << '\n';
             return false; // 今回は原因調査なのでfalseで抜ける
         }
     }
@@ -290,7 +288,7 @@ inline bool apply_transition(
     //    c->setRadius(0.002);
     //}
 
-    std::cout << "failed to map tutte params of hid: " << h.id << std::endl;
+    std::cout << "failed to map tutte params of hid: " << h.id << '\n';
     return false;
 }
 
@@ -361,7 +359,7 @@ inline bool compute_tutte_parameterization(
 
         auto it = data_by_half.find(h);
         if (it == data_by_half.end()) {
-            std::cerr << "[Error] compute_tutte_parameterization: Halfedge " << h.id << " not found in data_by_half map." << std::endl;
+            std::cerr << "[Error] compute_tutte_parameterization: Halfedge " << h.id << " not found in data_by_half map." << '\n';
             return false;
         }
 
@@ -379,7 +377,5 @@ inline bool compute_tutte_parameterization(
     return success;
 }
 }
-
-#endif
 
 #endif //TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H

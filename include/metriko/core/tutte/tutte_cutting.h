@@ -80,7 +80,7 @@ inline void face_cutting(
             if (x == y && y == z) return true;
         return false;
     };
-    constexpr double penalty = 100.;   // dominates min_angle in (-pi, pi]
+    constexpr double penalty = 100.; // dominates min_angle in (-pi, pi]
 
     /// 2: trace the pieces by the leftmost-turn rule (max signed CCW angle).
     ///    reflex turns are legal, and every chain must close.
@@ -175,7 +175,11 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     const Hmesh& hm,
     const TmeshMut& tmm,
     const vec<bool>& seam0,
+    const VecXi& matching0,
+    const VecXi& singular0,
           vec<bool>& seam1,
+          VecXi& matching1,
+          VecXi& singular1,
     vec<HalfData>& data
 ) {
     std::map<int, vec<std::pair<int, int>>> cuts; // face id -> segment endpoints
@@ -269,6 +273,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
 
     auto hm_cut = std::make_unique<Hmesh>(vert_info, face_info);
     seam1 = std::vector(hm_cut->nE, false);
+    matching1 = VecXi::Zero(hm_cut->nE);
 
     struct EdgeKey {
         int tail;
@@ -294,9 +299,18 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         vec chain = { h.tail().id };
         for (auto it = h_aux[h.id].rbegin(); it != h_aux[h.id].rend(); ++it) chain.push_back(it->second);  // tail -> head (descending r)
         chain.push_back(h.head().id);
-        for (size_t k = 0; k + 1 < chain.size(); ++k)
-            seam1[half_by_verts.at({chain[k], chain[k + 1]}).edge().id] = true;
+        for (size_t k = 0; k + 1 < chain.size(); ++k) {
+            Half hh = half_by_verts.at({chain[k], chain[k + 1]});   // same direction as h
+            seam1[hh.edge().id] = true;
+            matching1(hh.edge().id) = hh.isCanonical() ? matching0(e.id) : -matching0(e.id);
+        }
+        //for (size_t k = 0; k + 1 < chain.size(); ++k)
+        //    seam1[half_by_verts.at({chain[k], chain[k + 1]}).edge().id] = true;
     }
+
+    // update singular
+    singular1 = VecXi::Zero(hm_cut->nV);
+    singular1.head(hm.nV) = singular0;
 
     // annotate the cut halfedges: both directions pushed adjacently, twin = index ^ 1
     data.clear();
