@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
 
     std::println("---- collapse bgn");
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 10; ++i) {
         // collapse thalf
         for (ThalfMut th0 : tmm.thalfs) {
             if (th0.id == -1) continue;
@@ -115,10 +115,10 @@ int main(int argc, char** argv) {
         }
 
         // collapse tquad
-        for (const auto& [id, data] : tmm.tquads) {
+        for (const auto& [tqid, data] : tmm.tquads) {
             Tqchain chain;
-            if (tmm.collapse_tquad_chain_prepare(id, chain)) {
-                std::cout << "tq collapse: " << id << std::endl;
+            if (tmm.collapse_tquad_chain_prepare(tqid, chain)) {
+                std::cout << "tq collapse: " << tqid << std::endl;
                 tmm.collapse_tquad_chain_execute(chain);
                 validate_tmeshmut(tmm);
             }
@@ -127,8 +127,33 @@ int main(int argc, char** argv) {
 
     std::println("---- collapse end");
 
+    // debug view
+    {
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> ids;
+        size_t c = 0;
+        for (const auto& [id, nids]: tmm.live_tedges()) {
+            for (size_t k = 0; k + 1 < nids.size(); ++k) {
+                Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
+                Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
+                ns.emplace_back(a.x(), a.y(), a.z());
+                ns.emplace_back(b.x(), b.y(), b.z());
+                es.push_back({c, c + 1});
+                c += 2;
+                ids.push_back(id);
+            }
+        }
+        auto* cn = polyscope::registerCurveNetwork("tedges_collapsed", ns, es);
+        cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
+        cn->setRadius(0.0015);
+        cn->resetTransform();
+    }
+
     auto t0 = std::chrono::steady_clock::now();
-    tmm.collapse_tedge_snap();
+    tmm.collapse_tedge_snap(false);
+    tmm.collapse_tedge_snap(true);
+    for (const auto& [teid, _] : tmm.live_tedges()) { tmm.collapse_tedge_snap_dedup(teid); }
     auto t1 = std::chrono::steady_clock::now();
     std::println("[time] snap: {:.3f}s", std::chrono::duration<double>(t1 - t0).count());
 
@@ -142,7 +167,7 @@ int main(int argc, char** argv) {
 
     { // tnodes not snapped to a vertex, by carrier type
         std::vector<glm::vec3> ps;
-        std::vector<double> type, ids;
+        std::vector<double> type, ids, nids_;
         std::set<int> seen;   // shared nodes (junctions/crossings) appear in several chains
         for (const auto& [teid, nids]: tmm.tedges) {
             if (teid == -1) continue;
@@ -160,17 +185,40 @@ int main(int argc, char** argv) {
                 ps.emplace_back(p.x(), p.y(), p.z());
                 type.push_back(t);
                 ids.push_back(id);
+                nids_.push_back(nid);
             }
         }
         auto* pc = polyscope::registerPointCloud("unsnapped tnodes", ps);
         pc->addScalarQuantity("type (0:E 1:H 2:F)", type)->setEnabled(true);
-        pc->addScalarQuantity("carrier id", ids);
+        pc->addScalarQuantity("elem id", ids);
+        pc->addScalarQuantity("node id", nids_);
         pc->setPointRadius(0.002);
     }
 
     // debug view
-    for (const auto& [id, data] : tmm.tquads) {
-        if (id == -1) continue;
+    {
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> ids;
+        size_t c = 0;
+        for (const auto& [id, nids]: tmm.live_tedges()) {
+            for (size_t k = 0; k + 1 < nids.size(); ++k) {
+                Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
+                Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
+                ns.emplace_back(a.x(), a.y(), a.z());
+                ns.emplace_back(b.x(), b.y(), b.z());
+                es.push_back({c, c + 1});
+                c += 2;
+                ids.push_back(id);
+            }
+        }
+        auto* cn = polyscope::registerCurveNetwork("tedges_snapped", ns, es);
+        cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
+        cn->setRadius(0.0015);
+        cn->resetTransform();
+    }
+    /*
+    for (const auto& [id, data] : tmm.live_tquads()) {
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> eside, ex, ey, er, ethid;   // per-edge (thalf) params
@@ -202,6 +250,7 @@ int main(int argc, char** argv) {
         cn->setMaterial("flat");
         cn->setRadius(0.001); cn->resetTransform();
     }
+    */
 
     polyscope::show(); return 0;
 }

@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
 
     ///--- collapse: rounds of (thalf pass + chain collapse); later rounds pick up
     ///    the zero edges created by earlier collapses ---///
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 10; ++i) {
         for (const ThalfMut& th0: tmm.thalfs) {
             if (th0.id == -1) continue;
             auto& th1 = tmm.thalfs[th0.twid];
@@ -104,6 +104,7 @@ int main(int argc, char** argv) {
     auto t0 = std::chrono::steady_clock::now();
     tmm.collapse_tedge_snap(false);
     tmm.collapse_tedge_snap(true);
+    for (const auto& [teid, _] : tmm.live_tedges()) { tmm.collapse_tedge_snap_dedup(teid); }
     auto t1 = std::chrono::steady_clock::now();
     std::println("[time] snap: {:.3f}s", std::chrono::duration<double>(t1 - t0).count());
 
@@ -185,6 +186,18 @@ int main(int argc, char** argv) {
         pc->setPointRadius(0.002);
     }
 
+    { // TEMP: on-edge segment with no direct halfedge (1742 -> 74)
+        std::vector<glm::vec3> ns = {
+            {(float)hm_emb->pos(1742, 0), (float)hm_emb->pos(1742, 1), (float)hm_emb->pos(1742, 2)},
+            {(float)hm_emb->pos(74, 0),   (float)hm_emb->pos(74, 1),   (float)hm_emb->pos(74, 2)},
+        };
+        std::vector<std::array<size_t, 2>> es = {{0, 1}};
+        auto* cn = polyscope::registerCurveNetwork("no-halfedge segment", ns, es);
+        cn->setColor({1., 0.1, 0.1});
+        cn->setRadius(0.002);
+        cn->resetTransform();
+    }
+
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
     std::sort(hdata.begin(), hdata.end());
     MatXd uv;
@@ -219,12 +232,6 @@ int main(int argc, char** argv) {
             prms->setEnabled(true);
             prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
             prms->setCheckerSize(1);
-
-            for (int fid: vec{317, 940}){ // TEMP: mark face 317 on the cut mesh
-                std::vector<double> mark(hm_cut->nF, 0.);
-                if (fid < hm_cut->nF) mark[fid] = 1.;
-                surf->addFaceScalarQuantity("face_" + std::to_string(fid), mark)->setEnabled(true);
-            }
         }
 
 
@@ -265,7 +272,6 @@ int main(int argc, char** argv) {
             eq->resetTransform();
             fq->resetTransform();
 
-            /**/
             qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
             qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
             qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
@@ -311,25 +317,43 @@ int main(int argc, char** argv) {
             qp->addScalarQuantity("QP0_prev", QP_p);
             qp->addScalarQuantity("QP_flag", QP_flag);
 
-            //auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
-            //auto qfaces = qex::generate_q_faces(q_ports, qedges);
+            auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
 
-            //int l = (int)qfaces.size();
-            //MatXd pos(l * 4, 3);
-            //MatXi idx(l, 4);
-            //for (int i = 0; i < l; i++)
-            //for (int j = 0; j < 4; j++) {
-            //    pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
-            //    idx(i, j) = i * 4 + j;
-            //}
-            //std::println("[qex] extracted {} quads", l);
-            //MatXd pos_refined;
-            //MatXi idx_refined;
-            //qex::refinement_hmesh(pos, idx, hm.pos, hm.idx, pos_refined, idx_refined);
-            //auto* quad = polyscope::registerSurfaceMesh("quad mesh", pos_refined, idx_refined);
-            //quad->setShadeStyle(polyscope::MeshShadeStyle::Flat);
-            //quad->setEdgeWidth(1.);
-            //*/
+            { // q-edges as a curve network
+                std::vector<glm::vec3> ns;
+                std::vector<std::array<size_t, 2>> es;
+                size_t c = 0;
+                for (const auto& qe: qedges) {
+                    Row3d a = qe.port1.pos;
+                    Row3d b = qe.port2.pos;
+                    ns.emplace_back(a.x(), a.y(), a.z());
+                    ns.emplace_back(b.x(), b.y(), b.z());
+                    es.push_back({c, c + 1});
+                    c += 2;
+                }
+                auto* cn = polyscope::registerCurveNetwork("q edges", ns, es);
+                cn->setRadius(0.0012);
+                cn->resetTransform();
+            }
+
+
+            auto qfaces = qex::generate_q_faces(q_ports, qedges);
+            int l = (int)qfaces.size();
+            MatXd pos(l * 4, 3);
+            MatXi idx(l, 4);
+            for (int i = 0; i < l; i++)
+            for (int j = 0; j < 4; j++) {
+                pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
+                idx(i, j) = i * 4 + j;
+            }
+            std::println("[qex] extracted {} quads", l);
+            MatXd pos_refined;
+            MatXi idx_refined;
+            qex::refinement_hmesh(pos, idx, hm.pos, hm.idx, pos_refined, idx_refined);
+            auto* quad = polyscope::registerSurfaceMesh("quad mesh", pos_refined, idx_refined);
+            quad->setShadeStyle(polyscope::MeshShadeStyle::Flat);
+            quad->setEdgeWidth(1.);
+            /* */
         }
     } else std::println("[tutte] compute_tutte_parameterization failed");
 

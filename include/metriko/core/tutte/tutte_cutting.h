@@ -184,7 +184,12 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
 ) {
     std::map<int, vec<std::pair<int, int>>> cuts; // face id -> segment endpoints
 
-    struct SegRec { int i0; int i1; HalfData d0; HalfData d1; };
+    struct SegRec {
+        int i0;
+        int i1;
+        HalfData d0;
+        HalfData d1;
+    };
     vec<SegRec> sgms; // flat annotation list; matched to cut halfedges at the end
 
     vec h_aux(hm.nH, EdgeSplits{});
@@ -290,7 +295,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     std::unordered_map<EdgeKey, Half, EdgeKeyHash> half_by_verts;
     half_by_verts.reserve(hm_cut->nH * 2);
 
-    for (Half h: hm_cut->halfs) { half_by_verts.insert({EdgeKey{h.tail().id, h.head().id}, h}); }
+    for (Half h: hm_cut->halfs) { half_by_verts.insert({EdgeKey{.tail=h.tail().id, .head=h.head().id}, h}); }
 
     // propagate seam flags: walk the split chain along each seam edge of the original mesh
     for (Edge e: hm.edges) {
@@ -316,7 +321,13 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     data.clear();
     data.reserve(sgms.size() * 2);
     for (auto& [i0, i1, d0, d1]: sgms) {
-        Half h0 = half_by_verts.at({i0, i1});
+        auto it = half_by_verts.find({.tail = i0, .head = i1});
+        if (it == half_by_verts.end()) {
+            std::println("[cut] no halfedge {} -> {} (thid {}, order {}, dist {})", i0, i1, d0.thid, d0.order, (vpos[i0] - vpos[i1]).norm());
+            continue; // TEMP: skip to collect all offenders
+        }
+        Half h0 = it->second;
+
         d0.half = h0;        d0.twin = (int)data.size() + 1;
         d1.half = h0.twin(); d1.twin = (int)data.size();
         data.push_back(d0);
