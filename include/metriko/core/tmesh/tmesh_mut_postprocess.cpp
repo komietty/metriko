@@ -44,6 +44,7 @@ bool TmeshMut::collapse_valid_snap_1(Vert snap_vrt, int snap_nid) {
     return true;
 }
 
+
 void TmeshMut::collapse_tedge_snap_joint(int teid) {
     auto  last_nid = tedges[teid].nids.back();
     auto* loc = std::get_if<HmLocOnF>(&tnodes[last_nid]);
@@ -72,6 +73,58 @@ void TmeshMut::collapse_tedge_snap_joint(int teid) {
     for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; if (j >= 2)              nids.erase(nids.begin() + 1, nids.begin() + j);   }
     for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; if (j + 2 < nids.size()) nids.erase(nids.begin() + j + 1, nids.end() - 1); }
     tnodes[last_nid] = HmLocOnV{.id = v_min.id};
+}
+
+void TmeshMut::collapse_tedge_snap_dedup(int teid) {
+    auto& nids = tedges[teid].nids;
+
+    // nodes shared with other chains (junctions / crossings) must stay: dropping
+    // one from this chain only would let the straightened chord cross the other
+    // chain inside a face without a shared vertex
+    vec shared(tnodes.size(), false);
+    for (auto& [id, nids_]: live_tedges()) {
+        if (id == teid) continue;
+        for (int nid: nids_) shared[nid] = true;
+    }
+
+    auto faces_of = [&](const HmLoc& l, vec<int>& out) {
+        std::visit(overloaded{
+            [&](const HmLocOnV& v) { for (Face f: hm.verts[v.id].adjHalfs() | vw::transform(&Half::face)) out.push_back(f.id); },
+            [&](const HmLocOnE& e) { out.push_back(hm.edges[e.id].face0().id); out.push_back(hm.edges[e.id].face1().id); },
+            [&](const HmLocOnH& h) { Half hh = hm.halfs[h.id]; out.push_back(hh.face().id); out.push_back(hh.twin().face().id); },
+            [&](const HmLocOnF& f) { out.push_back(f.id); },
+            [&](const auto&)       {},
+        }, l);
+    };
+
+    for (int i = 1; i < nids.size() - 1;) {
+        int nid_prev = nids[i - 1];
+        int nid_curr = nids[i];
+        int nid_next = nids[i + 1];
+
+        if (shared[nid_curr] || nid_prev == nid_next) { ++i; continue; }
+
+        // a face carrying all three nodes: the chord prev-next stays inside it
+        vec<int> fids;
+        vec<int> fids_prev;
+        vec<int> fids_next;
+        faces_of(tnodes[nid_curr], fids);
+        faces_of(tnodes[nid_prev], fids_prev);
+        faces_of(tnodes[nid_next], fids_next);
+        if (nid_curr == 3120) { // 3247
+            for (int fid: fids)      std::println("nids curr: {}", fid);
+            for (int fid: fids_next) std::println("nids next: {}", fid);
+            for (int fid: fids_prev) std::println("nids prev: {}", fid);
+        }
+
+        bool same_face = rg::any_of(fids, [&](int fid) { return rg::contains(fids_prev, fid) && rg::contains(fids_next, fid); });
+        if (!same_face) { ++i; continue; }
+
+        // drop the middle node; keep the removal only if the validation holds
+        int backup = nid_curr;
+        nids.erase(nids.begin() + i);
+        //if (!collapse_valid_snap_1(Vert{}, nid_curr)) { nids.insert(nids.begin() + i, backup); ++i; }
+    }
 }
 
 void TmeshMut::collapse_tedge_snap_inter(int teid, int nid, Vert v) {
@@ -140,7 +193,8 @@ void TmeshMut::collapse_tedge_snap(bool flag) {
     if (flag) {
         for (auto& c: candidates) {
         for (auto& [nid, eid, vrt, _]: c) {
-            if (collapse_valid_snap_0(vrt) && collapse_valid_snap_1(vrt, nid) ) {
+            //if (collapse_valid_snap_0(vrt) && collapse_valid_snap_1(vrt, nid) ) {
+            if (collapse_valid_snap_0(vrt)) {
                 collapse_tedge_snap_inter(eid, nid, vrt);
                 break;
             }
@@ -149,7 +203,8 @@ void TmeshMut::collapse_tedge_snap(bool flag) {
         for (auto& c: candidates) {
             if (c.size() == 0) continue;
             auto& [nid, eid, vrt, _] = c.front();
-            if (collapse_valid_snap_0(vrt) && collapse_valid_snap_1(vrt, nid) ) { collapse_tedge_snap_inter(eid, nid, vrt); }
+            //if (collapse_valid_snap_0(vrt) && collapse_valid_snap_1(vrt, nid) ) { collapse_tedge_snap_inter(eid, nid, vrt); }
+            if (collapse_valid_snap_0(vrt)) { collapse_tedge_snap_inter(eid, nid, vrt); }
         }
     }
 }

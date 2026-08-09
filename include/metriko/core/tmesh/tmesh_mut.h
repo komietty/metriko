@@ -162,6 +162,7 @@ struct TmeshMut {
 
     void collapse_tedge_snap(bool flag);
     void collapse_tedge_snap_inter(int teid, int nid, Vert v);
+    void collapse_tedge_snap_dedup(int teid);
     void collapse_tedge_snap_joint(int teid);
 
     void collapse_thalf(int thid);
