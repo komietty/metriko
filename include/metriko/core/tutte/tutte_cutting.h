@@ -271,6 +271,68 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     tris.reserve(hm.nF * 2);
     for (Face f: hm.faces) { face_cutting(f, cuts[f.id], vpos, h_aux, vert_lines, tris); }
 
+    /// split a collinear triangle and its twin at the midpoint of a shared chord:
+    /// the new vertex gains the twin's apex (off the line) as a tutte neighbor,
+    /// so its uv leaves the line and the zero-area triangles disappear
+    {
+        std::set<std::pair<int, int>> sgm_set;
+        for (auto& s: sgms) sgm_set.insert(std::minmax(s.i0, s.i1));
+
+        // sub-edges of seam edges: splitting one would break the seam chain
+        // walk (and the matching transfer) done after the mesh is built
+        std::set<std::pair<int, int>> seam_sub;
+        for (Edge e: hm.edges) {
+            if (!seam0[e.id]) continue;
+            Half h = e.half();
+            int prev = h.tail().id;
+            for (auto it = h_aux[h.id].rbegin(); it != h_aux[h.id].rend(); ++it) {
+                seam_sub.insert(std::minmax(prev, it->second));
+                prev = it->second;
+            }
+            seam_sub.insert(std::minmax(prev, h.head().id));
+        }
+
+        auto on_line = [&](int v, int l) {
+            auto it = vert_lines.find(v);
+            return it != vert_lines.end() && rg::contains(it->second, l);
+        };
+        auto common_line = [&](const std::array<int, 3>& t) {
+            auto it = vert_lines.find(t[0]);
+            if (it == vert_lines.end()) return -1;
+            for (int l: it->second) if (on_line(t[1], l) && on_line(t[2], l)) return l;
+            return -1;
+        };
+
+        for (bool again = true; std::exchange(again, false);) {
+            std::map<std::pair<int, int>, int> tri_of;
+            for (int t = 0; t < (int)tris.size(); ++t)
+                for (int j = 0; j < 3; ++j) tri_of[{tris[t][j], tris[t][(j + 1) % 3]}] = t;
+
+            for (int t = 0; t < (int)tris.size() && !again; ++t) {
+                int l = common_line(tris[t]);
+                if (l < 0) continue;
+                for (int j = 0; j < 3; ++j) {
+                    int a = tris[t][j], b = tris[t][(j + 1) % 3], c = tris[t][(j + 2) % 3];
+                    if (sgm_set.contains(std::minmax(a, b))) continue;  // patch boundary
+                    int ti = tri_of.at({b, a});
+                    if (seam_sub.contains(std::minmax(a, b))) continue; // never break a seam chain
+                    int d = tris[ti][0] + tris[ti][1] + tris[ti][2] - a - b;
+                    if (on_line(d, l)) continue;                        // apex still on the line
+
+                    Row3d mid = (vpos[a] + vpos[b]) / 2.;
+                    int m = (int)vpos.size();
+                    vpos.emplace_back(mid);
+                    tris[t]  = {a, m, c};
+                    tris[ti] = {b, m, d};
+                    tris.push_back({m, b, c});
+                    tris.push_back({m, a, d});
+                    again = true;   // rebuild the map and rescan
+                    break;
+                }
+            }
+        }
+    }
+
     MatXi face_info(tris.size(), 3);
     MatXd vert_info(vpos.size(), 3);
     for (int i = 0; i < vpos.size(); i++) { vert_info.row(i) = vpos[i]; }
@@ -309,8 +371,6 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
             seam1[hh.edge().id] = true;
             matching1(hh.edge().id) = hh.isCanonical() ? matching0(e.id) : -matching0(e.id);
         }
-        //for (size_t k = 0; k + 1 < chain.size(); ++k)
-        //    seam1[half_by_verts.at({chain[k], chain[k + 1]}).edge().id] = true;
     }
 
     // update singular
@@ -328,11 +388,15 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         }
         Half h0 = it->second;
 
-        d0.half = h0;        d0.twin = (int)data.size() + 1;
-        d1.half = h0.twin(); d1.twin = (int)data.size();
+        d0.half = h0;
+        d1.half = h0.twin();
+        d0.twin = data.size() + 1;
+        d1.twin = data.size();
         data.push_back(d0);
         data.push_back(d1);
     }
+
+    // if a face of hm_cut breaks the validate_snap_1 rule, split the face and twin face
 
     return hm_cut;
 }

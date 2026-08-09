@@ -150,15 +150,17 @@ int main(int argc, char** argv) {
         std::println("halfedge pairing: all {} halfedges paired", cnt.size());
     }
 
-    ///--- visualize ---///
     polyscope::init();
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
 
     auto* base = polyscope::registerSurfaceMesh("base mesh", hm.pos, hm.idx);           base->setEnabled(false);
     auto* embd = polyscope::registerSurfaceMesh("embd mesh", hm_emb->pos, hm_emb->idx); embd->setEdgeWidth(1.);
+    visualizer::visualize_tedge(tm, mg, uv2, &X);
 
-    { // tnodes not snapped to a vertex, by carrier type
+
+    // tnodes not snapped to a vertex, by carrier type
+    {
         std::vector<glm::vec3> ps;
         std::vector<double> type, ids;
         std::set<int> seen;   // shared nodes (junctions/crossings) appear in several chains
@@ -186,16 +188,65 @@ int main(int argc, char** argv) {
         pc->setPointRadius(0.002);
     }
 
-    { // TEMP: on-edge segment with no direct halfedge (1742 -> 74)
-        std::vector<glm::vec3> ns = {
-            {(float)hm_emb->pos(1742, 0), (float)hm_emb->pos(1742, 1), (float)hm_emb->pos(1742, 2)},
-            {(float)hm_emb->pos(74, 0),   (float)hm_emb->pos(74, 1),   (float)hm_emb->pos(74, 2)},
-        };
-        std::vector<std::array<size_t, 2>> es = {{0, 1}};
-        auto* cn = polyscope::registerCurveNetwork("no-halfedge segment", ns, es);
-        cn->setColor({1., 0.1, 0.1});
-        cn->setRadius(0.002);
+    // visualize tedge collapsed
+    {
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> ids;
+        size_t c = 0;
+        for (const auto& [id, nids]: tmm.live_tedges()) {
+            for (size_t k = 0; k + 1 < nids.size(); ++k) {
+                Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
+                Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
+                ns.emplace_back(a.x(), a.y(), a.z());
+                ns.emplace_back(b.x(), b.y(), b.z());
+                es.push_back({c, c + 1});
+                c += 2;
+                ids.push_back(id);
+            }
+        }
+        auto* cn = polyscope::registerCurveNetwork("tedges_collapsed", ns, es);
+        cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
+        cn->setRadius(0.0015);
         cn->resetTransform();
+    }
+
+    // visualize collinear tmesh: faces holding 3+ same-side vertex-snapped nodes
+    {
+        std::set<int> bad;   // hm face ids violating the snap_1 criterion
+        for (auto& tq: tmm.live_tquads()) {
+        for (int side = 0; side < 4; side++) {
+            std::set<int>  nids;
+            umap<int, int> count;
+            for (int thid: tq.thids(side))
+            for (int nid: tmm.tedges[tmm.thalfs[thid].teid].nids) nids.insert(nid);
+            for (int nid: nids) {
+                if (auto* l = std::get_if<HmLocOnV>(&tmm.tnodes[nid]))
+                    for (Face f: hm.verts[l->id].adjHalfs() | vw::transform(&Half::face)) count[f.id]++;
+            }
+            for (auto& [fid, c]: count) if (c >= 3) bad.insert(fid);
+        }}
+        std::println("[collinear] {} faces violate snap_1", bad.size());
+
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        size_t c = 0;
+        for (int fid: bad) {
+            for (Half h: hm.faces[fid].adjHalfs()) {
+                Row3d a = h.tail().pos();
+                Row3d b = h.head().pos();
+                ns.emplace_back(a.x(), a.y(), a.z());
+                ns.emplace_back(b.x(), b.y(), b.z());
+                es.push_back({c, c + 1});
+                c += 2;
+            }
+        }
+        if (!ns.empty()) {
+            auto* cn = polyscope::registerCurveNetwork("collinear faces", ns, es);
+            cn->setColor({1., 0.2, 0.1});
+            cn->setRadius(0.0015);
+            cn->resetTransform();
+        }
     }
 
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
@@ -234,8 +285,8 @@ int main(int argc, char** argv) {
             prms->setCheckerSize(1);
         }
 
-
         // ------ qex on the slim result ------
+        /* */
         {
             // per-corner uv from the per-vertex slim result: hm_cut and hm2
             // share the face matrix, so corner (i, j) <-> vertex hm2->idx(i, j)
@@ -353,7 +404,6 @@ int main(int argc, char** argv) {
             auto* quad = polyscope::registerSurfaceMesh("quad mesh", pos_refined, idx_refined);
             quad->setShadeStyle(polyscope::MeshShadeStyle::Flat);
             quad->setEdgeWidth(1.);
-            /* */
         }
     } else std::println("[tutte] compute_tutte_parameterization failed");
 

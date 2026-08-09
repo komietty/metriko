@@ -16,7 +16,7 @@ namespace metriko::qex {
         MatXd& pos_refined,
         MatXi& idx_refined,
         const int    iters  = 100,
-        const double lambda = 0.05
+        const double lambda = 0.01
     ) {
         /// 1: weld the per-quad duplicated corners into a connected quad mesh
         VecXi SVI, SVJ;
