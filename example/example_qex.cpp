@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
     auto qfaces = qex::generate_q_faces(q_ports, qedges);
 
     visualizer::visualize_qedges(qedges);
-    visualizer::visualize_qfaces(qfaces);
+    visualizer::visualize_qfaces(*mesh, qfaces);
 
     polyscope::show();
     return 0;

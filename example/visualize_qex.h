@@ -13,7 +13,8 @@ inline void visualize_qverts(
     const vec<qex::Qvert>& vqvs,
     const vec<qex::Qvert>& eqvs,
     const vec<qex::Qvert>& fqvs,
-    const double scale = 0.001
+    const double scale = 0.001,
+    const bool show = true
 ) {
     vec<glm::vec3> VQV;
     vec<glm::vec3> EQV;
@@ -24,9 +25,9 @@ inline void visualize_qverts(
     auto vq = polyscope::registerPointCloud("VQV", VQV);
     auto eq = polyscope::registerPointCloud("EQV", EQV);
     auto fq = polyscope::registerPointCloud("FQV", FQV);
-    vq->setEnabled(true);
-    eq->setEnabled(true);
-    fq->setEnabled(true);
+    vq->setEnabled(show);
+    eq->setEnabled(show);
+    fq->setEnabled(show);
     vq->setPointRadius(scale);
     eq->setPointRadius(scale);
     fq->setPointRadius(scale);
@@ -39,7 +40,8 @@ inline void visualize_qports(
     const Hmesh& mesh,
     const VecXc& uv,
     const vec<qex::Qport>& q_ports,
-    const double scale = 0.001
+    const double scale = 0.001,
+    const bool show = true
 ) {
     std::vector<glm::vec3> QP;
     std::vector<int> QP_idx, QP_fid, QP_dir, QP_n, QP_p;
@@ -66,6 +68,7 @@ inline void visualize_qports(
     }
 
     auto qp = polyscope::registerPointCloud("QP", QP);
+    qp->setEnabled(show);
     qp->resetTransform();
     qp->setPointRadius(scale);
     qp->addScalarQuantity("QP_idx", QP_idx);
@@ -107,7 +110,9 @@ inline void visualize_qedges(
 }
 
 inline void visualize_qfaces(
-    const vec<qex::Qface>& qfaces
+    const Hmesh& hm,
+    const vec<qex::Qface>& qfaces,
+    const bool refine = false
 ) {
     std::vector<std::array<size_t, 4> > QF;
     int l = qfaces.size();
@@ -118,7 +123,16 @@ inline void visualize_qfaces(
         pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
         idx(i, j) = i * 4 + j;
     }}
-    auto surf = polyscope::registerSurfaceMesh("q_faces", pos, idx);
+
+    MatXd pos_refined;
+    MatXi idx_refined;
+    if (refine) {
+        qex::refinement_hmesh(pos, idx, hm.pos, hm.idx, pos_refined, idx_refined);
+    } else {
+        pos_refined = pos;
+        idx_refined = idx;
+    }
+    auto* surf = polyscope::registerSurfaceMesh("quad mesh", pos_refined, idx_refined);
     surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
     surf->setEdgeWidth(1.);
 }
