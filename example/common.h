@@ -520,66 +520,6 @@ inline void visualize_half_data(
               << " HalfData segments for tqid: " << target_tqid << std::endl;
 }
 
-template <typename PosType, typename IdxType, typename UvType>
-polyscope::SurfaceMesh* visualize_mesh_with_uv(
-    const PosType& pos,
-    const IdxType& idx,
-    const UvType& uv,
-    const std::string& name = "mesh",
-    const bool show = true
-) {
-    auto* surf = polyscope::registerSurfaceMesh(name, pos, idx);
-    auto* prms = surf->addParameterizationQuantity("uv_param", uv);
-    prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-    prms->setCheckerSize(1.);
-    prms->setEnabled(false);
-
-    surf->setEdgeWidth(0.7);
-    surf->setEnabled(show);
-    surf->setMaterial("flat");
-    surf->setSurfaceColor(glm::vec3(0.15, 0.15, 0.15));
-
-    vec<glm::vec3> f_col(surf->nFaces(), glm::vec3(0.8, 0.8, 0.8));
-
-    f_col[18]  = glm::vec3(1, 0, 0);
-    f_col[27]  = glm::vec3(1, 0, 0);
-    f_col[258] = glm::vec3(1, 0, 0);
-    f_col[933] = glm::vec3(1, 0, 0);
-    f_col[177] = glm::vec3(1, 0, 0);
-    surf->addFaceColorQuantity("face color", f_col);
-
-    return surf;
-}
-
-inline void visualize_seam(
-    const Hmesh& hm,
-    const vec<bool>& seam,
-    const std::string& name = "seam",
-    const VecXi& matching = VecXi(),
-    const bool show = true
-) {
-    bool use_matching = matching.rows() > 0;
-    vec<glm::vec3> ns;
-    vec<std::array<size_t, 2>> es;
-    vec<double> ms;
-    size_t counter = 0;
-    for (auto e: hm.edges) {
-        if (seam[e.id]) {
-            Row3d p1 = e.half().tail().pos();
-            Row3d p2 = e.half().head().pos();
-            ns.emplace_back(p1.x(), p1.y(), p1.z());
-            ns.emplace_back(p2.x(), p2.y(), p2.z());
-            es.emplace_back(std::array{counter, counter + 1});
-            if (use_matching) ms.emplace_back(matching[e.id]);
-            counter += 2;
-        }
-    }
-    auto c = polyscope::registerCurveNetwork(name, ns, es);
-    if(use_matching) c->addEdgeScalarQuantity("matching", ms);
-    c->setEnabled(show);
-    c->resetTransform();
-    c->setRadius(0.001);
-}
 }
 
 static bool load_cache(const std::string& p, VecXc& uv2, VecXi& matching, VecXi& singular, std::vector<bool>& seam) {
