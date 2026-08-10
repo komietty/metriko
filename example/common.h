@@ -1,186 +1,14 @@
 #ifndef METRIKO_EXAMPLE_COMMON_H
 #define METRIKO_EXAMPLE_COMMON_H
+#include <polyscope/surface_mesh.h>
+#include <polyscope/point_cloud.h>
+#include <polyscope/curve_network.h>
+#include "glm/glm.hpp"
 #include "metriko/core/hmesh/utilities.h"
 
 using namespace metriko;
 
 namespace metriko::visualizer {
-inline void visualize_frosy_field(
-    polyscope::SurfaceMesh* surf,
-    const Hmesh& hm,
-    const FaceRosyField& rawf,
-    const FaceRosyField& cmbf,
-    const int rosyN = 4,
-    const bool show = true
-) {
-    MatXd rawInt(hm.nF, 2);
-    MatXd cmbInt(hm.nF, 2);
-    MatXd rawExt(hm.nF, 3 * rosyN);
-    MatXd cmbExt(hm.nF, 3 * rosyN);
-    for (Face f: hm.faces) {
-        complex rc0 = rawf.field(f.id, 0);
-        complex rc1 = rawf.field(f.id, 1);
-        complex rc2 = rawf.field(f.id, 2);
-        complex rc3 = rawf.field(f.id, 3);
-        complex cc0 = cmbf.field(f.id, 0);
-        complex cc1 = cmbf.field(f.id, 1);
-        complex cc2 = cmbf.field(f.id, 2);
-        complex cc3 = cmbf.field(f.id, 3);
-        rawInt.row(f.id) = Row2d(rc0.real(), rc0.imag()).normalized();
-        cmbInt.row(f.id) = Row2d(cc0.real(), cc0.imag()).normalized();
-
-        rawExt.block(f.id, 0, 1, 3) = (rc0.real() * f.basisX() + rc0.imag() * f.basisY()).normalized();
-        rawExt.block(f.id, 3, 1, 3) = (rc1.real() * f.basisX() + rc1.imag() * f.basisY()).normalized();
-        rawExt.block(f.id, 6, 1, 3) = (rc2.real() * f.basisX() + rc2.imag() * f.basisY()).normalized();
-        rawExt.block(f.id, 9, 1, 3) = (rc3.real() * f.basisX() + rc3.imag() * f.basisY()).normalized();
-        cmbExt.block(f.id, 0, 1, 3) = (cc0.real() * f.basisX() + cc0.imag() * f.basisY()).normalized();
-        cmbExt.block(f.id, 3, 1, 3) = (cc1.real() * f.basisX() + cc1.imag() * f.basisY()).normalized();
-        cmbExt.block(f.id, 6, 1, 3) = (cc2.real() * f.basisX() + cc2.imag() * f.basisY()).normalized();
-        cmbExt.block(f.id, 9, 1, 3) = (cc3.real() * f.basisX() + cc3.imag() * f.basisY()).normalized();
-    }
-    auto rawFQ = surf->addFaceVectorQuantity("raw ext", rawExt.block(0, 0, rawExt.rows(), 3));
-    auto cmbFQ = surf->addFaceVectorQuantity("cmb ext", cmbExt.block(0, 0, cmbExt.rows(), 3));
-    rawFQ->setEnabled(show);
-    cmbFQ->setEnabled(show);
-    rawFQ->setVectorLengthScale(0.004);
-    cmbFQ->setVectorLengthScale(0.004);
-}
-
-inline void visualize_motorcycle_graph(
-    const mc::Mgrph& mg,
-    const VecXc& uv,
-    bool show = true
-) {
-    vec<glm::vec3> l0;
-    vec<glm::vec3> mnodes;
-    vec<glm::vec3> ns;
-    vec<std::array<size_t, 2>> es;
-    vec<double> mcid;
-    vec<double> mnid;
-    vec<double> mnid_flag;
-    vec<double> modes_val;
-
-    vec<int> flag_ids = vec{
-        1085,
-        1091,
-        1110,
-        1115
-    };
-
-    vec<bool> mnodes_reserved = vec(mg.mnodes.size(), false);
-    size_t counter = 0;
-
-    auto get_loc_type_value = [](const HmLoc& loc) -> double {
-        if (std::holds_alternative<HmLocOnV>(loc)) return 1.;
-        if (std::holds_alternative<HmLocOnE>(loc)) return 2.;
-        if (std::holds_alternative<HmLocOnP>(loc)) return 3.;
-        return 0.;
-    };
-
-    for (const auto& c: mg.mcurvs) {
-    for (const auto& s: c.sgmts) {
-        auto iFr = s.fr_nid;
-        auto iTo = s.to_nid;
-        auto nFr = mg.mnodes[iFr];
-        auto nTo = mg.mnodes[iTo];
-        auto uv1 = mc::get_face_uv(nFr, s.face_id, mg.hm, mg.cf);
-        auto uv2 = mc::get_face_uv(nTo, s.face_id, mg.hm, mg.cf);
-        Row3d p1 = conversion_2d_3d(mg.hm.faces[s.face_id], uv, uv1);
-        Row3d p2 = conversion_2d_3d(mg.hm.faces[s.face_id], uv, uv2);
-        if (abs(uv1 - uv2) < EPS) { l0.emplace_back(p1.x(), p1.y(), p1.z()); }
-
-        if (!mnodes_reserved[iFr]) {
-            mnodes.emplace_back(p1.x(), p1.y(), p1.z());
-            modes_val.emplace_back(get_loc_type_value(nFr.loc));
-            mnid.emplace_back(iFr);
-            mnid_flag.emplace_back(rg::contains(flag_ids, iFr) ? 1. : 0.);
-            mnodes_reserved[iFr] = true;
-        }
-
-        if (!mnodes_reserved[iTo]) {
-            mnodes.emplace_back(p2.x(), p2.y(), p2.z());
-            modes_val.emplace_back(get_loc_type_value(nTo.loc));
-            mnid.emplace_back(iTo);
-            mnid_flag.emplace_back(rg::contains(flag_ids, iTo) ? 1. : 0.);
-            mnodes_reserved[iTo] = true;
-        }
-
-        ns.emplace_back(p1.x(), p1.y(), p1.z());
-        ns.emplace_back(p2.x(), p2.y(), p2.z());
-        es.emplace_back(std::array{counter, counter + 1});
-        mcid.emplace_back(c.id);
-        counter += 2;
-    }}
-
-    {
-        auto p = polyscope::registerPointCloud("zero len edge", l0);
-        p->setMaterial("flat");
-        p->setPointRadius(0.003);
-    }
-
-    {
-        auto p = polyscope::registerPointCloud("mnodes", mnodes);
-        p->addScalarQuantity("type", modes_val);
-        p->addScalarQuantity("flag", mnid_flag);
-        p->addScalarQuantity("mnid", mnid);
-        p->setMaterial("flat");
-        p->setPointRadius(0.003);
-    }
-
-    auto c = polyscope::registerCurveNetwork("motorcycle graph", ns, es);
-    c->setColor(glm::vec4(.0, .0, .0, 1.));
-    auto v_mcid = c->addEdgeScalarQuantity("mcid", mcid);
-    v_mcid->setEnabled(true);
-    v_mcid->setColorMap("magma");
-    c->setEnabled(show);
-    c->resetTransform();
-    c->setRadius(0.001);
-    c->setMaterial("flat");
-}
-
-inline void visualize_node_adjacency(const mc::Mgrph& mg, const VecXc& uv, bool show = true) {
-    std::vector<glm::vec3> pts;
-    std::vector<double> adj_order;
-    std::vector<double> nid_list;
-
-    for (int nid = 0; nid < mg.mnodes.size(); ++nid) {
-        const auto& mn = mg.mnodes[nid];
-        if (mn.adj.size() < 3) continue;
-        std::vector<glm::vec3> local_pts;
-
-        for (int i = 0; i < mn.adj.size(); ++i) {
-            const auto& as = mn.adj[i];
-            const auto& sg = mg.mcurvs[as.x()].sgmts[as.y()];
-
-            bool is_outgoing = sg.fr_nid == nid;
-            int fid = sg.face_id;
-
-            Row3d pA = conversion_2d_3d(mg.hm.faces[fid], uv, mc::get_face_uv(mg.mnodes[sg.fr_nid], fid, mg.hm, mg.cf));
-            Row3d pB = conversion_2d_3d(mg.hm.faces[fid], uv, mc::get_face_uv(mg.mnodes[sg.to_nid], fid, mg.hm, mg.cf));
-            Row3d p0 = is_outgoing ? pA : pB;
-            Row3d p1 = is_outgoing ? pB : pA;
-            Row3d pt = p0 * 0.85 + p1 * 0.15;
-            glm::vec3 gpt(pt.x(), pt.y(), pt.z());
-
-            pts.push_back(gpt);
-            local_pts.push_back(gpt);
-
-            adj_order.push_back(i);
-            nid_list.push_back(nid);
-        }
-    }
-
-    auto pc = polyscope::registerPointCloud("CCW Adjacency Points", pts);
-    pc->setEnabled(show);
-    pc->setPointRadius(0.002);
-
-    auto q_order = pc->addScalarQuantity("adj_index", adj_order);
-    q_order->setEnabled(true);
-    q_order->setColorMap("turbo");
-    pc->addScalarQuantity("node_id", nid_list);
-
-}
-
 inline void visualize_tedge(
     const Tmesh& tm,
     const mc::Mgrph& mg,
@@ -373,60 +201,6 @@ inline void debug_tquad_sides(
     c->setRadius(0.0006); // 若干太めにして見やすく
 }
 
-// =======================================================================
-// 1. 細分化された TrackedDenseMesh の可視化 (3D座標の再構築を含む)
-// =======================================================================
-//inline void visualize_tracked_mesh(
-//    const TrackedDenseMesh& dmesh,
-//    const Hmesh& base_hm,
-//    const VecXc& base_cf,
-//    const std::string& name = "subdiv_mesh",
-//    bool show = true
-//) {
-//    // 1. 親FaceのローカルUVから、曲面上の正確な3D座標を復元する
-//    std::vector pos(dmesh.num_verts, glm::vec3(0.0f));
-//    std::vector visited(dmesh.num_verts, false);
-//    MatXd uv(dmesh.polygons.size() * 3, 2);
-//
-//    for (size_t i = 0; i < dmesh.polygons.size(); ++i) {
-//        const auto& poly = dmesh.polygons[i];
-//        const auto& f_uvs = dmesh.uvs[i];
-//        int parent_fid = dmesh.face2parent[i];
-//
-//        for (size_t j = 0; j < poly.size(); ++j) {
-//            uv.row(i * poly.size() + j) << f_uvs[j].real(), f_uvs[j].imag();
-//
-//            int vid = poly[j];
-//            if (!visited[vid]) {
-//                // conversion_2d_3d を使ってUV平面から3D空間へ写像
-//                Row3d p = conversion_2d_3d(base_hm.faces[parent_fid], base_cf, f_uvs[j]);
-//                pos[vid] = glm::vec3(p.x(), p.y(), p.z());
-//                visited[vid] = true;
-//            }
-//        }
-//    }
-//
-//    // 2. Polyscope用のFace配列（三角形）を構築
-//    std::vector<std::array<size_t, 3>> faces;
-//    faces.reserve(dmesh.polygons.size());
-//    for (const auto& poly : dmesh.polygons) {
-//        faces.push_back({ (size_t)poly[0], (size_t)poly[1], (size_t)poly[2] });
-//    }
-//
-//    // 3. Polyscopeに登録
-//    auto surf = polyscope::registerSurfaceMesh(name, pos, faces);
-//    surf->setSurfaceColor(glm::vec3(0.8f, 0.9f, 1.0f)); // 爽やかな水色
-//    surf->setEdgeWidth(1.0f);
-//    surf->setEdgeColor(glm::vec3(0.2f, 0.2f, 0.2f));
-//    surf->setEnabled(show);
-//
-//    auto prms = surf->addParameterizationQuantity("uv", uv);
-//    prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-//    prms->setCheckerSize(1.);
-//    prms->setEnabled(false);
-//}
-
-// ---
 inline void visualize_mapped_mnodes(
     const std::map<int, int>& mnode2dense_v,
     const Hmesh& dense_hm,
@@ -520,6 +294,102 @@ inline void visualize_half_data(
               << " HalfData segments for tqid: " << target_tqid << std::endl;
 }
 
+// debug views of a collapsed TmeshMut: collapsed tedge polylines, tnodes not
+// yet snapped to a vertex, and faces violating the collapse_valid_snap_1 rule
+inline void visualize_tmesh_mut(
+    const Hmesh& hm,
+    const TmeshMut& tmm
+) {
+    // tnodes not snapped to a vertex, by carrier type
+    {
+        std::vector<glm::vec3> ps;
+        std::vector<double> type, ids;
+        std::set<int> seen;   // shared nodes (junctions/crossings) appear in several chains
+        for (const auto& [teid, nids]: tmm.tedges) {
+            if (teid == -1) continue;
+            for (int nid: nids) {
+                if (!seen.insert(nid).second) continue;
+                double t = -1, id = -1;
+                std::visit(overloaded{
+                    [&](const HmLocOnE& e) { t = 0; id = e.id; },
+                    [&](const HmLocOnH& h) { t = 1; id = h.id; },
+                    [&](const HmLocOnF& f) { t = 2; id = f.id; },
+                    [&](const auto&)       {},
+                }, tmm.tnodes[nid]);
+                if (t < 0) continue;   // OnV: snapped, skip
+                Row3d p = get_ptloc_pos(hm, tmm.tnodes[nid]);
+                ps.emplace_back(p.x(), p.y(), p.z());
+                type.push_back(t);
+                ids.push_back(id);
+            }
+        }
+        auto* pc = polyscope::registerPointCloud("unsnapped tnodes", ps);
+        pc->addScalarQuantity("type (0:E 1:H 2:F)", type)->setEnabled(true);
+        pc->addScalarQuantity("carrier id", ids);
+        pc->setPointRadius(0.002);
+    }
+
+    // collapsed tedges as polylines, colored by teid
+    {
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        std::vector<double> ids;
+        size_t c = 0;
+        for (const auto& [id, nids]: tmm.live_tedges()) {
+            for (size_t k = 0; k + 1 < nids.size(); ++k) {
+                Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
+                Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
+                ns.emplace_back(a.x(), a.y(), a.z());
+                ns.emplace_back(b.x(), b.y(), b.z());
+                es.push_back({c, c + 1});
+                c += 2;
+                ids.push_back(id);
+            }
+        }
+        auto* cn = polyscope::registerCurveNetwork("tedges_collapsed", ns, es);
+        cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
+        cn->setRadius(0.0015);
+        cn->resetTransform();
+    }
+
+    // faces holding 3+ same-side vertex-snapped nodes (collapse_valid_snap_1)
+    {
+        std::set<int> bad;   // hm face ids violating the snap_1 criterion
+        for (auto& tq: tmm.live_tquads()) {
+        for (int side = 0; side < 4; side++) {
+            std::set<int>  nids;
+            umap<int, int> count;
+            for (int thid: tq.thids(side))
+            for (int nid: tmm.tedges[tmm.thalfs[thid].teid].nids) nids.insert(nid);
+            for (int nid: nids) {
+                if (auto* l = std::get_if<HmLocOnV>(&tmm.tnodes[nid]))
+                    for (Face f: hm.verts[l->id].adjHalfs() | vw::transform(&Half::face)) count[f.id]++;
+            }
+            for (auto& [fid, c]: count) if (c >= 3) bad.insert(fid);
+        }}
+        std::println("[collinear] {} faces violate snap_1", bad.size());
+
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        size_t c = 0;
+        for (int fid: bad) {
+            for (Half h: hm.faces[fid].adjHalfs()) {
+                Row3d a = h.tail().pos();
+                Row3d b = h.head().pos();
+                ns.emplace_back(a.x(), a.y(), a.z());
+                ns.emplace_back(b.x(), b.y(), b.z());
+                es.push_back({c, c + 1});
+                c += 2;
+            }
+        }
+        if (!ns.empty()) {
+            auto* cn = polyscope::registerCurveNetwork("collinear faces", ns, es);
+            cn->setColor({1., 0.2, 0.1});
+            cn->setRadius(0.0015);
+            cn->resetTransform();
+        }
+    }
+}
 }
 
 static bool load_cache(const std::string& p, VecXc& uv2, VecXi& matching, VecXi& singular, std::vector<bool>& seam) {
