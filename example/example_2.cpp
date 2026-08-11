@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
 
     visualizer::visualize_init();
     auto* base = visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
-    auto* embd = visualizer::visualize_mesh(hm_emb->pos, hm_emb->idx, false, "base mesh");
+    auto* embd = visualizer::visualize_mesh(hm_emb->pos, hm_emb->idx, false, "embd mesh");
     visualizer::visualize_tedge(tm, mg, uv2, &X, {}, "tedge", false);
     visualizer::visualize_seam(*hm_emb, seam1, VecXi(), "cut seam", false);
     visualizer::visualize_non_snapped_tnodes(hm, tmm, false);
