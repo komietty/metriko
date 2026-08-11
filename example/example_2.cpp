@@ -28,10 +28,9 @@
 #include "visualize_tmesh_mut.h"
 
 using namespace metriko;
-
-static VecXc uv2;
 static MatXd V;
 static MatXi F;
+static VecXc uv2;
 static VecXi matching;
 static VecXi singular;
 static vec<bool> seam;
@@ -69,12 +68,9 @@ int main(int argc, char** argv) {
         }
     }
 
-    auto t0 = std::chrono::steady_clock::now();
     tmm.collapse_tedge_snap(false);
     tmm.collapse_tedge_snap(true);
     for (const auto& [teid, _] : tmm.live_tedges()) { tmm.collapse_tedge_snap_dedup(teid); }
-    auto t1 = std::chrono::steady_clock::now();
-    std::println("[time] snap: {:.3f}s", std::chrono::duration<double>(t1 - t0).count());
 
     ///--- validate tedge nid chains: duplicated / backtracking nodes break the cut ---///
     for (const auto& th: tmm.thalfs) {
@@ -121,14 +117,13 @@ int main(int argc, char** argv) {
     visualizer::visualize_init();
     auto* base = visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
     auto* embd = visualizer::visualize_mesh(hm_emb->pos, hm_emb->idx, false, "base mesh");
-    visualizer::visualize_tedge(tm, mg, uv2, &X);
+    visualizer::visualize_tedge(tm, mg, uv2, &X, {}, "tedge", false);
     visualizer::visualize_seam(*hm_emb, seam1, VecXi(), "cut seam", false);
     visualizer::visualize_non_snapped_tnodes(hm, tmm, false);
     visualizer::visualize_tedge_mut_collapsed(hm, tmm, false);
     visualizer::visualize_face_collinear_error(hm, tmm, true);
 
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
-    std::sort(hdata.begin(), hdata.end());
     MatXd uv;
     if (compute_tutte_parameterization(*hm_emb, tmm, seam1, hdata, uv)) {
         embd->addParameterizationQuantity("tutte uv", uv);
@@ -157,6 +152,7 @@ int main(int argc, char** argv) {
             std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
             auto* surf = polyscope::registerSurfaceMesh("slim result", hm_cut->pos, hm_cut->idx);
             auto* prms = surf->addVertexParameterizationQuantity("uv", sData.V_o);
+            surf->setEnabled(false);
             surf->setEdgeWidth(0.7);
             prms->setEnabled(true);
             prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
@@ -195,28 +191,5 @@ int main(int argc, char** argv) {
         }
     } else std::println("[tutte] compute_tutte_parameterization failed");
 
-    { // patch boundaries (t-mesh edges on the cut mesh), colored by tquad id
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2>> es;
-        std::vector<double> tqids, thids, v0s;
-        size_t c = 0;
-        for (const auto& d: hdata) {
-            Row3d a = d.half.tail().pos();
-            Row3d b = d.half.head().pos();
-            ns.emplace_back(a.x(), a.y(), a.z());
-            ns.emplace_back(b.x(), b.y(), b.z());
-            es.push_back({c, c + 1}); c += 2;
-            tqids.push_back(d.tqid);
-            thids.push_back(d.thid);
-            v0s.push_back(d.v0);
-        }
-        auto* cn = polyscope::registerCurveNetwork("patch boundaries", ns, es);
-        cn->addEdgeScalarQuantity("tqid", tqids)->setEnabled(true);
-        cn->addEdgeScalarQuantity("thid", thids);
-        cn->addEdgeScalarQuantity("v0", v0s);
-        cn->setRadius(0.0015);
-    }
-
-    polyscope::show();
-    return 0;
+    polyscope::show(); return 0;
 }

@@ -9,17 +9,15 @@
 
 namespace metriko {
 struct HalfData {
-    Half half;
-    double v0;
-    double v1;
-    int thid;
-    int tqid;
-    int twin;
-    int order; // order inside thalf
+    Half half = Half(); //
+    double v0;          // parameter value of tail
+    double v1;          // parameter value of head
+    int thid = -1;      //
+    int tqid = -1;      //
+    int twin = -1;      //
+    int order = -1;     // order inside thalf
 
-    bool operator<(const HalfData& rhs) const noexcept {
-        return std::tie(tqid, thid, order) < std::tie(rhs.tqid, rhs.thid, rhs.order);
-    }
+    bool operator<(const HalfData& rhs) const noexcept { return std::tie(tqid, thid, order) < std::tie(rhs.tqid, rhs.thid, rhs.order); }
 };
 }
 

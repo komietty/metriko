@@ -1,5 +1,6 @@
 #ifndef METRIKO_TUTTE_CUTTING_H
 #define METRIKO_TUTTE_CUTTING_H
+#include <ranges>
 #include <set>
 #include <unordered_map>
 #include "./tutte.h"
@@ -8,59 +9,65 @@
 
 namespace metriko {
 
-// split points on an original halfedge: (ratio in the tail-weighted convention,
-// cut-mesh vertex index), ordered along the halfedge
+// split points on an original halfedge: (ratio, vid)
 using EdgeSplits = std::set<std::pair<double, int>>;
 
-// a directed edge of the subdivided face; exists only while cutting one face
-struct DirEdge { int i0; int i1; };
+struct SegRec {
+    int i0;
+    int i1;
+    HalfData d0;
+    HalfData d1;
+};
 
-inline std::optional<std::pair<Half, double>> half_ratio_of(const Hmesh& hm, const HmLoc& l) {
-    return std::visit(overloaded{
-        [&](const HmLocOnE& e) -> std::optional<std::pair<Half, double>> {
-            Edge ed = hm.edges[e.id];
-            Half h  = ed.half();
-            double t = h.tail() == ed.vert0() ? e.r : 1. - e.r;  // t: 0 at h.tail
-            return std::pair(h, 1. - t);
-        },
-        [&](const HmLocOnH& hl) -> std::optional<std::pair<Half, double>> {
-            return std::pair(hm.halfs[hl.id], 1. - hl.r);
-        },
-        [&](const auto&) -> std::optional<std::pair<Half, double>> { return std::nullopt; },
-    }, l);
+struct IntermidiateData {
+
+};
+
+inline bool is_on_line(const umap<int, vec<int>>& lines, int v, int l) {
+    auto it = lines.find(v);
+    return it != lines.end() && rg::contains(it->second, l);
+}
+
+inline int common_line(const umap<int, vec<int>>& lines, int a, int b, int c) {
+    auto it = lines.find(a);
+    if (it == lines.end()) return -1;
+    for (int l: it->second) if (is_on_line(lines, b, l) && is_on_line(lines, c, l)) return l;
+    return -1;
+}
+// vertex chain along an original halfedge, tail -> head, split points included
+inline vec<int> chain_of(const vec<EdgeSplits>& splits, Half h) {
+    vec chain = { h.tail().id };
+    for (const auto& [r, vid]: vw::reverse(splits[h.id])) chain.push_back(vid);  // descending r = tail -> head
+    chain.push_back(h.head().id);
+    return chain;
 }
 
 // triangulate one face against the segments crossing it. the resulting pieces may
 // be CONCAVE (traced tedges bend inside a face), so the trace allows reflex turns
 // and the pieces are ear-clipped rather than fanned.
 inline void face_cutting(
-    const Face& f,                       // face to be cut
-    const vec<std::pair<int, int>>& sgs, // segment endpoints (cut-mesh vertex indices)
-    const vec<Row3d>& vpos,              // vertex position
-    const vec<EdgeSplits>& splits,       // split points per original halfedge
-    const std::unordered_map<int, vec<int>>& lines, // vertex -> (tquad,side) lines through it
-    vec<std::array<int, 3>>& tris        // output triangles (appended, CCW wrt f)
+    const Face& f,                    // face to be cut
+    const vec<Row2i>& sgs,            // segment endpoints (cut-mesh vertex indices)
+    const vec<EdgeSplits>& splits,    // split points per original halfedge
+    const umap<int, vec<int>>& lines, // vertex -> (tquad,side) lines through it
+    const vec<Row3d>& vpos,           // vertex position
+    vec<Row3i>& tris                  // output triangles (appended, CCW wrt f)
 ) {
-    if (sgs.empty() && splits[f.half().id].empty() && splits[f.half().next().id].empty() && splits[f.half().prev().id].empty()) {
-        tris.push_back({f.half().tail().id, f.half().head().id, f.half().prev().tail().id});
-        return;
-    }
-
     /// 1: collect the directed edges bounding the pieces:
     ///    segments (both directions) + subdivided boundary halfedges (one direction)
-    vec<DirEdge> halfs;
-    for (auto [i0, i1]: sgs) {
-        halfs.push_back({i0, i1});
-        halfs.push_back({i1, i0});
+    vec<Row2i> halfs;
+    for (auto s: sgs) {
+        halfs.emplace_back(s.x(), s.y());
+        halfs.emplace_back(s.y(), s.x());
     }
     for (Half h: f.adjHalfs()) {
         const auto& sp = splits[h.id];
-        if (sp.empty()) { halfs.push_back({h.tail().id, h.head().id}); continue; }
-        halfs.push_back({sp.begin()->second, h.head().id});
+        if (sp.empty()) { halfs.emplace_back(h.tail().id, h.head().id); continue; }
+        halfs.emplace_back(sp.begin()->second, h.head().id);
         auto prev = sp.begin();
         auto curr = std::next(sp.begin());
-        for (; curr != sp.end(); ++curr, ++prev) { halfs.push_back({curr->second, prev->second}); }
-        halfs.push_back({h.tail().id, sp.rbegin()->second});
+        for (; curr != sp.end(); ++curr, ++prev) { halfs.emplace_back(curr->second, prev->second); }
+        halfs.emplace_back(h.tail().id, sp.rbegin()->second);
     }
 
     const Row3d org = f.half().tail().pos();
@@ -69,32 +76,21 @@ inline void face_cutting(
     auto pos2 = [&](int vid) { Row3d d = vpos[vid] - org; return complex(d.dot(bx), d.dot(by)); };
     auto cr   = [](complex u, complex v) { return (std::conj(u) * v).imag(); };
 
-    // three vertices on one patch side are collinear in the tutte uv (a side maps
-    // to a straight rectangle side, possibly spanning several tedges joined at
-    // junctions), so such a triangle collapses in uv even when well-shaped in 3d
-    auto on_one_line = [&](int va, int vb, int vc) {
-        auto ia = lines.find(va); if (ia == lines.end()) return false;
-        auto ib = lines.find(vb); if (ib == lines.end()) return false;
-        auto ic = lines.find(vc); if (ic == lines.end()) return false;
-        for (int x: ia->second) for (int y: ib->second) for (int z: ic->second)
-            if (x == y && y == z) return true;
-        return false;
-    };
     constexpr double penalty = 100.; // dominates min_angle in (-pi, pi]
 
     /// 2: trace the pieces by the leftmost-turn rule (max signed CCW angle).
     ///    reflex turns are legal, and every chain must close.
     while (!halfs.empty()) {
-        DirEdge h = halfs.back();
+        auto h = halfs.back();
         halfs.pop_back();
 
         vec poly = {h};
-        int sta = h.i0;
-        int cur = h.i1;
+        int sta = h.x();
+        int cur = h.y();
 
         while (cur != sta) {
-            int prev_v = poly.back().i0;
-            int curr_v = poly.back().i1;
+            int prev_v = poly.back().x();
+            int curr_v = poly.back().y();
             const Row3d& p_prev = vpos[prev_v];
             const Row3d& p_curr = vpos[curr_v];
             const Row3d  d_prev = (p_curr - p_prev).normalized();
@@ -102,25 +98,23 @@ inline void face_cutting(
             auto   best_it = halfs.end();
             double best    = -10;   // signed turn angle in (-pi, pi]
             for (auto it = halfs.begin(); it != halfs.end(); ++it) {
-                if (it->i0 != curr_v) continue;
-                if (it->i1 == prev_v) continue;   // no immediate u-turn
-                Row3d d_cand = (vpos[it->i1] - p_curr).normalized();
+                if (it->x() != curr_v) continue;
+                if (it->y() == prev_v) continue;   // no immediate u-turn
+                Row3d d_cand = (vpos[it->y()] - p_curr).normalized();
                 double ang = std::atan2(f.normal().dot(d_prev.cross(d_cand)), d_prev.dot(d_cand));
                 if (ang > best) { best = ang; best_it = it; }
             }
 
-            if (best_it == halfs.end()) throw std::runtime_error(std::format("face_cutting: open chain (face {})", f.id));
+            if (best_it == halfs.end()) throw std::runtime_error(std::format("[cut]: open chain (face {})", f.id));
 
             poly.push_back(*best_it);
-            cur = best_it->i1;
+            cur = best_it->y();
             halfs.erase(best_it);
         }
 
         /// 3: ear-clip the piece in the face plane (concave-capable, keeps CCW
         ///    orientation so no flipped faces can be produced)
-        vec<int> cyc;
-        for (auto& [i0, i1]: poly) cyc.push_back(i0);
-        if (cyc.size() < 3) continue;
+        auto cyc = poly | vw::transform([](const Row2i& p) { return p.x(); }) | rg::to<vec<int>>();
 
         // interior angles of a CCW triangle in the face plane (all positive);
         // negative for a CW triangle, so it also ranks invalid choices last
@@ -130,6 +124,8 @@ inline void face_cutting(
                              std::arg((a - b) / (c - b)),
                              std::arg((b - c) / (a - c))});
         };
+
+        assert(cyc.size() >= 3);
 
         while (cyc.size() > 3) {
             const size_t n = cyc.size();
@@ -156,24 +152,79 @@ inline void face_cutting(
                 // other choice is available
                 double q = min_angle(va, vb, vc);
                 if (n == 4) q = std::min(q, min_angle(vc, cyc[(k + 2) % n], va));
-                if (on_one_line(va, vb, vc))                         q -= penalty;
-                if (n == 4 && on_one_line(vc, cyc[(k + 2) % n], va)) q -= penalty;
+                if (common_line(lines, va, vb, vc) >= 0)                         q -= penalty;
+                if (n == 4 && common_line(lines, vc, cyc[(k + 2) % n], va) >= 0) q -= penalty;
                 if (q > best_q) { best_q = q; best_k = k; }
             }
-            if (best_k == n) throw std::runtime_error(std::format("face_cutting: ear clipping failed (face {}, size {})", f.id, cyc.size()));
-            if (best_q < -4) std::println("[warn] face_cutting: uv-degenerate triangle unavoidable (face {})", f.id);
-            tris.push_back({cyc[(best_k + n - 1) % n], cyc[best_k], cyc[(best_k + 1) % n]});
+            if (best_k == n) throw std::runtime_error(std::format("[cut]: ear clipping failed (face {}, size {})", f.id, cyc.size()));
+            if (best_q < -4) std::println("[cut] uv-degenerate triangle unavoidable (face {})", f.id);
+            tris.emplace_back(cyc[(best_k + n - 1) % n], cyc[best_k], cyc[(best_k + 1) % n]);
             cyc.erase(cyc.begin() + (long)best_k);
         }
-        if (on_one_line(cyc[0], cyc[1], cyc[2]))
-            std::println("[warn] face_cutting: uv-degenerate triangle unavoidable (face {})", f.id);
-        tris.push_back({cyc[0], cyc[1], cyc[2]});
+
+        if (common_line(lines, cyc[0], cyc[1], cyc[2]) >= 0) std::println("[cut] uv-degenerate triangle unavoidable (face {})", f.id);
+
+        tris.emplace_back(cyc[0], cyc[1], cyc[2]);
+    }
+}
+
+inline void split_face(
+    const Hmesh& hm,
+    const vec<bool>& seam0,
+    const vec<SegRec>& sgms,
+    const vec<EdgeSplits>& h_aux,
+    const umap<int, vec<int>>& v_lines,
+    vec<Row3d>& vpos,
+    vec<Row3i>& tris
+) {
+    std::set<std::pair<int, int>> sg_set;
+    std::set<std::pair<int, int>> sm_sub;
+
+    for (auto& s: sgms) sg_set.insert(std::minmax(s.i0, s.i1));
+
+    for (Edge e: hm.edges) {
+        if (!seam0[e.id]) continue;
+        auto ch = chain_of(h_aux, e.half());
+        for (size_t k = 0; k + 1 < ch.size(); ++k)
+            sm_sub.insert(std::minmax(ch[k], ch[k + 1]));
+    }
+
+    for (bool again = true; std::exchange(again, false);) {
+        std::map<std::pair<int, int>, int> tri_of;
+
+        for (int i = 0; i < tris.size(); ++i)
+        for (int j = 0; j < 3; ++j)
+            tri_of[{tris[i][j], tris[i][(j + 1) % 3]}] = i;
+
+        for (int i = 0; i < tris.size() && !again; ++i) {
+            int l = common_line(v_lines, tris[i].x(), tris[i].y(), tris[i].z());
+            if (l < 0) continue;
+            for (int j = 0; j < 3; ++j) {
+                int a = tris[i][j];
+                int b = tris[i][(j + 1) % 3];
+                int c = tris[i][(j + 2) % 3];
+                if (sg_set.contains(std::minmax(a, b))) continue;
+                if (sm_sub.contains(std::minmax(a, b))) continue; // todo: might cause edge case
+                int k = tri_of.at({b, a});
+                int d = tris[k][0] + tris[k][1] + tris[k][2] - a - b;
+                int m = vpos.size();
+                if (is_on_line(v_lines, d, l)) continue;
+                Row3d mid = (vpos[a] + vpos[b]) / 2;
+                tris[i] = {a, m, c};
+                tris[k] = {b, m, d};
+                tris.emplace_back(m, b, c);
+                tris.emplace_back(m, a, d);
+                vpos.emplace_back(mid);
+                again = true;
+                break;
+            }
+        }
     }
 }
 
 inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     const Hmesh& hm,
-    const TmeshMut& tmm,
+    const TmeshMut& tm,
     const vec<bool>& seam0,
     const VecXi& matching0,
     const VecXi& singular0,
@@ -182,156 +233,95 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
           VecXi& singular1,
     vec<HalfData>& data
 ) {
-    std::map<int, vec<std::pair<int, int>>> cuts; // face id -> segment endpoints
+    std::map<int, vec<Row2i>> cuts; // face id -> segment endpoints
 
-    struct SegRec {
-        int i0;
-        int i1;
-        HalfData d0;
-        HalfData d1;
-    };
     vec<SegRec> sgms; // flat annotation list; matched to cut halfedges at the end
 
-    vec h_aux(hm.nH, EdgeSplits{});
+    vec auxs(hm.nH, EdgeSplits{});
 
     vec<Row3d> vpos;
     for (auto p: hm.pos.rowwise()) { vpos.emplace_back(p); }
 
     // nid -> cut-mesh vertex index: tnode identity replaces epsilon-based position
     // matching. creates the vertex and registers the edge split exactly once.
-    std::unordered_map<int, int> vid_of_nid;
-    std::unordered_map<int, vec<int>> vert_lines; // cut vertex -> (tquad,side) lines through it
+    umap<int, int>      vid_of_nid;
+    umap<int, vec<int>> vert_lines; // cut vertex -> (tquad,side) lines through it
+
     auto vid_of = [&](int nid) -> int {
-        if (auto it = vid_of_nid.find(nid); it != vid_of_nid.end()) return it->second;
-        const HmLoc& l = tmm.tnodes[nid];
-        int vid;
-        if (std::holds_alternative<HmLocOnV>(l)) { vid = std::get<HmLocOnV>(l).id; }  // reuse the original vertex
-        else {
-            vpos.emplace_back(get_ptloc_pos(hm, l));
-            vid = (int)vpos.size() - 1;
-            if (auto hr = half_ratio_of(hm, l)) {
-                auto [h0, r] = hr.value();
-                h_aux[h0.id].emplace(r, vid);
-                h_aux[h0.twin().id].emplace(1 - r, vid);
-            }
+        if (!vid_of_nid.contains(nid)) {
+            vid_of_nid[nid] = std::visit(overloaded{
+                [&](const HmLocOnV& v) { return v.id; },
+                [&](const auto& l) {
+                    vpos.emplace_back(get_ptloc_pos(hm, l));
+                    int i = vpos.size() - 1;
+                    if (auto hr = try_get_ratio(hm, l)) {
+                        auto [h0, r] = hr.value();
+                        auxs[h0.id].emplace(r, i);
+                        auxs[h0.twin().id].emplace(1 - r, i);
+                    }
+                    return i;
+                },
+            }, tm.tnodes[nid]);
         }
-        return vid_of_nid[nid] = vid;
+        return vid_of_nid[nid];
     };
 
-    for (const auto& th: tmm.thalfs) {
+    for (const auto& th: tm.thalfs) {
         if (th.id == -1 || !th.cano) continue;
-        const auto& nids  = tmm.tedges[th.teid].nids;
-        const int   n_sgs = (int)nids.size() - 1;
+        const auto& nids = tm.tedges[th.teid].nids;
+        const int   nsgs = nids.size() - 1;
 
-        // both patches bordered by this tedge see its nodes on one straight
-        // rectangle side in the tutte uv; key the line as tqid * 4 + side
-        const auto& tw = tmm.thalfs[th.twid];
-        const int   la = th.tqid * 4 + tmm.tquads[th.tqid].side_of(th);
-        const int   lb = tw.tqid * 4 + tmm.tquads[tw.tqid].side_of(tw);
-        auto add_line = [&](int vid, int line) {
-            auto& ls = vert_lines[vid];
-            if (std::find(ls.begin(), ls.end(), line) == ls.end()) ls.push_back(line);
-        };
+        const auto& tw = tm.thalfs[th.twid];
+        const int   la = th.tqid * 4 + tm.tquads[th.tqid].side_of(th);
+        const int   lb = tw.tqid * 4 + tm.tquads[tw.tqid].side_of(tw);
 
-        // boundary spacing by geometric arc length: uv lengths are unavailable for
-        // edges created by collapse, and any monotone spacing is valid for tutte
         double total = 0;
-        vec<double> len(n_sgs);
-        for (int k = 0; k < n_sgs; ++k) {
-            len[k] = (get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tmm.tnodes[nids[k]])).norm();
+        vec<double> len(nsgs);
+        for (int k = 0; k < nsgs; ++k) {
+            len[k] = (get_ptloc_pos(hm, tm.tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tm.tnodes[nids[k]])).norm();
             total += len[k];
         }
-        if (total < EPS) throw std::runtime_error("compute_embedding_cut_hmesh: zero-length tedge");
+        if (total < EPS) throw std::runtime_error("[cut]: zero-length tedge");
 
         double sum = 0;
-        for (int k = 0; k < n_sgs; ++k) {
-            const HmLoc& fr = tmm.tnodes[nids[k]];
-            const HmLoc& to = tmm.tnodes[nids[k + 1]];
-            double v0  = sum / total; sum += len[k];
-            double v1  = sum / total;
-            double v0i = 1 - v0;
-            double v1i = 1 - v1;
-            int i0 = vid_of(nids[k]);
-            int i1 = vid_of(nids[k + 1]);
-            for (int i: {i0, i1}) { add_line(i, la); add_line(i, lb); }
-            int l  = n_sgs - k - 1;
-            // on-edge segments cut nothing: the edge subdivision already realizes them
+        for (int k = 0; k < nsgs; ++k) {
+            auto& fr = tm.tnodes[nids[k]];
+            auto& to = tm.tnodes[nids[k + 1]];
+            auto  v0 = sum / total; sum += len[k];
+            auto  v1 = sum / total;
+            auto  i0 = vid_of(nids[k]);
+            auto  i1 = vid_of(nids[k + 1]);
+            for (int i: {i0, i1}) {
+                auto& ls = vert_lines[i];
+                if (!rg::contains(ls, la)) ls.push_back(la);
+                if (!rg::contains(ls, lb)) ls.push_back(lb);
+            }
             auto eo = try_get_edge(hm, fr, to);
             auto fo = try_get_face(hm, fr, to);
+            auto t  = nsgs - k - 1;
             if (!eo.has_value()) cuts[fo.value().id].emplace_back(i0, i1);
             sgms.push_back({
                 .i0 = i0, .i1 = i1,
-                .d0 = HalfData{.half = Half(), .v0 = v0,  .v1 = v1,  .thid = th.id,   .tqid = th.tqid,                  .twin = -1, .order = k},
-                .d1 = HalfData{.half = Half(), .v0 = v1i, .v1 = v0i, .thid = th.twid, .tqid = tmm.thalfs[th.twid].tqid, .twin = -1, .order = l}
+                .d0 = HalfData{.v0 = v0,     .v1 = v1,     .thid = th.id,   .tqid = th.tqid,                 .order = k},
+                .d1 = HalfData{.v0 = 1 - v1, .v1 = 1 - v0, .thid = th.twid, .tqid = tm.thalfs[th.twid].tqid, .order = t}
             });
         }
     }
 
-    vec<std::array<int, 3>> tris;
-    tris.reserve(hm.nF * 2);
-    for (Face f: hm.faces) { face_cutting(f, cuts[f.id], vpos, h_aux, vert_lines, tris); }
-
-    /// split a collinear triangle and its twin at the midpoint of a shared chord:
-    /// the new vertex gains the twin's apex (off the line) as a tutte neighbor,
-    /// so its uv leaves the line and the zero-area triangles disappear
-    {
-        std::set<std::pair<int, int>> sgm_set;
-        for (auto& s: sgms) sgm_set.insert(std::minmax(s.i0, s.i1));
-
-        // sub-edges of seam edges: splitting one would break the seam chain
-        // walk (and the matching transfer) done after the mesh is built
-        std::set<std::pair<int, int>> seam_sub;
-        for (Edge e: hm.edges) {
-            if (!seam0[e.id]) continue;
-            Half h = e.half();
-            int prev = h.tail().id;
-            for (auto it = h_aux[h.id].rbegin(); it != h_aux[h.id].rend(); ++it) {
-                seam_sub.insert(std::minmax(prev, it->second));
-                prev = it->second;
-            }
-            seam_sub.insert(std::minmax(prev, h.head().id));
-        }
-
-        auto on_line = [&](int v, int l) {
-            auto it = vert_lines.find(v);
-            return it != vert_lines.end() && rg::contains(it->second, l);
-        };
-        auto common_line = [&](const std::array<int, 3>& t) {
-            auto it = vert_lines.find(t[0]);
-            if (it == vert_lines.end()) return -1;
-            for (int l: it->second) if (on_line(t[1], l) && on_line(t[2], l)) return l;
-            return -1;
-        };
-
-        for (bool again = true; std::exchange(again, false);) {
-            std::map<std::pair<int, int>, int> tri_of;
-            for (int t = 0; t < (int)tris.size(); ++t)
-                for (int j = 0; j < 3; ++j) tri_of[{tris[t][j], tris[t][(j + 1) % 3]}] = t;
-
-            for (int t = 0; t < (int)tris.size() && !again; ++t) {
-                int l = common_line(tris[t]);
-                if (l < 0) continue;
-                for (int j = 0; j < 3; ++j) {
-                    int a = tris[t][j], b = tris[t][(j + 1) % 3], c = tris[t][(j + 2) % 3];
-                    if (sgm_set.contains(std::minmax(a, b))) continue;  // patch boundary
-                    int ti = tri_of.at({b, a});
-                    if (seam_sub.contains(std::minmax(a, b))) continue; // never break a seam chain
-                    int d = tris[ti][0] + tris[ti][1] + tris[ti][2] - a - b;
-                    if (on_line(d, l)) continue;                        // apex still on the line
-
-                    Row3d mid = (vpos[a] + vpos[b]) / 2.;
-                    int m = (int)vpos.size();
-                    vpos.emplace_back(mid);
-                    tris[t]  = {a, m, c};
-                    tris[ti] = {b, m, d};
-                    tris.push_back({m, b, c});
-                    tris.push_back({m, a, d});
-                    again = true;   // rebuild the map and rescan
-                    break;
-                }
-            }
-        }
+    vec<Row3i> tris;
+    for (Face f: hm.faces) {
+        auto h0 = f.half();
+        auto h1 = f.half().next();
+        auto h2 = f.half().prev();
+        if (cuts[f.id].empty()  &&
+            auxs[h0.id].empty() &&
+            auxs[h1.id].empty() &&
+            auxs[h2.id].empty()
+        ) { tris.emplace_back(h0.tail().id, h1.tail().id, h2.tail().id); }
+        else { face_cutting(f, cuts[f.id], auxs, vert_lines, vpos, tris); }
     }
+
+    split_face(hm, seam0, sgms, auxs, vert_lines, vpos, tris);
 
     MatXi face_info(tris.size(), 3);
     MatXd vert_info(vpos.size(), 3);
@@ -339,65 +329,40 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     for (int i = 0; i < tris.size(); i++) { face_info.row(i) << tris[i][0], tris[i][1], tris[i][2]; }
 
     auto hm_cut = std::make_unique<Hmesh>(vert_info, face_info);
-    seam1 = std::vector(hm_cut->nE, false);
+    seam1     = vec(hm_cut->nE, false);
     matching1 = VecXi::Zero(hm_cut->nE);
-
-    struct EdgeKey {
-        int tail;
-        int head;
-        bool operator==(const EdgeKey& o) const noexcept { return tail == o.tail && head == o.head; }
-    };
-
-    struct EdgeKeyHash {
-        std::size_t operator()(const EdgeKey& k) const noexcept {
-            return (static_cast<std::size_t>(k.tail) << 32) ^ static_cast<std::size_t>(k.head);
-        }
-    };
-
-    std::unordered_map<EdgeKey, Half, EdgeKeyHash> half_by_verts;
-    half_by_verts.reserve(hm_cut->nH * 2);
-
-    for (Half h: hm_cut->halfs) { half_by_verts.insert({EdgeKey{.tail=h.tail().id, .head=h.head().id}, h}); }
-
-    // propagate seam flags: walk the split chain along each seam edge of the original mesh
-    for (Edge e: hm.edges) {
-        if (!seam0[e.id]) continue;
-        Half h = e.half();
-        vec chain = { h.tail().id };
-        for (auto it = h_aux[h.id].rbegin(); it != h_aux[h.id].rend(); ++it) chain.push_back(it->second);  // tail -> head (descending r)
-        chain.push_back(h.head().id);
-        for (size_t k = 0; k + 1 < chain.size(); ++k) {
-            Half hh = half_by_verts.at({chain[k], chain[k + 1]});   // same direction as h
-            seam1[hh.edge().id] = true;
-            matching1(hh.edge().id) = hh.isCanonical() ? matching0(e.id) : -matching0(e.id);
-        }
-    }
-
-    // update singular
     singular1 = VecXi::Zero(hm_cut->nV);
     singular1.head(hm.nV) = singular0;
 
+    std::map<std::pair<int, int>, Half> half_by_verts;
+    for (Half h: hm_cut->halfs)
+        half_by_verts.insert({{h.tail().id, h.head().id}, h});
+
+    for (Edge e: hm.edges) {
+        if (!seam0[e.id]) continue;
+        auto ch = chain_of(auxs, e.half());
+        for (int k = 0; k + 1 < ch.size(); ++k) {
+            Half h = half_by_verts.at({ch[k], ch[k + 1]});   // same direction as h
+            seam1[h.edge().id] = true;
+            matching1(h.edge().id) = h.isCanonical() ? matching0(e.id) : -matching0(e.id);
+        }
+    }
+
     // annotate the cut halfedges: both directions pushed adjacently, twin = index ^ 1
     data.clear();
-    data.reserve(sgms.size() * 2);
     for (auto& [i0, i1, d0, d1]: sgms) {
-        auto it = half_by_verts.find({.tail = i0, .head = i1});
-        if (it == half_by_verts.end()) {
-            std::println("[cut] no halfedge {} -> {} (thid {}, order {}, dist {})", i0, i1, d0.thid, d0.order, (vpos[i0] - vpos[i1]).norm());
-            continue; // TEMP: skip to collect all offenders
-        }
-        Half h0 = it->second;
+        auto it = half_by_verts.find({i0, i1});
+        if (it == half_by_verts.end()) throw std::runtime_error("No half_by_verts");
 
-        d0.half = h0;
-        d1.half = h0.twin();
+        d0.half = it->second;
+        d1.half = it->second.twin();
         d0.twin = data.size() + 1;
         d1.twin = data.size();
         data.push_back(d0);
         data.push_back(d1);
     }
 
-    // if a face of hm_cut breaks the validate_snap_1 rule, split the face and twin face
-
+    std::sort(data.begin(), data.end());
     return hm_cut;
 }
 }

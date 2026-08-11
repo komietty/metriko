@@ -10,9 +10,9 @@
 #include "visualize_tmesh_mut.h"
 
 using namespace metriko;
-static VecXc uv2;
 static MatXd V;
 static MatXi F;
+static VecXc uv2;
 static VecXi matching;
 static VecXi singular;
 static vec<bool> seam;
@@ -39,7 +39,8 @@ static void validate_tmeshmut(const TmeshMut& tm) {
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     Hmesh hm(V, F);
-    if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam)) throw std::runtime_error("the cache does not exist");
+    if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam))
+        throw std::runtime_error("the cache does not exist");
 
     ///--- gen mport, medge ---///
     auto mg = mc::Mgrph(hm, uv2, matching, singular);

@@ -111,11 +111,6 @@ void TmeshMut::collapse_tedge_snap_dedup(int teid) {
         faces_of(tnodes[nid_curr], fids);
         faces_of(tnodes[nid_prev], fids_prev);
         faces_of(tnodes[nid_next], fids_next);
-        if (nid_curr == 3120) { // 3247
-            for (int fid: fids)      std::println("nids curr: {}", fid);
-            for (int fid: fids_next) std::println("nids next: {}", fid);
-            for (int fid: fids_prev) std::println("nids prev: {}", fid);
-        }
 
         bool same_face = rg::any_of(fids, [&](int fid) { return rg::contains(fids_prev, fid) && rg::contains(fids_next, fid); });
         if (!same_face) { ++i; continue; }

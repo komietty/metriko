@@ -109,14 +109,18 @@ inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
     return std::nullopt;
 }
 
-inline auto loc_str(const HmLoc& l) {
+inline std::optional<std::pair<Half, double>> try_get_ratio(const Hmesh& hm, const HmLoc& l) {
     return std::visit(overloaded{
-        [](const HmLocOnV& v){ return std::format("V(id={})", v.id); },
-        [](const HmLocOnC& c){ return std::format("C(id={})", c.id); },
-        [](const HmLocOnE& e){ return std::format("E(id={}, r={})", e.id, e.r); },
-        [](const HmLocOnH& h){ return std::format("H(id={}, r={})", h.id, h.r); },
-        [](const HmLocOnF& f){ return std::format("F(id={}, xy=({},{}))", f.id, f.xy.real(), f.xy.imag()); },
-        [](const HmLocOnP& p){ return std::format("P(id={}, uv=({},{}))", p.id, p.uv.real(), p.uv.imag()); },
+        [&](const HmLocOnE& l) -> std::optional<std::pair<Half, double>> {
+            auto e = hm.edges[l.id];
+            auto h = e.half();
+            auto t = h.tail() == e.vert0() ? l.r : 1. - l.r;
+            return std::pair(h, 1. - t);
+        },
+        [&](const HmLocOnH& l) -> std::optional<std::pair<Half, double>> {
+            return std::pair(hm.halfs[l.id], 1. - l.r); // todo: seeems the ratio is flipped...
+        },
+        [&](const auto&) -> std::optional<std::pair<Half, double>> { return std::nullopt; },
     }, l);
 }
 
@@ -130,6 +134,15 @@ inline bool is_in_face(Face face, const HmLoc& l) {
     }, l);
 };
 
-
+inline auto loc_str(const HmLoc& l) {
+    return std::visit(overloaded{
+        [](const HmLocOnV& v){ return std::format("V(id={})", v.id); },
+        [](const HmLocOnC& c){ return std::format("C(id={})", c.id); },
+        [](const HmLocOnE& e){ return std::format("E(id={}, r={})", e.id, e.r); },
+        [](const HmLocOnH& h){ return std::format("H(id={}, r={})", h.id, h.r); },
+        [](const HmLocOnF& f){ return std::format("F(id={}, xy=({},{}))", f.id, f.xy.real(), f.xy.imag()); },
+        [](const HmLocOnP& p){ return std::format("P(id={}, uv=({},{}))", p.id, p.uv.real(), p.uv.imag()); },
+    }, l);
+}
 }
 #endif
