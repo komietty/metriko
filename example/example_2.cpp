@@ -26,6 +26,7 @@
 #include "visualize_hmesh.h"
 #include "visualize_qex.h"
 #include "visualize_tmesh_mut.h"
+#include "visualize_quad_patch.h"
 
 using namespace metriko;
 static MatXd V;
@@ -183,11 +184,46 @@ int main(int argc, char** argv) {
             qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
 
             visualizer::visualize_qports(*hm_emb, cfn, q_ports, 0.001, false);
+
+            { // TODO TEMP: validate port cycles per qvert
+                int i = 0;
+                while (i < (int)q_ports.size()) {
+                    int j = i;
+                    while (j < (int)q_ports.size() && (q_ports[j].pos - q_ports[i].pos).norm() < 1e-12) ++j;
+                    const int s = j - i;
+
+                    int cur = q_ports[i].idx, cnt = 0;
+                    do { cur = q_ports[cur].next_id; ++cnt; } while (cur != q_ports[i].idx && cnt <= s);
+                    if (cnt != s)
+                        std::println("[qport] broken cycle: group at port {} (size {}, vid {}, eid {}, fid {})",
+                                     q_ports[i].idx, s, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid);
+
+                    // angular order: 3d directions must rotate monotonically
+                    vec<Row3d> dirs;
+                    for (int k = i; k < j; ++k) {
+                        auto& p = q_ports[k];
+                        Row3d d = (conversion_2d_3d(hm_emb->faces[p.fid], cfn, p.uv + p.dir)
+                                 - conversion_2d_3d(hm_emb->faces[p.fid], cfn, p.uv)).normalized();
+                        dirs.push_back(d);
+                    }
+                    Row3d n = Row3d::Zero();
+                    for (int k = 0; k < s; ++k) n += dirs[k].cross(dirs[(k + 1) % s]);
+                    for (int k = 0; k < s; ++k)
+                        if (n.dot(dirs[k].cross(dirs[(k + 1) % s])) <= 0) {
+                            std::println("[qport] non-CCW cycle: group at port {} (vid {}, eid {}, fid {}, slot {})",
+                                         q_ports[i].idx, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid, k);
+                            break;
+                        }
+                    i = j;
+                }
+            }
+
             auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
             auto qfaces = qex::generate_q_faces(q_ports, qedges);
 
             visualizer::visualize_qedges(qedges);
             visualizer::visualize_qfaces(hm, qfaces, true);
+            visualizer::visualize_quad_patch(hm, tmm, singular, qfaces);
         }
     } else std::println("[tutte] compute_tutte_parameterization failed");
 

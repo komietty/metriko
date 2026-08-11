@@ -34,7 +34,13 @@ namespace metriko::qex {
                     qp = it2->port2();
                 }
             }
-            if (qfhs.size() == 4) qfs.emplace_back(qfhs);
+            if (qfhs.size() == 4) {
+                // the walk must return to the start port; otherwise some qvert's
+                // port cycle (next/prev) is inconsistent
+                if (qps[qp.prev_id].idx != it1->port1().idx)
+                    std::println("[qface] non-closing walk at port {} (vid {}, eid {}, fid {}, pos {} {} {})", qp.idx, qp.vid, qp.eid, qp.fid, qp.pos.x(), qp.pos.y(), qp.pos.z());
+                qfs.emplace_back(qfhs);
+            }
         }
         return qfs;
     }
