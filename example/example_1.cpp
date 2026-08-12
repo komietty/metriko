@@ -85,6 +85,9 @@ int main(int argc, char** argv) {
     tmm.collapse_tedge_snap(true);
     for (const auto& [teid, _] : tmm.live_tedges()) { tmm.collapse_tedge_snap_dedup(teid); }
 
+    save_tmm(std::format("{}.{}.tmm", argv[1], argv[2]), tmm);
+    std::println("saved tmm cache");
+
     visualizer::visualize_mesh(hm.pos, hm.idx);
     visualizer::visualize_non_snapped_tnodes(hm, tmm, false);
     visualizer::visualize_tedge_mut_snapped(hm, tmm, true);

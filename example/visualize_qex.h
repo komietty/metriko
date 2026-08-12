@@ -84,6 +84,63 @@ inline void visualize_qports(
     qp->addScalarQuantity("QP_flag", QP_flag);
 }
 
+// show one qvert's port group: coincident points carrying the port directions,
+// the cycle order, and outlines of the faces the ports live in. every structure
+// is named with ids so offenders reported in the log can be inspected one by one
+inline void visualize_qport_group(
+    const Hmesh& hm,
+    const VecXc& cfn,
+    const vec<qex::Qport>& qports,
+    int pid   // any port of the group (the group = contiguous ports at one position)
+) {
+    int first = pid, last = pid;
+    auto same = [&](int a, int b) { return (qports[a].pos - qports[b].pos).norm() < 1e-12; };
+    while (first > 0 && same(first - 1, pid)) --first;
+    while (last + 1 < (int)qports.size() && same(last + 1, pid)) ++last;
+
+    std::vector<glm::vec3> ps, ds;
+    std::vector<double> order, idxs, fids;
+    for (int k = first; k <= last; ++k) {
+        const auto& p = qports[k];
+        ps.emplace_back(p.pos.x(), p.pos.y(), p.pos.z());
+        Row3d d = (conversion_2d_3d(hm.faces[p.fid], cfn, p.uv + p.dir)
+                 - conversion_2d_3d(hm.faces[p.fid], cfn, p.uv)).normalized();
+        ds.emplace_back(d.x(), d.y(), d.z());
+        order.push_back(k - first);
+        idxs.push_back(p.idx);
+        fids.push_back(p.fid);
+    }
+    const auto& p0 = qports[first];
+    auto* pc = polyscope::registerPointCloud(
+        std::format("bad qvert p{} (vid {} eid {})", p0.idx, p0.vid, p0.eid), ps);
+    pc->addVectorQuantity("dir", ds)->setEnabled(true);
+    pc->addScalarQuantity("cycle order", order)->setEnabled(true);
+    pc->addScalarQuantity("port idx", idxs);
+    pc->addScalarQuantity("fid", fids);
+    pc->setPointRadius(0.002);
+    pc->resetTransform();
+
+    std::set<double> fset(fids.begin(), fids.end());
+    for (double fd: fset) {
+        int fid = (int)fd;
+        std::vector<glm::vec3> ns;
+        std::vector<std::array<size_t, 2>> es;
+        size_t c = 0;
+        for (Half h: hm.faces[fid].adjHalfs()) {
+            Row3d a = h.tail().pos();
+            Row3d b = h.head().pos();
+            ns.emplace_back(a.x(), a.y(), a.z());
+            ns.emplace_back(b.x(), b.y(), b.z());
+            es.push_back({c, c + 1});
+            c += 2;
+        }
+        auto* cn = polyscope::registerCurveNetwork(std::format("bad face {}", fid), ns, es);
+        cn->setColor({1., 0.15, 0.1});
+        cn->setRadius(0.0012);
+        cn->resetTransform();
+    }
+}
+
 inline void visualize_qedges(
     const vec<qex::Qedge>& qedges,
     const double scale = 0.001

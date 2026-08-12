@@ -83,6 +83,8 @@ struct TmeshMut {
     vec<ThalfMut> thalfs = {};
     vec<TquadMut> tquads = {};
 
+    explicit TmeshMut(const Hmesh& hm): hm(hm) {}   // empty shell for deserialization
+
     explicit TmeshMut(
         const mc::Mgrph& mg,
         const Tmesh& tm,

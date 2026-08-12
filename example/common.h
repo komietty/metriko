@@ -417,5 +417,88 @@ static void save_cache(const std::string& p, const VecXc& uv2, const VecXi& matc
     std::vector<char> sb(seam.begin(), seam.end());
     f.write(sb.data(), ne);
 }
+
+// binary snapshot of a (collapsed) TmeshMut, so downstream demos can skip the
+// motorcycle graph / quantization / collapse / snap stages
+static void save_tmm(const std::string& p, const TmeshMut& tm) {
+    std::ofstream f(p, std::ios::binary);
+    auto wi = [&](int v)    { f.write((char*)&v, 4); };
+    auto wd = [&](double v) { f.write((char*)&v, 8); };
+
+    wi((int)tm.tnodes.size());
+    for (const HmLoc& l: tm.tnodes) {
+        wi((int)l.index());   // 0:OnV 1:OnE 2:OnF 3:OnH 4:OnC 5:OnP (variant order)
+        std::visit(overloaded{
+            [&](const HmLocOnV& v) { wi(v.id); },
+            [&](const HmLocOnC& v) { wi(v.id); },
+            [&](const HmLocOnE& v) { wi(v.id); wd(v.r); },
+            [&](const HmLocOnH& v) { wi(v.id); wd(v.r); },
+            [&](const HmLocOnF& v) { wi(v.id); wd(v.xy.real()); wd(v.xy.imag()); },
+            [&](const HmLocOnP& v) { wi(v.id); wd(v.uv.real()); wd(v.uv.imag()); },
+        }, l);
+    }
+    wi((int)tm.tedges.size());
+    for (auto& te: tm.tedges) {
+        wi(te.id);
+        wi((int)te.nids.size());
+        f.write((char*)te.nids.data(), te.nids.size() * 4);
+    }
+    wi((int)tm.thalfs.size());
+    for (auto& th: tm.thalfs) {
+        wi(th.id); wi(th.twid); wi(th.teid); wi(th.tqid);
+        wi(th.cano); wi(th.bgn); wi(th.end);
+        wd(th.x); wd(th.r);
+    }
+    wi((int)tm.tquads.size());
+    for (auto& tq: tm.tquads) {
+        wi(tq.id);
+        wi((int)tq.data.size());
+        for (auto& d: tq.data) { wi(d.thid); wi(d.side); }
+    }
+}
+
+// fills a TmeshMut shell (constructed as TmeshMut(hm)). do not move the object
+// afterwards: the thalf back-pointers are bound here
+static bool load_tmm(const std::string& p, TmeshMut& tm) {
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return false;
+    auto ri = [&]() { int v = 0;    f.read((char*)&v, 4); return v; };
+    auto rd = [&]() { double v = 0; f.read((char*)&v, 8); return v; };
+
+    tm.tnodes.clear(); tm.tedges.clear(); tm.thalfs.clear(); tm.tquads.clear();
+
+    for (int n = ri(), i = 0; i < n; ++i) {
+        int tag = ri(), id = ri();
+        switch (tag) {
+            case 0: tm.tnodes.emplace_back(HmLocOnV{id}); break;
+            case 1: tm.tnodes.emplace_back(HmLocOnE{id, rd()}); break;
+            case 2: { double x = rd(), y = rd(); tm.tnodes.emplace_back(HmLocOnF{id, {x, y}}); break; }
+            case 3: tm.tnodes.emplace_back(HmLocOnH{id, rd()}); break;
+            case 4: tm.tnodes.emplace_back(HmLocOnC{id}); break;
+            case 5: { double x = rd(), y = rd(); tm.tnodes.emplace_back(HmLocOnP{id, {x, y}}); break; }
+            default: return false;
+        }
+    }
+    for (int n = ri(), i = 0; i < n; ++i) {
+        TedgeMut te{.id = ri()};
+        te.nids.resize(ri());
+        f.read((char*)te.nids.data(), te.nids.size() * 4);
+        tm.tedges.push_back(std::move(te));
+    }
+    for (int n = ri(), i = 0; i < n; ++i) {
+        ThalfMut th{.tm = &tm};
+        th.id   = ri(); th.twid = ri(); th.teid = ri(); th.tqid = ri();
+        th.cano = ri(); th.bgn  = ri(); th.end  = ri();
+        th.x    = rd(); th.r    = rd();
+        tm.thalfs.push_back(th);
+    }
+    for (int n = ri(), i = 0; i < n; ++i) {
+        TquadMut tq{.id = ri()};
+        tq.data.resize(ri());
+        for (auto& d: tq.data) { d.thid = ri(); d.side = ri(); }
+        tm.tquads.push_back(std::move(tq));
+    }
+    return (bool)f;
+}
 #endif
 

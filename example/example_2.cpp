@@ -41,37 +41,10 @@ int main(int argc, char** argv) {
     Hmesh hm(V, F);
     if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam)) throw std::runtime_error("the cache does not exist");
 
-    ///--- gen mport, medge ---///
-    auto mg = mc::Mgrph(hm, uv2, matching, singular);
-    auto tm = Tmesh(mg);
-    auto X  = compute_quantization(tm, mg);
-    TmeshMut tmm(mg, tm, X);
-
-    for (int i = 0; i < 10; ++i) {
-        for (const ThalfMut& th0: tmm.thalfs) {
-            if (th0.id == -1) continue;
-            auto& th1 = tmm.thalfs[th0.twid];
-            if (th1.id == -1) continue;
-            if (th0.x != 0)   continue;
-            auto& tq0 = tmm.tquads[th0.tqid];
-            auto& tq1 = tmm.tquads[th1.tqid];
-            if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
-            if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-            std::cout << "th collapse: " << th0.id << std::endl;
-            tmm.collapse_thalf(th0.id);
-        }
-        for (const TquadMut& tq: tmm.live_tquads()) {
-            Tqchain chain;
-            if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) {
-                std::cout << "tq collapse: " << tq.id << std::endl;
-                tmm.collapse_tquad_chain_execute(chain);
-            }
-        }
-    }
-
-    tmm.collapse_tedge_snap(false);
-    tmm.collapse_tedge_snap(true);
-    for (const auto& [teid, _] : tmm.live_tedges()) { tmm.collapse_tedge_snap_dedup(teid); }
+    ///--- load the collapsed t-mesh produced by example_1 ---///
+    TmeshMut tmm(hm);
+    if (!load_tmm(std::format("{}.{}.tmm", argv[1], argv[2]), tmm))
+        throw std::runtime_error("the tmm cache does not exist. run example_1 first");
 
     ///--- validate tedge nid chains: duplicated / backtracking nodes break the cut ---///
     for (const auto& th: tmm.thalfs) {
@@ -118,7 +91,6 @@ int main(int argc, char** argv) {
     visualizer::visualize_init();
     auto* base = visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
     auto* embd = visualizer::visualize_mesh(hm_emb->pos, hm_emb->idx, false, "embd mesh");
-    visualizer::visualize_tedge(tm, mg, uv2, &X, {}, "tedge", false);
     visualizer::visualize_seam(*hm_emb, seam1, VecXi(), "cut seam", false);
     visualizer::visualize_non_snapped_tnodes(hm, tmm, false);
     visualizer::visualize_tedge_mut_collapsed(hm, tmm, false);
@@ -194,9 +166,11 @@ int main(int argc, char** argv) {
 
                     int cur = q_ports[i].idx, cnt = 0;
                     do { cur = q_ports[cur].next_id; ++cnt; } while (cur != q_ports[i].idx && cnt <= s);
-                    if (cnt != s)
+                    if (cnt != s) {
                         std::println("[qport] broken cycle: group at port {} (size {}, vid {}, eid {}, fid {})",
                                      q_ports[i].idx, s, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid);
+                        visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
+                    }
 
                     // angular order: 3d directions must rotate monotonically
                     vec<Row3d> dirs;
@@ -212,6 +186,7 @@ int main(int argc, char** argv) {
                         if (n.dot(dirs[k].cross(dirs[(k + 1) % s])) <= 0) {
                             std::println("[qport] non-CCW cycle: group at port {} (vid {}, eid {}, fid {}, slot {})",
                                          q_ports[i].idx, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid, k);
+                            visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
                             break;
                         }
                     i = j;
@@ -223,7 +198,7 @@ int main(int argc, char** argv) {
 
             visualizer::visualize_qedges(qedges);
             visualizer::visualize_qfaces(hm, qfaces, true);
-            visualizer::visualize_quad_patch(hm, tmm, singular, qfaces);
+            //visualizer::visualize_quad_patch(hm, tmm, singular, qfaces);
         }
     } else std::println("[tutte] compute_tutte_parameterization failed");
 
