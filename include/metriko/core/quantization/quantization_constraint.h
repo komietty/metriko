@@ -11,9 +11,9 @@ namespace metriko {
         MatXd M = MatXd::Zero(tmesh.nTQ * 2, tmesh.nTE);
         for (int iq = 0; iq < tmesh.nTQ; iq++) {
             const auto &tq = tmesh.tquads[iq];
-            for (int ih = 0; ih < tq.thids.size(); ih++) {
-                const auto &th = tmesh.thalfs[tq.thids[ih]];
-                const int side = tq.sides[ih];
+            for (int ih = 0; ih < tq.data.size(); ih++) {
+                const auto &th = tmesh.thalfs[tq.data[ih].thid];
+                const int side = tq.data[ih].side;
                 const int teid = th.edge().id;
                 switch (side) {
                     case 0: { M(iq * 2 + 0, teid) =  1; break; }

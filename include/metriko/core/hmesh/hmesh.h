@@ -147,27 +147,36 @@ struct Hmesh {
 };
 
 struct AdjBase {
+    using value_type      = Half;
+    using difference_type = std::ptrdiff_t;
     Half h;
     bool bgn;
     bool ccw;
+    AdjBase() : h{-1, nullptr}, bgn(false), ccw(true) { }
     AdjBase(Half h, bool ccw) : h(h), bgn(false), ccw(ccw) { }
     Half operator*() const { return h; }
-    bool operator!=(const AdjBase& a) const { return !bgn || h.id != a.h.id; }
+    bool operator==(const AdjBase& a) const { return bgn && h.id == a.h.id; }
 };
 
 struct AdjVH : AdjBase {
+    AdjVH() = default;
     AdjVH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
     AdjVH& operator++() { h = ccw ? h.prev().twin() : h.twin().next(); bgn = true; return *this; }
+    AdjVH  operator++(int) { auto t = *this; ++*this; return t; }
 };
 
 struct AdjFH: AdjBase {
+    AdjFH() = default;
     AdjFH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
     AdjFH& operator++() { h = ccw ? h.next() : h.prev(); bgn = true; return *this; }
+    AdjFH  operator++(int) { auto t = *this; ++*this; return t; }
 };
 
 struct AdjLH : AdjBase {
+    AdjLH() = default;
     AdjLH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
     AdjLH& operator++() { h = ccw ? h.next() : h.prev(); bgn = true; return *this; }
+    AdjLH  operator++(int) { auto t = *this; ++*this; return t; }
 };
 
 template<typename N>
@@ -271,14 +280,8 @@ inline void dcel(
     HV.conservativeResize(numH);
     VH.conservativeResize(EV.maxCoeff() + 1);
     for (int i = 0; i < EV.rows(); i++) {
-        if (EH(i, 0) != -1) {
-            HV(EH(i, 0)) = EV(i, 0);
-            VH(EV(i, 0)) = EH(i, 0);
-        }
-        if (EH(i, 1) != -1) {
-            HV(EH(i, 1)) = EV(i, 1);
-            VH(EV(i, 1)) = EH(i, 1);
-        }
+        if (EH(i, 0) != -1) { HV(EH(i, 0)) = EV(i, 0); VH(EV(i, 0)) = EH(i, 0); }
+        if (EH(i, 1) != -1) { HV(EH(i, 1)) = EV(i, 1); VH(EV(i, 1)) = EH(i, 1); }
     }
 
     twinH = Eigen::VectorXi::Constant(numH, -1);
@@ -291,14 +294,8 @@ inline void dcel(
     FH.resize(F.rows(), F.cols());
     HF.resize(numH);
     for (int i = 0; i < EF.rows(); i++) {
-        if (EF(i, 0) != -1) {
-            FH(EF(i, 0), EFi(i, 0)) = EH(i, 0);
-            HF(EH(i, 0)) = EF(i, 0);
-        }
-        if (EF(i, 1) != -1) {
-            FH(EF(i, 1), EFi(i, 1)) = EH(i, 1);
-            HF(EH(i, 1)) = EF(i, 1);
-        }
+        if (EF(i, 0) != -1) { FH(EF(i, 0), EFi(i, 0)) = EH(i, 0); HF(EH(i, 0)) = EF(i, 0); }
+        if (EF(i, 1) != -1) { FH(EF(i, 1), EFi(i, 1)) = EH(i, 1); HF(EH(i, 1)) = EF(i, 1); }
     }
 
     nextH.conservativeResize(HE.rows());
@@ -493,8 +490,17 @@ inline Hmesh::Hmesh(
     // set up vertex orthogonal coordinate
     for (int iF = 0; iF < nF; ++iF) {
         for (int iP = 0; iP < nP; iP++) {
-            vertNormal.row(idx(iF, iP)).array()
-                    += faceNormal.row(iF).array() * faceArea[iF];
+            int i_curr = idx(iF, iP);
+            int i_next = idx(iF, (iP + nP + 1) % nP);
+            int i_prev = idx(iF, (iP + nP - 1) % nP);
+            Row3d d0 = (pos.row(i_next) - pos.row(i_curr)).normalized();
+            Row3d d1 = (pos.row(i_prev) - pos.row(i_curr)).normalized();
+            double d = d1.dot(d0);
+            double phi;
+            if      (d >=  1) phi = 0;
+            else if (d <= -1) phi = PI;
+            else              phi = acos(d);
+            vertNormal.row(idx(iF, iP)).array() += faceNormal.row(iF).array() * phi;
         }
     }
     vertNormal.rowwise().normalize();
@@ -509,10 +515,7 @@ inline Hmesh::Hmesh(
 
     // set up a dihedral angle for each halfedge
     for (Half h: halfs) {
-        if (h.edge().isBoundary()) {
-            dihedralArg[h.id] = 0;
-            continue;
-        }
+        if (h.edge().isBoundary()) { dihedralArg[h.id] = 0; continue; }
         Row3d n1 = faceNormal.row(h.face().id);
         Row3d n2 = faceNormal.row(h.twin().face().id);
         Row3d v = h.vec() / h.len();
@@ -522,10 +525,7 @@ inline Hmesh::Hmesh(
 
     // set up halfedge cotan and edge cotan
     for (Half h: halfs) {
-        if (h.isBoundary()) {
-            halfCotan[h.id] = 0.;
-            continue;
-        }
+        if (h.isBoundary()) { halfCotan[h.id] = 0.; continue; }
         Row3d vn = h.next().vec();
         Row3d vp = h.prev().vec() * -1;
         halfCotan[h.id] = vp.dot(vn) / vp.cross(vn).norm();

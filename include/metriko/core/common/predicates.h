@@ -23,10 +23,11 @@ inline double orientation(
 inline bool is_collinear(
     const complex pa,
     const complex pb,
-    const complex pc
+    const complex pc,
+    const double eps = EPS
 ) {
     double o = orientation(pa, pb, pc);
-    return abs(o) < EPS;
+    return abs(o) < eps;
 }
 
 inline bool is_points_into(
@@ -36,7 +37,7 @@ inline bool is_points_into(
     const complex uv,
     const double eps = EPS
 ) {
-    return orientation(p1, p2, uv) > eps && orientation(p1, p3, uv) < eps;
+    return orientation(p1, p2, uv) > eps && orientation(p1, p3, uv) < -eps;
 }
 
 inline bool is_inside_triangle(

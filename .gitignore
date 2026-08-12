@@ -1,4 +1,8 @@
 cmake-build-debug/
 cmake-build-release/
 build/
+build-test/
+build-cli/
 .idea/
+thesis/
+imgui.ini

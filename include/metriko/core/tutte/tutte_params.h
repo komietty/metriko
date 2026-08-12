@@ -1,10 +1,14 @@
-#ifndef METRIKO_TUTTE_PARAM_H
-#define METRIKO_TUTTE_PARAM_H
-#include <queue>
-#include <stack>
-#include "tutte_cutting.h"
+//
+// Created by saki on 2026/07/19.
+//
 
-namespace metriko::tutte {
+#ifndef TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H
+#define TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H
+
+#include "tutte.h"
+#include "metriko/core/tmesh/tmesh_mut.h"
+
+namespace metriko {
 
 inline Mat2d compute_rotation(int i) {
     Mat2d r0, r1, r2, r3;
@@ -16,11 +20,41 @@ inline Mat2d compute_rotation(int i) {
     return r[i];
 }
 
+
+inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
+    SprsD S(mesh.nV, mesh.nV);
+    std::vector<TripD> T;
+
+    for (Vert v: mesh.verts) {
+        if (v.isBoundary()) T.emplace_back(v.id, v.id, 1);
+        else {
+            double sum = 0.;
+            for (Half h: v.adjHalfs()) {
+
+                //const double c = h.edge().cot() / v.baryArea();
+                //sum += c;
+                //T.emplace_back(v.id, h.head().id, c);
+
+                double l = (v.pos() - h.head().pos()).norm();
+                double w = 1.0 / (l + 1e-12);
+                sum += w;
+                T.emplace_back(v.id, h.head().id, -w);
+
+            }
+            //T.emplace_back(v.id, v.id, -sum);
+            T.emplace_back(v.id, v.id, sum);
+        }
+    }
+    S.setFromTriplets(T.begin(), T.end());
+    return S;
+}
+
+
 inline SprsD embedding_tutte_for_tquad(
     const int tqid,
     const vec<HalfData>& data,
     const Hmesh& hm, // the cut mesh
-    const Emesh& tm  // the tmesh of original hmesh
+    const TmeshMut& tm  // the tmesh of original hmesh
 ) {
     vec<TripD> T;
 
@@ -31,9 +65,8 @@ inline SprsD embedding_tutte_for_tquad(
     auto sum = complex(0, 0);
 
     for (int i = 0; i < 4; i++) {
-        for (int thid: tm.equads[tqid].ehids_by_side(i)) {
-            //auto x = X[tm.ehalfs[thid].edge().id];
-            auto x = tm.ehalfs[thid].x;
+        for (int thid: tm.tquads[tqid].thids(i)) {
+            auto x = tm.thalfs[thid].x;
             for (auto& it: rg::equal_range(tq_rg, thid, {}, &HalfData::thid)) {
                 auto val = x * it.v0;
                 auto vid = it.half.tail().id;
@@ -164,7 +197,7 @@ inline vec<int> sequential_mapping(
 // try to multiply rotation until halfedge coner values corresponds
 // need to consider: is there any possibility of flip?
 inline bool apply_transition(
-    const bool flag,
+    const bool verbose,
     const Half h,    // the halfedge of unfixed side
     const SprsD& m0, // the fixed uv information
           SprsD& m1  // the unfixed adjacent uv information
@@ -180,24 +213,24 @@ inline bool apply_transition(
     double len0 = (uv0a - uv0).norm();
     double len1 = (uv1a - uv1).norm();
     if (std::abs(len0 - len1) > 1e-6) {
-        std::cout << "[Scale Mismatch] len0: " << len0 << ", len1: " << len1 << " (diff: " << std::abs(len0 - len1) << ")" << std::endl;
+        std::cout << "[Scale Mismatch] len0: " << len0 << ", len1: " << len1 << " (diff: " << std::abs(len0 - len1) << ")" << '\n';
     }
 
-    if (flag) {
-        std::cout << "h0 tail: " << h0.tail().id << std::endl;
-        std::cout << "h0 head: " << h0.head().id << std::endl;
-        std::cout << "h1 tail: " << h1.tail().id << std::endl;
-        std::cout << "h1 head: " << h1.head().id << std::endl;
-        std::cout << "cid: " << h0.prev().crnr().id << std::endl;
+    if (verbose) {
+        std::cout << "h0 tail: " << h0.tail().id << '\n';
+        std::cout << "h0 head: " << h0.head().id << '\n';
+        std::cout << "h1 tail: " << h1.tail().id << '\n';
+        std::cout << "h1 head: " << h1.head().id << '\n';
+        std::cout << "cid: " << h0.prev().crnr().id << '\n';
         //uv0a = Vec2d(-8, -8.21001);
     }
 
 
-    if (flag) {
-        std::cout << "uv0 : " <<  uv0.transpose()  << std::endl;
-        std::cout << "uv0a: " <<  uv0a.transpose() << std::endl;
-        std::cout << "uv1 : " <<  uv1.transpose()  << std::endl;
-        std::cout << "uv1a: " <<  uv1a.transpose() << std::endl;
+    if (verbose) {
+        std::cout << "uv0 : " <<  uv0.transpose()  << '\n';
+        std::cout << "uv0a: " <<  uv0a.transpose() << '\n';
+        std::cout << "uv1 : " <<  uv1.transpose()  << '\n';
+        std::cout << "uv1a: " <<  uv1a.transpose() << '\n';
     }
 
     for (int i = 0; i < 4; i++) {
@@ -207,10 +240,10 @@ inline bool apply_transition(
 
         if ((v1 - v2).norm() < 1e-5) {
 
-            if (flag) {
-                std::cout << "rot : " <<  rot  << std::endl;
-                std::cout << "v1: " <<  v1.transpose() << std::endl;
-                std::cout << "v2: " <<  v2.transpose()  << std::endl;
+            if (verbose) {
+                std::cout << "rot : " <<  rot  << '\n';
+                std::cout << "v1: " <<  v1.transpose() << '\n';
+                std::cout << "v2: " <<  v2.transpose()  << '\n';
             }
             for (SprsD::InnerIterator it(m1, 0); it; ++it) {
                 int ir = it.row();
@@ -231,31 +264,31 @@ inline bool apply_transition(
         Vec2d v2 = uv0a - uv0;
 
         if ((v1 - v2).norm() < 1e-9) {
-            std::cout << "[Flip Detected] パッチが反転しています！ hid: " << h.id << std::endl;
+            std::cout << "[Flip Detected] パッチが反転しています！ hid: " << h.id << '\n';
             return false; // 今回は原因調査なのでfalseで抜ける
         }
     }
 
     // debug draw
-    {
-        std::vector<glm::vec3> ns;
-        std::vector<std::array<size_t, 2>> es;
-        size_t count = 0;
+    //{
+    //    std::vector<glm::vec3> ns;
+    //    std::vector<std::array<size_t, 2>> es;
+    //    size_t count = 0;
 
-        auto p1 = h.tail().pos();
-        auto p2 = h.head().pos();
-        ns.emplace_back(p1.x(), p1.y(), p1.z());
-        ns.emplace_back(p2.x(), p2.y(), p2.z());
-        es.emplace_back(std::array{count, count + 1});
-        count += 2;
+    //    auto p1 = h.tail().pos();
+    //    auto p2 = h.head().pos();
+    //    ns.emplace_back(p1.x(), p1.y(), p1.z());
+    //    ns.emplace_back(p2.x(), p2.y(), p2.z());
+    //    es.emplace_back(std::array{count, count + 1});
+    //    count += 2;
 
-        auto c = polyscope::registerCurveNetwork("tutte apply failed hid "+ std::to_string(h.id), ns, es);
-        c->setEnabled(true);
-        c->resetTransform();
-        c->setRadius(0.002);
-    }
+    //    auto c = polyscope::registerCurveNetwork("tutte apply failed hid "+ std::to_string(h.id), ns, es);
+    //    c->setEnabled(true);
+    //    c->resetTransform();
+    //    c->setRadius(0.002);
+    //}
 
-    std::cout << "failed to map tutte params of hid: " << h.id << std::endl;
+    std::cout << "failed to map tutte params of hid: " << h.id << '\n';
     return false;
 }
 
@@ -263,7 +296,7 @@ struct HalfHash { std::size_t operator()(const Half& h) const noexcept { return 
 
 inline bool compute_tutte_parameterization(
     const Hmesh& hm,           // hmesh after tutte cutting
-    const Emesh& tm,           // tmesh original
+    const TmeshMut& tm,        // tmesh original
     const vec<bool>& seam,     // seam adapted to tutte cutting
     const vec<HalfData>& data, //
     MatXd& uv
@@ -271,12 +304,13 @@ inline bool compute_tutte_parameterization(
     bool success = true;
     // compute uv per tquad first...
     vec<SprsD> uv_tq;
-    uv_tq.resize(tm.equads.size());
+    uv_tq.resize(tm.tquads.size());
 
     //{//todo: for debug
     //    uv.resize(hm.nC, 2);
     //    uv.setZero();
     //    for (int i = 0; i < tm.equads.size(); i++) {
+    //        if (i != 7) continue;
     //        if (tm.equads[i].id != -1) {
     //            std::cout << "tutte params tqid: " << i << std::endl;
     //            MatXd uv_ = embedding_tutte_for_tquad(i, data, hm, tm);
@@ -287,8 +321,8 @@ inline bool compute_tutte_parameterization(
     //}
 
     //#pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < tm.equads.size(); i++) {
-        if (tm.equads[i].id != -1)
+    for (int i = 0; i < tm.tquads.size(); i++) {
+        if (tm.tquads[i].id != -1)
             uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
     }
 
@@ -325,25 +359,23 @@ inline bool compute_tutte_parameterization(
 
         auto it = data_by_half.find(h);
         if (it == data_by_half.end()) {
-            std::cerr << "[Error] compute_tutte_parameterization: Halfedge " << h.id << " not found in data_by_half map." << std::endl;
+            std::cerr << "[Error] compute_tutte_parameterization: Halfedge " << h.id << " not found in data_by_half map." << '\n';
             return false;
         }
 
         auto curr = it->second;
         SprsD& uv_curr = uv_tq[curr->tqid];
-        bool res = apply_transition(h.id == 24665, h, uv.sparseView(), uv_curr);
-        //if (h.id == 24665) return false;
-        //if (h.id == 28260) return false;
+        bool res = apply_transition(false, h, uv.sparseView(), uv_curr);
         success &= res;
 
         vec b(hm.nH, false);
         for (auto& d: data) { if (d.tqid == curr->tqid) b[d.half.id] = true; }
         for (auto nh: sequential_mapping(hm, uv_curr, h, b, seam, flag, uv)) stack.emplace(nh);
 
-        //if (!success) return false;
+        if (!success) return false;
     }
     return success;
 }
 }
 
-#endif
+#endif //TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H

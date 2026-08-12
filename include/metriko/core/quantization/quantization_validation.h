@@ -8,49 +8,46 @@
 #include "metriko/core/tmesh/tmesh.h"
 
 namespace metriko {
-    inline bool compute_validation(
-        const Tmesh &tm,
-        const VecXd &X,
-        const int thid
-    ) {
+inline bool compute_validation(
+    const mc::Mgrph &mg,
+    const Tmesh &tm,
+    const VecXd &X
+) {
+    if ((X.array() < 0).any()) return false;
+
+    std::vector<std::vector<int>> adjs(mg.mnodes.size());
+    for (auto& te : tm.tedges)
+        if (X[te.id] == 0) {
+            adjs[te.fr_nid].push_back(te.to_nid);
+            adjs[te.to_nid].push_back(te.fr_nid);
+        }
+
+    std::vector visited(mg.mnodes.size(), false);
+
+    for (int i = 0; i < mg.mnodes.size(); ++i) {
+        if (mg.mnodes[i].jt != mc::JunctionType::F || visited[i]) continue;
+
+        int start_nid = i;
         std::queue<int> q;
-        std::vector<bool> visited;
-        visited.assign(tm.nTE, false);
-        q.emplace(tm.thalfs[thid].id);
+        q.push(start_nid);
+        visited[start_nid] = true;
 
         while (!q.empty()) {
-            int thid = q.front();
+            int curr_nid = q.front();
             q.pop();
 
-            const auto &th = tm.thalfs[thid];
-            const auto &te = th.edge();
-            if (!th.cano && te.isBgn) return false; /* is first seg */
+            if (curr_nid != start_nid && mg.mnodes[curr_nid].jt == mc::JunctionType::F) return false;
 
-            //for (auto pair: th.adj_thalfs()) {
-            //    int teid = pair.edge().id;
-            //    if (!visited[teid] && X[teid] == 0) {
-            //        visited[teid] = true;
-            //        q.emplace(pair.id);
-            //    }
-            //}
-            for (int i: th.adjs) {
-                int j = tm.thalfs[i].edge().id;
-                if (!visited[j] && X[j] == 0) { visited[j] = true; q.emplace(i); }
-            }
+            for (int next_nid : adjs[curr_nid])
+                if (!visited[next_nid]) {
+                    visited[next_nid] = true;
+                    q.push(next_nid);
+                }
         }
-        return true;
     }
 
-    inline bool compute_validation(
-        const Tmesh &tm,
-        const VecXd &X
-    ) {
-        return (X.array() >= 0).all() &&
-               rg::all_of(
-                   tm.thalfs | vw::filter([&](auto th) { return tm.th2sing[th.id] > -1; }),
-                   [&](auto &th) { return compute_validation(tm, X, th.id); }
-               );
-    }
+    return true;
+}
 }
 
 #endif

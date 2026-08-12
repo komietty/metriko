@@ -8,6 +8,13 @@
 #include "typedef.h"
 
 namespace metriko {
+
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+
+constexpr auto circular_prev = [](auto& c, auto it) { return it == c.begin() ? std::prev(c.end()) : std::prev(it); };
+constexpr auto circular_next = [](auto& c, auto it) { auto n = std::next(it); return n == c.end() ? c.begin() : n; };
+
 inline complex get_quater_rot(int i) {
     switch ((i % 4 + 4) % 4) {
         case 0: return {1, 0};
@@ -110,12 +117,12 @@ inline bool find_extended_intersection(
 }
 
 inline bool find_strict_intersection(
-    const complex &a,
-    const complex &b,
-    const complex &c,
-    const complex &d,
-    double &ratio_a2b,
-    double &ratio_c2d,
+    const complex &a,  // segment AB
+    const complex &b,  // segment AB
+    const complex &c,  // segment CD
+    const complex &d,  // segment CD
+    double &ratio_a2b, // ratio in AB
+    double &ratio_c2d, // ratio in CD
     const double eps = EPS
 ) {
     return find_extended_intersection(a, b, c, d, ratio_a2b, ratio_c2d) &&

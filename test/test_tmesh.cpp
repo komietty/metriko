@@ -1,0 +1,97 @@
+#include <string>
+#include "pipeline.h"
+#include "check.h"
+
+using namespace metriko;
+
+int main(int argc, char** argv) {
+    if (argc < 4) { std::cerr << "usage: test_tmesh <gridscale> <vectorfield> <mesh.obj> [more.obj ...]\n"; return 2; }
+    const int       N     = 4;
+    const double    scale = std::stod(argv[1]);
+    const FieldType ft    = parse_field_type(argv[2]);
+
+    for (int a = 3; a < argc; ++a) {
+        const char* mesh = argv[a];
+        TmeshPipeline P(mesh, scale, ft);
+        CHECK(P.ok);
+        const Hmesh&     hm  = *P.hm;
+        const mc::Mgrph& mg  = *P.mg;
+        const Tmesh&     tm  = *P.tm;
+        TmeshMut&        tmm = *P.tmm;
+
+        CHECK(tm.nTH == 2 * tm.nTE);
+        CHECK(tmm.thalfs.size() == 2 * tmm.tedges.size());
+        CHECK(tmm.tnodes.size() == mg.mnodes.size());
+        CHECK(!tmm.tquads.empty());
+        CHECK(tmm.tquads.size() == tm.tquads.size());
+
+        if (ft == FieldType::Smoothest) {
+            for (int i = 0; i < 5; ++i) {
+                for (const ThalfMut& th0: tmm.thalfs) {
+                    if (th0.id == -1) continue;             // guards before any indexing:
+                    auto& th1 = tmm.thalfs[th0.twid];       // cleared thalfs have twid/tqid == -1
+                    if (th1.id == -1) continue;
+                    if (th0.x != 0) continue;
+                    auto& tq0 = tmm.tquads[th0.tqid];
+                    auto& tq1 = tmm.tquads[th1.tqid];
+                    if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+                    if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+                    tmm.collapse_thalf(th0.id);
+                }
+
+                for (const TquadMut& tq: tmm.tquads) {
+                    if (tq.id == -1) continue;
+                    Tqchain chain;
+                    if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
+                }
+            }
+        } else {
+            for (int i = 0; i < 20; ++i) {
+                for (const ThalfMut& th0 : tmm.thalfs) {
+                    if (th0.id == -1) continue;
+                    auto& th1 = tmm.thalfs[th0.twid];
+                    if (th1.id == -1) continue;
+                    if (th0.x != 0)   continue;
+                    auto& tq0 = tmm.tquads[th0.tqid];
+                    auto& tq1 = tmm.tquads[th1.tqid];
+                    if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+                    if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+                    tmm.collapse_thalf(th0.id);
+                }
+
+                for (const TquadMut& tq: tmm.tquads) {
+                    if (tq.id == -1) continue;
+                    Tqchain chain;
+                    if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
+                }
+            }
+        }
+
+
+        auto opp_balanced = [&](const TmeshMut& m) -> bool {
+            for (const TquadMut& q : m.tquads) {
+                if (q.data.empty()) continue;
+                if (q.id == -1) continue;
+                double s[4] = {0, 0, 0, 0};
+                for (const auto& [thid, side] : q.data) {
+                    int x = m.thalfs[thid].x;
+                    if (x == 0) {
+                        std::println("thid: {}, tqid: {}", thid, m.thalfs[thid].tqid);
+                        return false;
+                    }
+                    s[side] += x;
+                }
+                std::cout << "s[0]: " << s[0] << std::endl;
+                std::cout << "s[1]: " << s[1] << std::endl;
+                std::cout << "s[2]: " << s[2] << std::endl;
+                std::cout << "s[3]: " << s[3] << std::endl;
+                if (std::abs(s[0] - s[2]) > 1e-6 || std::abs(s[1] - s[3]) > 1e-6) { return false; }
+            }
+            return true;
+        };
+        CHECK(opp_balanced(tmm));
+
+        std::cout << "[test_tmesh] OK  " << mesh << std::endl;
+    }
+    return 0;
+}

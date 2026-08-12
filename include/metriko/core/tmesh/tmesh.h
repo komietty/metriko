@@ -1,162 +1,55 @@
 //
-//--- Copyright (C) 2025 Saki Komikado <komietty@gmail.com>,
+//--- Copyright (C) 2026 Saki Komikado <komietty@gmail.com>,
 //--- This Source Code Form is subject to the terms of the Mozilla Public License v.2.0.
 #ifndef METRIKO_TMESH_H
 #define METRIKO_TMESH_H
 #include "motorcycle.h"
 
 namespace metriko {
-template <class T> using vec = std::vector<T>;
-template <class T> using set = std::set<T>;
-template <class T> using opt = std::optional<T>;
 
 struct Tmesh;
 
-struct Telem {
-    const Tmesh* tm;
-    const int id;
-    explicit Telem(const Tmesh* t, const int id): tm(t), id(id) {}
-};
-
-struct Tvert {
-    complex uv;
-    opt<std::pair<Half, double>> cut;
-    explicit Tvert(const complex uv, opt<std::pair<Half, double>> cut): uv(uv), cut(std::move(cut)) {}
-};
-
-struct Tsgmt {
-    Face  face;
-    Tvert tvFr;
-    Tvert tvTo;
-    Tsgmt(const Face& f, Tvert fr, Tvert to): face(f), tvFr(std::move(fr)), tvTo(std::move(to)) {}
-    double len() const { return std::abs(tvTo.uv - tvFr.uv); }
-};
-
-struct Ttemp {
-    const int id;
-    const mc::Msgmt fr;
-    const mc::Msgmt to;
-    Ttemp(const int id, const mc::Msgmt fr, const mc::Msgmt to): id(id), fr(fr), to(to) {}
-};
-
-struct Tedge : Telem {
-    const vec<Tsgmt> segs;
+struct Tedge {
+    int id;
+    int fr_nid;
+    int to_nid;
+    int crv_id;
+    bool isBgn;
+    bool isEnd;
     double len = 0;
-    bool isBgn; // a flag to show that the bgn vert is from singular point
-    bool isEnd; // a flag to show that the end vert is HitB
-    // int sing_vid // todo: better replacing th2sing
-
-    Tedge(
-        const Tmesh* tm,
-        const int teid,
-        const vec<Tsgmt>& segs,
-        const bool isBgn,
-        const bool isEnd
-    ): Telem(tm, teid), segs(segs), isBgn(isBgn), isEnd(isEnd) {
-        for (auto& sg: segs) len += std::abs(sg.tvTo.uv - sg.tvFr.uv);
-    }
-
-    [[nodiscard]] complex uv_fr() const { return segs.front().tvFr.uv; }
-    [[nodiscard]] complex uv_to() const { return segs.back().tvTo.uv;  }
+    vec<mc::Msgmt> segs;
 };
 
-struct Thalf : Telem {
-    int      teid;
-    int      twid;
-    bool     cano;
-    vec<int> adjs;
+struct Thalf {
+    const Tmesh* tm = nullptr;
+    int id   = -1;
+    int twid = -1;
+    int teid = -1;
+    int nxid = -1;
+    int pvid = -1;
+    bool cano  = false;
 
-    Thalf(
-        const Tmesh* tm,
-        const int teid,
-        const int thid,
-        const int twid,
-        const bool cano
-    ): Telem(tm, thid), teid(teid), twid(twid), cano(cano) {}
+    const Thalf& twin() const;
+    const Thalf& next() const;
+    const Thalf& prev() const;
+    const Tedge& edge() const;
+    int nid_fr() const { return cano ? edge().fr_nid : edge().to_nid; }
+    int nid_to() const { return cano ? edge().to_nid : edge().fr_nid; }
+};
 
-    bool operator==(const Thalf& rhs) const { return id == rhs.id && twid == rhs.twid && teid == rhs.teid && cano == rhs.cano; }
-
-    [[nodiscard]] const Thalf& twin() const;
-    [[nodiscard]] const Thalf& next() const;
-    [[nodiscard]] const Thalf& prev() const;
-    [[nodiscard]] const Tedge& edge() const;
-    [[nodiscard]] complex uv_fr() const;
-    [[nodiscard]] complex uv_to() const;
+struct Tdata {
+    int thid;
+    int side;
 };
 
 struct Tquad {
-    int id;
-    vec<int> thids;
-    vec<int> sides;
+    int id = -1;
+    vec<Tdata> data;
 
-    Tquad(
-        int id,
-        const vec<mc::Mcurv>& mcurvs,
-        const vec<Ttemp>& ttemps,
-        const vec<Thalf>& thalfs,
-        const int bgn_id
-    ) : id(id) {
-
-        auto find_th = [&](const mc::Msgmt& ms, bool cano) -> int {
-            auto it = rg::find_if(thalfs, [&](auto& th) { return th.cano == cano && (ttemps[th.teid].fr == ms || ttemps[th.teid].to == ms); });
-            assert(it != thalfs.end());
-            return it->id;
-        };
-
-        auto get_next = [&](int thid) -> std::pair<int, bool> {
-            const auto& th = thalfs[thid];
-            const auto& tt = ttemps[th.teid];
-            const auto& ct = tt.to.curv;
-            assert(tt.fr.curv == tt.to.curv);
-
-            if (th.cano) {
-                auto& tov = tt.to.to;
-                auto& sgs = tov.crash->sgmts;
-                switch (tov.type) {
-                case mc::HitR: { return {find_th(sgs.back(), false), true}; }
-                case mc::HitB: {
-                    for (auto& s: sgs) {
-                        if (s.fr.crash == ct && s.fr.type == mc::HitL) return {find_th(s, true),  true};
-                        if (s.to.crash == ct && s.to.type == mc::HitL) return {find_th(s, false), true};
-                    }
-                    throw std::runtime_error("thalf not found");
-                }
-                default: return {thid + 2, false};
-                }
-            }
-
-            // not cannonical case
-            if (tt.fr == ct->sgmts.front()) { return {find_th(mcurvs[ct->port.prev].sgmts.front(), true), true}; }
-            if (tt.fr.fr.type == mc::HitR)  { return {find_th(tt.fr.fr.crash->sgmts.back()      , false), true}; }
-            return {thid - 2, false};
-        };
-
-        int side_id = 0;
-        int curr_id = bgn_id;
-
-        do {
-            thids.emplace_back(curr_id);
-            sides.emplace_back(side_id);
-            auto [thid, f] = get_next(curr_id);
-            if (f) side_id = (side_id + 1) % 4;
-            curr_id = thid;
-        }
-        while (bgn_id != curr_id);
-
-        // sort thalfs as not to start from a middle of side
-        if (sides.front() == sides.back()) {
-            int i = sides.front();
-            int n = (int)rg::distance(sides | vw::take_while([=](int x) { return x == i; }));
-            rg::rotate(sides, sides.begin() + n);
-            rg::rotate(thids, thids.begin() + n);
-        }
-        assert(sides.front() != sides.back());
-    }
-
-    [[nodiscard]] vec<int> thids_by_side(int side) const {
-        return vw::zip(thids, sides)
-            | vw::filter([&](const auto& p) { return std::get<1>(p) == side; })
-            | vw::elements<0>
+    vec<int> thids_by_side(int side) const {
+        return data
+            | vw::filter([&](const Tdata& d) { return d.side == side; })
+            | vw::transform([](const Tdata& d) { return d.thid; })
             | rg::to<vec<int>>();
     }
 };
@@ -165,8 +58,6 @@ struct Tmesh {
     vec<Tquad> tquads;
     vec<Thalf> thalfs;
     vec<Tedge> tedges;
-    vec<Ttemp> ttemps;
-    VecXi th2sing; // todo: remove. -1 if thalf is not from singular, otherwise vertex id
     VecXi th2quad;
     VecXi th2side;
     VecXi th2iter;
@@ -174,121 +65,140 @@ struct Tmesh {
     size_t nTE;
     size_t nTH;
 
-    explicit Tmesh(const vec<mc::Mcurv>& mcurvs) {
-        for (auto& mc: mcurvs) {
-            int bgnIdx = mc.sgmts.front().id;
-            for (auto it = mc.sgmts.begin(); it != mc.sgmts.end(); ++it) {
-                if (it->to.type != mc::None) {
-                    int s = (int)ttemps.size();
-                    ttemps.emplace_back(s, mc.sgmts[bgnIdx], *it);
-                    thalfs.emplace_back(this, s, s * 2, s * 2 + 1, true);
-                    thalfs.emplace_back(this, s, s * 2 + 1, s * 2, false);
-                    if (it->next_id != -1) bgnIdx = mc.sgmts[it->next_id].id;
+    explicit Tmesh(const mc::Mgrph& mg) {
+        //===== 1. Extract Thalfs and Tedges =====
+        for (const auto& mc: mg.mcurvs) {
+            vec<mc::Msgmt> sgs;
+            int bgn_nid = mc.sgmts.front().fr_nid;
+
+            for (auto& sg: mc.sgmts) {
+                sgs.push_back(sg);
+
+                if (mg.mnodes[sg.to_nid].jt != mc::JunctionType::None) {
+                    int teid = tedges.size();
+                    int thid = thalfs.size();
+                    int end_nid = sg.to_nid;
+
+                    double len = 0;
+                    for (const auto& s: sgs) {
+                        auto fr = mc::get_face_uv(mg.mnodes[s.fr_nid], s.face_id, mg.hm, mg.cf);
+                        auto to = mc::get_face_uv(mg.mnodes[s.to_nid], s.face_id, mg.hm, mg.cf);
+                        len += std::abs(to - fr);
+                    }
+
+                    thalfs.push_back({.tm = this, .id = thid,     .twid = thid + 1, .teid = teid, .cano = true });
+                    thalfs.push_back({.tm = this, .id = thid + 1, .twid = thid,     .teid = teid, .cano = false});
+                    tedges.push_back({
+                        .id     = teid,
+                        .fr_nid = bgn_nid,
+                        .to_nid = end_nid,
+                        .crv_id = mc.id,
+                        .isBgn  = mg.mnodes[bgn_nid].jt == mc::JunctionType::F,
+                        .isEnd  = mg.mnodes[end_nid].jt == mc::JunctionType::T,
+                        .len    = len,
+                        .segs   = std::move(sgs)
+                    });
+
+                    bgn_nid = end_nid;
+                    sgs.clear();
                 }
             }
         }
 
-        // assign tedges from ttemps
-        for (auto& tt: ttemps) {
-            auto sgs = tt.fr.curv->sgmts
-                | vw::drop(tt.fr.id)
-                | vw::take(tt.to.id - tt.fr.id + 1)
-                | vw::transform([](auto& s) { return Tsgmt(s.face, Tvert(s.fr.uv, s.fr.cut), Tvert(s.to.uv, s.to.cut)); })
-                | rg::to<vec<Tsgmt>>();
+        // ===== 2. Determine Thalfs adjacency =====
+        for (int nid = 0; nid < mg.mnodes.size(); ++nid) {
+            const auto& mn = mg.mnodes[nid];
+            if (mn.jt == mc::JunctionType::None) continue;
 
-            /*
-            auto sgs_ = std::vector<Tsgmt>();
-            double SNAP_EPS = 0.01;
-            for (auto& sg: sgs) {
-                auto& c0 = sg.tvFr.cut;
-                auto& c1 = sg.tvTo.cut;
+            vec<Thalf*> outgoing;
+            for (auto& th: thalfs) if (th.nid_fr() == nid) outgoing.push_back(&th);
+            if (outgoing.empty()) continue;
 
-                // skip shot segment
-                if (c0.has_value() && c1.has_value()) {
-                    auto [h0, r0] = c0.value();
-                    auto [h1, r1] = c1.value();
-                    Row3d p0 = h0.tail().pos() * r0 + h0.head().pos() * (1 - r0);
-                    Row3d p1 = h1.tail().pos() * r1 + h1.head().pos() * (1 - r1);
-                    if ((p0 - p1).norm() < SNAP_EPS) continue;
-                }
-
-                // otherwise, snap vert if possible
-                if (c0.has_value()) {
-                    auto [h, r] = c0.value();
-                    if (r < SNAP_EPS)      c0 = std::optional<std::pair<Half, double>>(std::make_pair(h, 0));
-                    if (r >  1 - SNAP_EPS) c0 = std::optional<std::pair<Half, double>>(std::make_pair(h, 1));
-                }
-                if (c1.has_value()) {
-                    auto [h, r] = c1.value();
-                    if (r < SNAP_EPS)      c1 = std::optional<std::pair<Half, double>>(std::make_pair(h, 0));
-                    if (r >  1 - SNAP_EPS) c1 = std::optional<std::pair<Half, double>>(std::make_pair(h, 1));
-                }
-
-                sgs_.emplace_back(sg);
+            auto get_rank = [&](const Thalf* th) {
+                auto& sg = th->cano ? th->edge().segs.front() : th->edge().segs.back();
+                auto  it = rg::find_if(mn.adj, [&](const Row2i& ad) { return ad.x() == sg.curv_id && ad.y() == sg.this_id; });
+                return std::distance(mn.adj.begin(), it);
             };
-            */
 
-            bool isBgn = tt.fr.fr.type == mc::First;
-            bool isEnd = tt.to.to.type == mc::HitB;
-            tedges.emplace_back(this, tt.id, sgs, isBgn, isEnd);
-        }
+            rg::sort(outgoing, [&](const Thalf* a, const Thalf* b) { return get_rank(a) < get_rank(b); });
 
-
-        th2side.resize((int)thalfs.size());
-        th2quad.resize((int)thalfs.size());
-        th2iter.resize((int)thalfs.size());
-        th2sing.resize((int)thalfs.size());
-        std::vector visit(thalfs.size(), false);
-
-        while (rg::any_of(visit, [](const bool f) { return !f; })) {
-            auto it = rg::find(visit, false);
-            auto id = std::distance(visit.begin(), it);
-            auto tq = Tquad((int)tquads.size(), mcurvs, ttemps, thalfs, id);
-            tquads.emplace_back(tq);
-            for (int i: tq.thids) visit[i] = true;
-            for (int j = 0; j < tq.thids.size(); j++) {
-                th2quad[tq.thids[j]] = tq.id;
-                th2side[tq.thids[j]] = tq.sides[j];
-                th2iter[tq.thids[j]] = j;
+            int n = outgoing.size();
+            for (int i = 0; i < n; ++i) {
+                Thalf* th_out  = outgoing[i];
+                Thalf* th_in   = &thalfs[th_out->twid];
+                Thalf* th_next = outgoing[(i - 1 + n) % n];
+                th_in->nxid = th_next->id;
+                th_next->pvid = th_in->id;
             }
         }
+
+        // ====== 3. Assign sides and thids =====
+        vec visited(thalfs.size(), false);
+
+        for (int i = 0; i < thalfs.size(); ++i) {
+            if (visited[i]) continue;
+
+            Tquad tq;
+            tq.id = tquads.size();
+            int curr_thid = i;
+            int curr_side = 0;
+
+            do {
+                if (visited[curr_thid]) break;
+                tq.data.push_back({curr_thid, curr_side});
+                visited[curr_thid] = true;
+                auto& curr_th = thalfs[curr_thid];
+                auto& next_th = thalfs[curr_th.nxid];
+                if (curr_th.edge().crv_id != next_th.edge().crv_id) curr_side = (curr_side + 1) % 4;
+                curr_thid = next_th.id;
+            } while (curr_thid != i);
+
+            // Rotate until sides data is sequential
+            auto& fst_th = thalfs[tq.data.front().thid];
+            auto& lst_th = thalfs[tq.data.back().thid];
+            if (fst_th.edge().crv_id == lst_th.edge().crv_id) {
+                int f = tq.data.front().side;
+                int n = rg::distance(tq.data | vw::take_while([=](const Tdata& d) { return d.side == f; }));
+                rg::rotate(tq.data, tq.data.begin() + n);
+
+                int s = 0;
+                int last_c = thalfs[tq.data[0].thid].edge().crv_id;
+                for (Tdata& td: tq.data) {
+                    int this_c = thalfs[td.thid].edge().crv_id;
+                    if (this_c != last_c) s = (s + 1) % 4;
+                    td.side = s;
+                    last_c = this_c;
+                }
+            }
+            tquads.push_back(tq);
+        }
+
+        th2quad.resize(thalfs.size());
+        th2side.resize(thalfs.size());
+        th2iter.resize(thalfs.size());
+        for (auto& tq : tquads) {
+        for (int j = 0; j < tq.data.size(); ++j) {
+            th2quad[tq.data[j].thid] = tq.id;
+            th2side[tq.data[j].thid] = tq.data[j].side;
+            th2iter[tq.data[j].thid] = j;
+        }}
 
         nTE = tedges.size();
         nTH = thalfs.size();
         nTQ = tquads.size();
-
-        th2sing.setConstant(-1);
-        for (auto& mc: mcurvs) {
-            auto it = rg::find_if(thalfs, [&](auto& th) { return ttemps[th.teid].fr == mc.sgmts.front(); });
-            assert(it != thalfs.end());
-            th2sing[it->id] = mc.port.vert.id;
-        }
-
-        // Assigns adjacent thalfs for each thalf
-        for (auto& th: thalfs) {
-            auto& tt = ttemps[th.teid];
-            switch (th.cano ? tt.to.to.type : tt.fr.fr.type) {
-                case mc::HitB:
-                case mc::HitL: th.adjs = vec { th.next().id, th.twin().prev().twin().id }; break;
-                case mc::HitR: th.adjs = vec { th.next().id, th.next().twin().next().id }; break;
-                default: break;
-            }
-        }
     }
 
-    [[nodiscard]] int next_thid(const int i) const { int iQ = th2quad[i]; int iT = th2iter[i]; auto& tq = tquads[iQ]; return tq.thids[(iT + 1) % tq.thids.size()]; }
-    [[nodiscard]] int prev_thid(const int i) const { int iQ = th2quad[i]; int iT = th2iter[i]; auto& tq = tquads[iQ]; return tq.thids[(iT - 1 + tq.thids.size()) % tq.thids.size()]; }
+    bool check_non_zero_tquad(const VecXd& X) const {
+        for (const auto& [id, data] : tquads) {
+            if (rg::all_of(data, [&](const Tdata& d) { return X[thalfs[d.thid].teid] == 0; })) return false;
+        }
+        return true;
+    }
 };
-}
 
-// ipp
-namespace metriko {
 inline const Tedge& Thalf::edge() const { return tm->tedges[teid]; }
 inline const Thalf& Thalf::twin() const { return tm->thalfs[twid]; }
-inline const Thalf& Thalf::next() const { return tm->thalfs[tm->next_thid(id)]; }
-inline const Thalf& Thalf::prev() const { return tm->thalfs[tm->prev_thid(id)]; }
-inline complex Thalf::uv_fr() const { return cano ? edge().uv_fr() : edge().uv_to(); }
-inline complex Thalf::uv_to() const { return cano ? edge().uv_to() : edge().uv_fr(); }
+inline const Thalf& Thalf::next() const { return tm->thalfs[nxid]; }
+inline const Thalf& Thalf::prev() const { return tm->thalfs[pvid]; }
 }
-
 #endif

@@ -49,9 +49,9 @@ namespace metriko {
             auto& tq = tquads[tquad_idx];
 
             std::vector<int> pair_idcs;
-            for(int i = 0; i < tq.thids.size(); i++) {
-                int thid = tq.thids[i];
-                int side = tq.sides[i];
+            for(int i = 0; i < tq.data.size(); i++) {
+                int thid = tq.data[i].thid;
+                int side = tq.data[i].side;
                 if (side == (sides_idx + 2) % 4) {
                     pair_idcs.emplace_back(thid);
                 }

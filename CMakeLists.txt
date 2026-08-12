@@ -86,14 +86,22 @@ if (ENABLE_OPENMP)
 endif()
 #========== Done finding OpenMp ========================================================================================
 
-add_library(${PROJECT_NAME} INTERFACE
-        include/metriko/core/tutte/tutte_cutting.h
-        include/metriko/core/common/predicates.h)
+add_library(${PROJECT_NAME} STATIC
+        include/metriko/core/tmesh/motorcycle.h
+        include/metriko/core/tmesh/motorcycle.cpp
+        include/metriko/core/tmesh/tmesh_mut_collapse_range.cpp
+        include/metriko/core/tmesh/tmesh_mut_collapse_thalf.cpp
+        include/metriko/core/tmesh/tmesh_mut_collapse_tq_prepare.cpp
+        include/metriko/core/tmesh/tmesh_mut_collapse_tq_execute.cpp
+        include/metriko/core/tmesh/tmesh_mut_postprocess.cpp
+        include/metriko/core/quantization/quantization.h
+        include/metriko/core/hmesh/heat_method.h
+)
 
-target_compile_definitions(${PROJECT_NAME} INTERFACE NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
+target_compile_definitions(${PROJECT_NAME} PUBLIC NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
 
-target_link_libraries(${PROJECT_NAME} INTERFACE igl::core)
-target_include_directories(${PROJECT_NAME} INTERFACE include)
+target_link_libraries(${PROJECT_NAME} PUBLIC igl::core)
+target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 if(GC_HAVE_SUITESPARSE)
     target_compile_definitions(${PROJECT_NAME} INTERFACE GC_HAVE_SUITESPARSE)
