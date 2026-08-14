@@ -82,6 +82,7 @@ inline void visualize_tedge(
     }
 
     auto c = polyscope::registerCurveNetwork(prefix + "tedges", ns, es);
+    c->setMaterial("flat");
     c->setColor(glm::vec4(.0, .0, .0, 1.));
     c->addEdgeScalarQuantity("teid", teids);
     c->addEdgeScalarQuantity("tqid1", tqid1);
@@ -188,6 +189,7 @@ inline void debug_tquad_sides(
 
     // 3. Polyscopeへの登録
     auto c = polyscope::registerCurveNetwork(prefix + "tquad_validation", ns, es);
+    c->setMaterial("flat");
     c->setColor(glm::vec4(0.2, 0.2, 0.2, 1.0)); // 基本は暗いグレー
     c->addEdgeScalarQuantity("quad_id", quad_ids);
     c->addEdgeScalarQuantity("side_id", side_ids);
@@ -275,6 +277,7 @@ inline void visualize_half_data(
 
     // Polyscope への登録
     auto* net = polyscope::registerCurveNetwork(name, nodes, edges);
+    net->setMaterial("flat");
     net->setRadius(0.001); // 見やすいように少し太め
 
     // エッジアトリビュートの追加
@@ -347,6 +350,7 @@ inline void visualize_tmesh_mut(
             }
         }
         auto* cn = polyscope::registerCurveNetwork("tedges_collapsed", ns, es);
+        cn->setMaterial("flat");
         cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
         cn->setRadius(0.0015);
         cn->resetTransform();
@@ -384,6 +388,7 @@ inline void visualize_tmesh_mut(
         }
         if (!ns.empty()) {
             auto* cn = polyscope::registerCurveNetwork("collinear faces", ns, es);
+            cn->setMaterial("flat");
             cn->setColor({1., 0.2, 0.1});
             cn->setRadius(0.0015);
             cn->resetTransform();

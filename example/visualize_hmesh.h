@@ -63,6 +63,7 @@ inline void visualize_seam(
         }
     }
     auto c = polyscope::registerCurveNetwork(name, ns, es);
+    c->setMaterial("flat");
     if(use_matching) c->addEdgeScalarQuantity("matching", ms);
     c->setEnabled(show);
     c->resetTransform();

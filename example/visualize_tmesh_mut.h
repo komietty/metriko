@@ -26,6 +26,7 @@ inline void visualize_tedge_mut_collapsed(
         }
     }
     auto* cn = polyscope::registerCurveNetwork("tedges_collapsed", ns, es);
+    cn->setMaterial("flat");
     cn->setEnabled(show);
     cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
     cn->setRadius(scale);
@@ -54,6 +55,7 @@ inline void visualize_tedge_mut_snapped(
         }
     }
     auto* cn = polyscope::registerCurveNetwork("tedges_snapped", ns, es);
+    cn->setMaterial("flat");
     cn->setEnabled(show);
     cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
     cn->setRadius(scale);
@@ -173,6 +175,7 @@ inline void visualize_face_collinear_error(
     }
     if (!ns.empty()) {
         auto* cn = polyscope::registerCurveNetwork("collinear faces", ns, es);
+        cn->setMaterial("flat");
         cn->setEnabled(show);
         cn->setColor({1., 0.2, 0.1});
         cn->setRadius(0.0015);

@@ -271,6 +271,7 @@ inline void visualize_quad_patch(
             c += 2;
         }
         auto* cn = polyscope::registerCurveNetwork("quad patch boundary", ns, es);
+        cn->setMaterial("flat");
         cn->setColor({0.05, 0.05, 0.05});
         cn->setRadius(0.0012);
         cn->resetTransform();

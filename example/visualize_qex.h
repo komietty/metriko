@@ -135,6 +135,7 @@ inline void visualize_qport_group(
             c += 2;
         }
         auto* cn = polyscope::registerCurveNetwork(std::format("bad face {}", fid), ns, es);
+        cn->setMaterial("flat");
         cn->setColor({1., 0.15, 0.1});
         cn->setRadius(0.0012);
         cn->resetTransform();
@@ -159,6 +160,7 @@ inline void visualize_qedges(
         counter += 2;
     }
     auto q_edge_curv = polyscope::registerCurveNetwork("q_edges", QN, QE);
+    q_edge_curv->setMaterial("flat");
     q_edge_curv->resetTransform();
     q_edge_curv->setRadius(scale);
     q_edge_curv->setEnabled(false);
@@ -169,7 +171,7 @@ inline void visualize_qedges(
 inline void visualize_qfaces(
     const Hmesh& hm,
     const vec<qex::Qface>& qfaces,
-    const bool refine = false
+    const bool refine = true
 ) {
     std::vector<std::array<size_t, 4> > QF;
     int l = qfaces.size();

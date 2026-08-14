@@ -77,6 +77,7 @@ inline void visualize_motorcycle_graph(
     }
 
     auto c = polyscope::registerCurveNetwork("motorcycle graph", ns, es);
+    c->setMaterial("flat");
     c->setColor(glm::vec4(.0, .0, .0, 1.));
     auto v_mcid = c->addEdgeScalarQuantity("mcid", mcid);
     v_mcid->setEnabled(true);
