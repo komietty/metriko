@@ -4,7 +4,6 @@
 
 #ifndef METRIKO_HMESH_H
 #define METRIKO_HMESH_H
-#include <uuid/uuid.h>
 #include "igl/edge_topology.h"
 #include "metriko/core/common/typedef.h"
 
