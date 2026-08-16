@@ -5,6 +5,8 @@
 #ifndef METRIKO_ITER_ROUNDING_INIT_H
 #define METRIKO_ITER_ROUNDING_INIT_H
 #include <set>
+#include <stdexcept>
+#include <string>
 #include <igl/local_basis.h>
 #include <igl/unique.h>
 #include <igl/setdiff.h>
@@ -200,8 +202,10 @@ namespace metriko {
             Eigen::SparseLU<SprsD> solver;
             solver.compute(bigMat);
             if (solver.info() != Eigen::Success) {
-                std::cout << "Solver failed..." << std::endl;
-                return;
+                throw std::runtime_error(
+                    "Metriko NaiveIntegration: initial Poisson solve (SparseLU) "
+                    "failed. The mesh is likely degenerate, too coarsely "
+                    "tessellated, or has sharp features.");
             }
 
             VecXd XSmallFull = solver.solve(bigRhs);
