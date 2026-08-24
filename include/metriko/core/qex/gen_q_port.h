@@ -10,45 +10,42 @@ namespace metriko::qex {
         const std::vector<Qvert> &eqverts,
         std::vector<Qport> &qports
     ) {
-        std::vector<Qport> tmp;
-        std::vector<Row3d> visit;
-
         for (const Qvert &qv: eqverts) {
-            tmp.clear();
+            vec<std::pair<double, Qport>> ps;
             Edge e = mesh.edges[qv.sid];
             for (const Half h: std::vector{e.half(), e.half().twin()}) {
-                Crnr c1 = h.next().crnr();
-                Crnr c2 = h.prev().crnr();
+                Crnr c1  = h.next().crnr();
+                Crnr c2  = h.prev().crnr();
                 auto uv1 = cfn(c1.id);
                 auto uv2 = cfn(c2.id);
-                auto uv3 = cfn(h.crnr().id);
                 Row3d p1 = c1.vert().pos();
                 Row3d p2 = c2.vert().pos();
-                auto uv = lerp(uv1, uv2, (qv.pos - p1).norm() / (p2 - p1).norm());
+                auto uv  = lerp(uv1, uv2, (qv.pos - p1).norm() / (p2 - p1).norm());
 
-                int r;
-                for (r = 0; r < 4; r++) {
-                    if (is_points_into(uv1, uv2, uv3, uv1 + get_quater_rot(r))) break;
-                }
                 for (int i = 0; i < 4; i++) {
-                    auto dir = get_quater_rot((r + i + 2) % 4); // considering r = 0 and boundary case
-                    bool f1 = orientation(uv1, uv2, uv + dir) >= 0;
-                    auto ev = conversion_2d_3d(h.face(), cfn, uv + dir).normalized();
-                    auto it = rg::find_if(visit, [&](const Row3d &v) { return (ev - v).norm() < EPS; });
-                    if (f1 && it == visit.end()) {
-                        tmp.emplace_back(-1, -1, e.id, h.face().id, nearby_grid(uv), dir, qv.pos);
-                        visit.emplace_back(ev);
-                    }
+                    auto d  = get_quater_rot(i);
+
+                    if (is_collinear(uv1, uv2, uv + d) ?
+                        !h.isCanonical() :                // if collinear, always non cano face will be skipped
+                        orientation(uv1, uv2, uv + d) < 0 // if not collinear dir must be inside face otherwise skipped
+                    ) continue;
+
+                    double k = std::arg(d / (uv2 - uv1)); // angle from the edge: [0, pi] in this chart
+                    if (k < 0) k += TwoPI;                // exact anti-parallel may yield -pi
+                    ps.emplace_back((h.isCanonical() ? 0 : PI) + k, Qport(-1, -1, e.id, h.face().id, nearby_grid(uv), d, qv.pos));
                 }
             }
 
-            assert(tmp.size() == 4);
-            for (int i = 0; i < 4; i++) { tmp[i].idx = (int) qports.size() + i; }
-            for (int i = 0; i < 4; i++) {
-                tmp[i].prev_id = tmp[(i - 1 + 4) % 4].idx;
-                tmp[i].next_id = tmp[(i + 1 + 4) % 4].idx;
+            assert(ps.size() == 4);
+            rg::sort(ps, {}, [](const auto& p) { return p.first; });
+
+            const int s = ps.size();
+            for (int i = 0; i < s; i++) { ps[i].second.idx = qports.size() + i; }
+            for (int i = 0; i < s; i++) {
+                ps[i].second.prev_id = ps[(i - 1 + s) % s].second.idx;
+                ps[i].second.next_id = ps[(i + 1    ) % s].second.idx;
+                qports.push_back(ps[i].second);
             }
-            qports.insert(qports.end(), tmp.begin(), tmp.end());
         }
     }
 
@@ -63,7 +60,7 @@ namespace metriko::qex {
                 qports.emplace_back(qports.size(), -1, -1, f.id, qv.uv, get_quater_rot(i), qv.pos);
             }
             for (int i = 0; i < 4; i++) {
-                int l = (int) qports.size();
+                int l = qports.size();
                 qports[l - i - 1].next_id = qports[l - (i - 1 + 4) % 4 - 1].idx;
                 qports[l - i - 1].prev_id = qports[l - (i + 1 + 4) % 4 - 1].idx;
             }
@@ -76,35 +73,38 @@ namespace metriko::qex {
         const std::vector<Qvert> &vqverts,
         std::vector<Qport> &qports
     ) {
-        std::vector<Qport> tmp;
-
         for (const Qvert &qv: vqverts) {
-            tmp.clear();
+            vec<std::pair<double, Qport>> ps;
+            double acc = 0.;
             Vert v = mesh.verts[qv.sid];
             for (Half h: v.adjHalfs()) {
                 auto uv1 = cfn(h.next().crnr().id);
                 auto uv2 = cfn(h.prev().crnr().id);
                 auto uv3 = cfn(h.crnr().id);
-                int r;
-                for (r = 0; r < 4; r++) {
-                    if (is_points_into(uv1, uv2, uv3, uv1 + get_quater_rot(r))) break;
-                }
                 for (int i = 0; i < 4; i++) {
-                    auto d = get_quater_rot((r + i + 3) % 4); // considering r = 0
+                    auto d  = get_quater_rot(i);
                     bool f1 = is_points_into(uv1, uv2, uv3, uv1 + d);
                     bool f2 = is_collinear(uv1, uv2, uv1 + d);
                     bool f3 = dot(uv2 - uv1, d) > 0;
-                    if (f1 || (f2 && f3)) tmp.emplace_back(-1, v.id, -1, h.face().id, uv1, d, qv.pos);
+                    if (f1 || (f2 && f3)) {
+                        ps.emplace_back(
+                            acc + std::arg(d / (uv2 - uv1)),
+                            Qport{-1, v.id, -1, h.face().id, uv1, d, qv.pos}
+                        );
+                    }
                 }
-            }
-            const int s = (int) tmp.size();
-            for (int i = 0; i < s; i++) { tmp[i].idx = (int) qports.size() + i; }
-            for (int i = 0; i < s; i++) {
-                tmp[i].prev_id = tmp[(i - 1 + s) % s].idx;
-                tmp[i].next_id = tmp[(i + 1 + s) % s].idx;
+                acc += std::arg((uv3 - uv1) / (uv2 - uv1));
             }
 
-            qports.insert(qports.end(), tmp.begin(), tmp.end());
+            rg::sort(ps, {}, [](const auto& p) { return p.first; });
+
+            const int s = ps.size();
+            for (int i = 0; i < s; i++) { ps[i].second.idx = qports.size() + i; }
+            for (int i = 0; i < s; i++) {
+                ps[i].second.prev_id = ps[(i - 1 + s) % s].second.idx;
+                ps[i].second.next_id = ps[(i + 1    ) % s].second.idx;
+                qports.push_back(ps[i].second);
+            }
         }
     }
 }

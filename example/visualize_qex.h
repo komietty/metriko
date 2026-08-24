@@ -6,6 +6,7 @@
 #include "metriko/core/qex/gen_q_port.h"
 #include "metriko/core/qex/gen_q_edge.h"
 #include "metriko/core/qex/gen_q_face.h"
+#include "metriko/core/qex/refinement.h"
 
 namespace metriko::visualizer {
 

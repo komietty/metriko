@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
 
             sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
             slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-            slim_solve(sData, 10);
+            slim_solve(sData, 50);
 
             std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
             auto* surf = polyscope::registerSurfaceMesh("slim result", hm_cut->pos, hm_cut->idx);
@@ -172,7 +172,10 @@ int main(int argc, char** argv) {
                         visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
                     }
 
-                    // angular order: 3d directions must rotate monotonically
+                    // angular order: the cycle must be a rotation of the
+                    // angle-sorted order. counting descents tolerates a gap
+                    // wider than pi, which is legitimate for small groups
+                    // (e.g. 3 ports at a valence-3 singularity)
                     vec<Row3d> dirs;
                     for (int k = i; k < j; ++k) {
                         auto& p = q_ports[k];
@@ -182,13 +185,20 @@ int main(int argc, char** argv) {
                     }
                     Row3d n = Row3d::Zero();
                     for (int k = 0; k < s; ++k) n += dirs[k].cross(dirs[(k + 1) % s]);
-                    for (int k = 0; k < s; ++k)
-                        if (n.dot(dirs[k].cross(dirs[(k + 1) % s])) <= 0) {
-                            std::println("[qport] non-CCW cycle: group at port {} (vid {}, eid {}, fid {}, slot {})",
-                                         q_ports[i].idx, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid, k);
-                            visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
-                            break;
-                        }
+                    n.normalize();
+                    Row3d bx = (dirs[0] - n * n.dot(dirs[0])).normalized();
+                    Row3d by = n.cross(bx);
+                    int descents = 0;
+                    for (int k = 0; k < s; ++k) {
+                        double t0 = std::atan2(dirs[k].dot(by), dirs[k].dot(bx));
+                        double t1 = std::atan2(dirs[(k + 1) % s].dot(by), dirs[(k + 1) % s].dot(bx));
+                        if (t1 < t0) ++descents;
+                    }
+                    if (descents != 1) {
+                        std::println("[qport] non-CCW cycle: group at port {} (vid {}, eid {}, fid {}, descents {})",
+                                     q_ports[i].idx, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid, descents);
+                        visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
+                    }
                     i = j;
                 }
             }
