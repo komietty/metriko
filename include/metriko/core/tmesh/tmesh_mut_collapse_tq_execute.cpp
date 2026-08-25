@@ -181,9 +181,9 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
     bool cfr_l = count_adj_tquads(th_l.id) == 4   && !on_chain(th_l.loc_fr());
     bool cto_l = count_adj_tquads(th_l.twid) == 4 && !on_chain(th_l.loc_to());
 
-    if (!thids_bgn.empty() && thids_end.empty() && chain.pts.size() == 2) {
+    if (!thids_bgn.empty() && thids_end.empty()) {
         assert(is_top_bgn == is_top_end);
-        assert(thids_bgn.size() == 1);
+        assert(thids_bgn.size() == chain.pts.size() - 1);
         bool ahd_l = th_l.loc_fr() == loc_bgn;
         bool ahd_r = th_r.loc_fr() == loc_end;
         extend(th_l, ahd_l, cfr_l || cto_l);
