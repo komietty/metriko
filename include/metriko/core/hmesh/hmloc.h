@@ -56,6 +56,11 @@ inline Row3d get_ptloc_normal(
             Row3d d = e.face0().normal() + e.face1().normal();
             return d.norm() > 0 ? d.normalized() : Row3d::Zero();
         },
+        [&](const HmLocOnH& l) -> Row3d {
+            Half  h = hm.halfs[l.id];
+            Row3d d = h.face().normal() + h.twin().face().normal();
+            return d.norm() > 0 ? d.normalized() : Row3d::Zero();
+        },
         [&](const auto& _) -> Row3d { throw std::runtime_error("no impl"); },
     }, hl);
 }
