@@ -5,6 +5,7 @@
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
 #include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/tmesh_mut_validate.h"
 #include "common.h"
 #include "visualize_hmesh.h"
 #include "visualize_tmesh_mut.h"
@@ -71,7 +72,7 @@ int main(int argc, char** argv) {
         }
 
         // collapse tquad
-        for (const auto& [tqid, data] : tmm.tquads) {
+        for (const auto& [tqid, data] : tmm.live_tquads()) {
             Tqchain chain;
             if (tmm.collapse_tquad_chain_prepare(tqid, chain)) {
                 std::cout << "tq collapse: " << tqid << std::endl;
@@ -118,6 +119,11 @@ int main(int argc, char** argv) {
     tmm.collapse_tedge_snap(false);
     tmm.collapse_tedge_snap(true);
     for (const auto& [teid, _] : tmm.live_tedges()) { tmm.collapse_tedge_snap_dedup(teid); }
+
+    // snapping can bring two tedges into contact: re-trace the offenders and
+    // refuse to emit a t-mesh that still has contacts
+    repair_crossing_tedges(tmm);
+    if (validate_no_crossing(tmm, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
 
     save_tmm(std::format("{}.{}.tmm", argv[1], argv[2]), tmm);
     std::println("saved tmm cache");

@@ -15,7 +15,7 @@ namespace metriko::qex {
         const MatXi& F,       // input surface triangles
         MatXd& pos_refined,
         MatXi& idx_refined,
-        const int    iters  = 100,
+        const int    iters  = 300,
         const double lambda = 0.01
     ) {
         /// 1: weld the per-quad duplicated corners into a connected quad mesh

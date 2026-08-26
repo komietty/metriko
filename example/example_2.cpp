@@ -66,19 +66,20 @@ int main(int argc, char** argv) {
             if (th.id == -1 || !th.cano) continue;
             for (int nid: tmm.tedges[th.teid].nids) {
                 auto key = loc_str(tmm.tnodes[nid]);
-                if (auto [it, ins] = seen.try_emplace(key, nid, th.teid); !ins && it->second.first != nid)
-                    std::println("[warn] duplicate tnode: {} (nid {} in teid {} / nid {} in teid {})",
-                                 key, it->second.first, it->second.second, nid, th.teid);
+                if (auto [it, ins] = seen.try_emplace(key, nid, th.teid); !ins && it->second.first != nid) std::println("[warn] duplicate tnode: {} (nid {} in teid {} / nid {} in teid {})", key, it->second.first, it->second.second, nid, th.teid);
             }
         }
     }
 
-    // TODO TEMP: dump the two tedges involved in the conflicting pin
-    for (int thid: {241, 259}) {
-        const auto& th = tmm.thalfs[thid];
-        std::print("[debug] thid {} teid {} x {} cano {} nids:", thid, th.teid, th.x, th.cano);
-        for (int nid: tmm.tedges[th.teid].nids) std::print(" {}={}", nid, loc_str(tmm.tnodes[nid]));
-        std::println("");
+    { // boundary of every live tquad must be a closed loop in order
+        for (const auto& tq: tmm.live_tquads()) {
+            auto& d = tq.data;
+            for (size_t k = 0; k < d.size(); ++k) {
+                const auto& a = tmm.thalfs[d[k].thid];
+                const auto& b = tmm.thalfs[d[(k + 1) % d.size()].thid];
+                if (a.loc_to() != b.loc_fr()) std::println("[warn] tquad {}: boundary broken between thid {} and thid {} ({} vs {})", tq.id, a.id, b.id, loc_str(a.loc_to()), loc_str(b.loc_fr()));
+            }
+        }
     }
 
     ///--- cut the original mesh along the collapsed t-mesh ---///
@@ -139,18 +140,9 @@ int main(int argc, char** argv) {
             MatXd bc(bc_.size(), 2);
             for (int i = 0; i < bc_.size(); ++i) bc.row(i) = bc_[i];
 
-            //sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
-            //slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-            //slim_solve(sData, 50);
-
             sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
             slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-            slim_solve(sData, 20);   // warm start: bring the distortion down first
-
-            // then emphasize the worst (near-singular) triangles
-            sData.slim_energy = igl::MappingEnergyType::EXP_SYMMETRIC_DIRICHLET;
-            sData.exp_factor  = 0.1; // keep exp arguments small; raise gradually
-            slim_solve(sData, 20);
+            slim_solve(sData, 50);
 
             std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
             auto* surf = polyscope::registerSurfaceMesh("slim result", hm_cut->pos, hm_cut->idx);
@@ -161,8 +153,6 @@ int main(int argc, char** argv) {
             prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
             prms->setCheckerSize(1);
         }
-
-        //polyscope::show(); return 0;
 
         // ------ qex on the slim result ------
         {
@@ -188,53 +178,6 @@ int main(int argc, char** argv) {
             qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
 
             visualizer::visualize_qports(*hm_emb, cfn, q_ports, 0.001, false);
-
-
-            { // TODO TEMP: validate port cycles per qvert
-                int i = 0;
-                while (i < (int)q_ports.size()) {
-                    int j = i;
-                    while (j < (int)q_ports.size() && (q_ports[j].pos - q_ports[i].pos).norm() < 1e-12) ++j;
-                    const int s = j - i;
-
-                    int cur = q_ports[i].idx, cnt = 0;
-                    do { cur = q_ports[cur].next_id; ++cnt; } while (cur != q_ports[i].idx && cnt <= s);
-                    if (cnt != s) {
-                        std::println("[qport] broken cycle: group at port {} (size {}, vid {}, eid {}, fid {})",
-                                     q_ports[i].idx, s, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid);
-                        visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
-                    }
-
-                    // angular order: the cycle must be a rotation of the
-                    // angle-sorted order. counting descents tolerates a gap
-                    // wider than pi, which is legitimate for small groups
-                    // (e.g. 3 ports at a valence-3 singularity)
-                    vec<Row3d> dirs;
-                    for (int k = i; k < j; ++k) {
-                        auto& p = q_ports[k];
-                        Row3d d = (conversion_2d_3d(hm_emb->faces[p.fid], cfn, p.uv + p.dir)
-                                 - conversion_2d_3d(hm_emb->faces[p.fid], cfn, p.uv)).normalized();
-                        dirs.push_back(d);
-                    }
-                    Row3d n = Row3d::Zero();
-                    for (int k = 0; k < s; ++k) n += dirs[k].cross(dirs[(k + 1) % s]);
-                    n.normalize();
-                    Row3d bx = (dirs[0] - n * n.dot(dirs[0])).normalized();
-                    Row3d by = n.cross(bx);
-                    int descents = 0;
-                    for (int k = 0; k < s; ++k) {
-                        double t0 = std::atan2(dirs[k].dot(by), dirs[k].dot(bx));
-                        double t1 = std::atan2(dirs[(k + 1) % s].dot(by), dirs[(k + 1) % s].dot(bx));
-                        if (t1 < t0) ++descents;
-                    }
-                    if (descents != 1) {
-                        std::println("[qport] non-CCW cycle: group at port {} (vid {}, eid {}, fid {}, descents {})",
-                                     q_ports[i].idx, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid, descents);
-                        visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
-                    }
-                    i = j;
-                }
-            }
 
             auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
             auto qfaces = qex::generate_q_faces(q_ports, qedges);
