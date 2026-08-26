@@ -60,6 +60,27 @@ int main(int argc, char** argv) {
         }
     }
 
+    { // cross-tedge duplicate nodes: two distinct tnodes at the same location
+        std::map<std::string, std::pair<int, int>> seen; // loc string -> (nid, teid)
+        for (const auto& th: tmm.thalfs) {
+            if (th.id == -1 || !th.cano) continue;
+            for (int nid: tmm.tedges[th.teid].nids) {
+                auto key = loc_str(tmm.tnodes[nid]);
+                if (auto [it, ins] = seen.try_emplace(key, nid, th.teid); !ins && it->second.first != nid)
+                    std::println("[warn] duplicate tnode: {} (nid {} in teid {} / nid {} in teid {})",
+                                 key, it->second.first, it->second.second, nid, th.teid);
+            }
+        }
+    }
+
+    // TODO TEMP: dump the two tedges involved in the conflicting pin
+    for (int thid: {241, 259}) {
+        const auto& th = tmm.thalfs[thid];
+        std::print("[debug] thid {} teid {} x {} cano {} nids:", thid, th.teid, th.x, th.cano);
+        for (int nid: tmm.tedges[th.teid].nids) std::print(" {}={}", nid, loc_str(tmm.tnodes[nid]));
+        std::println("");
+    }
+
     ///--- cut the original mesh along the collapsed t-mesh ---///
     vec<bool> seam1;
     VecXi matching1;
@@ -118,9 +139,18 @@ int main(int argc, char** argv) {
             MatXd bc(bc_.size(), 2);
             for (int i = 0; i < bc_.size(); ++i) bc.row(i) = bc_[i];
 
+            //sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
+            //slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
+            //slim_solve(sData, 50);
+
             sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
             slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-            slim_solve(sData, 50);
+            slim_solve(sData, 20);   // warm start: bring the distortion down first
+
+            // then emphasize the worst (near-singular) triangles
+            sData.slim_energy = igl::MappingEnergyType::EXP_SYMMETRIC_DIRICHLET;
+            sData.exp_factor  = 0.1; // keep exp arguments small; raise gradually
+            slim_solve(sData, 20);
 
             std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
             auto* surf = polyscope::registerSurfaceMesh("slim result", hm_cut->pos, hm_cut->idx);
@@ -131,6 +161,8 @@ int main(int argc, char** argv) {
             prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
             prms->setCheckerSize(1);
         }
+
+        //polyscope::show(); return 0;
 
         // ------ qex on the slim result ------
         {
@@ -156,6 +188,7 @@ int main(int argc, char** argv) {
             qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
 
             visualizer::visualize_qports(*hm_emb, cfn, q_ports, 0.001, false);
+
 
             { // TODO TEMP: validate port cycles per qvert
                 int i = 0;
@@ -208,7 +241,7 @@ int main(int argc, char** argv) {
 
             visualizer::visualize_qedges(qedges);
             visualizer::visualize_qfaces(hm, qfaces, true);
-            //visualizer::visualize_quad_patch(hm, tmm, singular, qfaces);
+            visualizer::visualize_quad_patch(hm, tmm, singular, qfaces);
         }
     } else std::println("[tutte] compute_tutte_parameterization failed");
 

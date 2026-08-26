@@ -75,7 +75,41 @@ int main(int argc, char** argv) {
             Tqchain chain;
             if (tmm.collapse_tquad_chain_prepare(tqid, chain)) {
                 std::cout << "tq collapse: " << tqid << std::endl;
-                tmm.collapse_tquad_chain_execute(chain);
+
+                // TODO TEMP: dump the chain when execute fails, then rethrow
+                try {
+                    tmm.collapse_tquad_chain_execute(chain);
+                } catch (const std::exception& ex) {
+                    std::println("[debug] execute failed at tqid {}: {}", tqid, ex.what());
+                    std::print  ("[debug] tqids:");
+                    for (int t: chain.tqids)  std::print(" {}", t);
+                    std::print  ("  bounds:");
+                    for (int b: chain.bounds) std::print(" {}", b);
+                    std::println("");
+                    for (size_t k = 0; k < chain.pts.size(); ++k) {
+                        const auto& p = chain.pts[k];
+                        std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} adj {} top {}",
+                                     k, loc_str(p.loc), p.val, p.ord, p.adj, p.top);
+                    }
+                    auto dump_side = [&](const char* name, const vec<int>& thids) {
+                        for (int t: thids) {
+                            const auto& th = tmm.thalfs[t];
+                            std::println("[debug] {} thid {} (teid {}, tqid {}, cano {}, x {}): {} -> {}",
+                                         name, t, th.teid, th.tqid, th.cano, th.x,
+                                         loc_str(th.loc_fr()), loc_str(th.loc_to()));
+                        }
+                    };
+                    dump_side("thids_t", chain.thids_t);
+                    dump_side("thids_b", chain.thids_b);
+                    dump_side("thids_z", chain.thids_z);
+                    for (int t: {chain.thid_l, chain.thid_r}) {
+                        const auto& th = tmm.thalfs[t];
+                        std::println("[debug] {} thid {}: {} -> {}",
+                                     t == chain.thid_l ? "thid_l" : "thid_r",
+                                     t, loc_str(th.loc_fr()), loc_str(th.loc_to()));
+                    }
+                    throw;
+                }
                 validate_tmeshmut(tmm);
             }
         }
