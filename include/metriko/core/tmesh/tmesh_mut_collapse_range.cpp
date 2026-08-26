@@ -24,14 +24,21 @@ vec<std::tuple<int, double, double>> TmeshMut::allowed_range(int tqid) const {
             int nid = te.nids[j];
             const HmLoc& loc = tnodes[nid];
             if (auto* v = std::get_if<HmLocOnV>(&loc)) { v_stop[v->id] = true; continue; }
-            auto* e = std::get_if<HmLocOnE>(&loc);
-            if (!e) continue;
-            if (!lo.contains(e->id)) { lo[e->id] = 0.; hi[e->id] = 1.; }
+            int eid;
+            double r;
+            if      (auto* e = std::get_if<HmLocOnE>(&loc)) { eid = e->id; r = e->r; }
+            else if (auto* h = std::get_if<HmLocOnH>(&loc)) {
+                Half hf = hm.halfs[h->id];
+                eid = hf.edge().id;
+                r   = hf.isCanonical() ? h->r : 1. - h->r;
+            } else continue;
+
+            if (!lo.contains(eid)) { lo[eid] = 0.; hi[eid] = 1.; }
             int jn = th.cano ? j + 1 : j - 1;
             Row3d dir = lpos(te.nids[jn]) - lpos(nid);
             Row3d nrm = get_ptloc_normal(hm, loc);
-            if (nrm.dot(dir.cross(edir(e->id))) > 0) lo[e->id] = std::max(lo[e->id], e->r);  // 内側 ⊂ [r,1]
-            else                                     hi[e->id] = std::min(hi[e->id], e->r);  // 内側 ⊂ [0,r]
+            if (nrm.dot(dir.cross(edir(eid))) > 0) lo[eid] = std::max(lo[eid], r);  // 内側 ⊂ [r,1]
+            else                                   hi[eid] = std::min(hi[eid], r);  // 内側 ⊂ [0,r]
         }
     }
 
