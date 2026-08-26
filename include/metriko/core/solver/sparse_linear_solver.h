@@ -5,6 +5,8 @@
 #ifndef METRIKO_SUITESPARSE_INTERFACE_H
 #define METRIKO_SUITESPARSE_INTERFACE_H
 #include <iostream>
+#include <stdexcept>
+#include <string>
 #include "metriko/core/common/typedef.h"
 #include <Eigen/Sparse>
 #ifdef GC_HAVE_SUITESPARSE
@@ -13,6 +15,16 @@
 #endif
 
 namespace metriko {
+    inline void check_solver_info(const Eigen::SparseLU<SprsC>& solver, const char *what) {
+        if (solver.info() != Eigen::Success) {
+            throw std::runtime_error(
+                std::string("Metriko SparseLU failed to factorize the ") + what +
+                " (info=" + std::to_string(static_cast<int>(solver.info())) +
+                "). The mesh is likely degenerate, too coarsely tessellated, or "
+                "contains sharp features / bad triangles.");
+        }
+    }
+
     inline VecXc solveSquare(SprsC& lhs, VecXc& rhs) {
         #ifdef GC_HAVE_SUITESPARSE
         VecXc x;
@@ -22,6 +34,7 @@ namespace metriko {
         #else
         Eigen::SparseLU<SprsC> solver;
         solver.compute(lhs);
+        check_solver_info(solver, "system matrix");
         return solver.solve(rhs);
         #endif
     }
@@ -41,6 +54,7 @@ namespace metriko {
         #else
         Eigen::SparseLU<SprsC> solver;
         solver.compute(L);
+        check_solver_info(solver, "connection Laplacian");
         VecXc u = VecXc::Random(L.rows());
         VecXc x = u;
         for (size_t i = 0; i < nIter; i++) {

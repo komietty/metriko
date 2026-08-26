@@ -4,6 +4,9 @@
 
 #ifndef METRIKO_MOTORCYCLE_H
 #define METRIKO_MOTORCYCLE_H
+#include <algorithm>
+#include <stdexcept>
+#include <string>
 #include "../common/utilities.h"
 #include "../hmesh/hmesh.h"
 #include "../hmesh/utilities.h"
@@ -149,8 +152,30 @@ namespace metriko {
             gen_ports(hmesh, cfn, singular);
             for (auto &p: mports) mcurvs.emplace_back(this, p);
             for (auto &e: mcurvs) e.add_segment_init(cfn, mcurvs, matching);
+            // Safety guard: on degenerate parameterizations (e.g. sharp
+            // features like cube corners) motorcycle curves can fail to ever
+            // intersect, growing segments and spinning forever.  Fail with a
+            // clear error instead of running out of memory / hanging.
+            const int max_passes = std::max(1000, 100 * static_cast<int>(mcurvs.size()) + 1000);
+            const long max_segments = 10000L + 100L * static_cast<long>(hmesh.nF);
+            int passes = 0;
             while (rg::any_of(mcurvs, [](auto &e) { return !e.cache.intersected; })) {
                 for (auto &s: mcurvs) s.add_segment_next(cfn, mcurvs, matching);
+                long n_segments = 0;
+                for (auto &s: mcurvs) n_segments += static_cast<long>(s.sgmts.size());
+                if (n_segments > max_segments)
+                    throw std::runtime_error(
+                        "Metriko MotorcycleGraph: motorcycle curves keep "
+                        "growing without intersecting (" + std::to_string(n_segments) +
+                        " segments > " + std::to_string(max_segments) + "). The UV "
+                        "parameterization is degenerate — likely due to sharp "
+                        "features or a bad mesh.");
+                if (++passes > max_passes)
+                    throw std::runtime_error(
+                        "Metriko MotorcycleGraph: failed to intersect all "
+                        "motorcycle curves after " + std::to_string(max_passes) +
+                        " passes. The UV parameterization is degenerate — "
+                        "likely due to sharp features or a bad mesh.");
             }
             for (auto &s: mcurvs) s.post_process();
         }

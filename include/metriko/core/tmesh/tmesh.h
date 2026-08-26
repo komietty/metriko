@@ -99,10 +99,16 @@ namespace metriko {
         ) : id(id) {
             int side_idx = 0;
             Thalf curr = bgn;
+            const size_t max_thids = thalfs.size() + 1;
 
             do {
                 thids.emplace_back(curr.id);
                 sides.emplace_back(side_idx);
+                if (thids.size() > max_thids)
+                    throw std::runtime_error(
+                        "Metriko Tquad: thalf walk did not close after visiting "
+                        "all thalfs. The T-mesh is degenerate — likely due to "
+                        "sharp features or a bad mesh.");
                 auto [th, f] = choose_next_thalf(mcurvs, thalfs, curr);
                 if (f) side_idx = (side_idx + 1) % 4;
                 curr = th;
