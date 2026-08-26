@@ -143,7 +143,7 @@ inline vec<HmLoc> approx_shortest_path(
     }
 
     if (dist[t] == INF) {
-        std::cerr << "no path within allowed regions (disconnected by restriction?)" << std::endl;
+        std::cerr << std::format( "no path within allowed regions: nodes {}, links(bgn) {}, links(end) {}\n", nodes.size() - 2, adj[s].size(), adj[t].size());
         return {};
     }
 

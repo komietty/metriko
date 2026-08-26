@@ -63,7 +63,14 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
         } else {
             auto id0  = rg::find(tnodes, l0) - tnodes.begin();
             auto id1  = rg::find(tnodes, l1) - tnodes.begin();
+            assert(id0 < tnodes.size() && id1 < tnodes.size());
             auto path = approx_shortest_path(30, hm, l0, l1, regions[tqid]);
+
+            // an empty path would silently create a tedge with empty nids, whose
+            // loc_fr/loc_to dereference past a null buffer later — fail loudly here
+            if (path.size() < 2)
+                throw std::runtime_error(std::format( "[collapse tq] approx_shortest_path failed: tqid {}, {} -> {} (path size {}, allowed {})", tqid, loc_str(l0), loc_str(l1), path.size(), regions[tqid].size()));
+
             auto nids = add_new_path(path, id0, id1);
             int teid  = tedges.size();
             int thid0 = thalfs.size();
