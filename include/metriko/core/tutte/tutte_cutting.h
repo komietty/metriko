@@ -176,25 +176,36 @@ inline void face_cutting(
     }
 }
 
-inline void split_face(
+inline void split_degenerate_faces(
     const Hmesh& hm,
     const vec<bool>& seam0,
     const vec<SegRec>& sgs,
-    const vec<EdgeSplits>& h_aux,
+    vec<EdgeSplits>& h_aux,
     const vec<vec<int>>& sides,
     vec<Row3d>& vpos,
     vec<Row3i>& tris
 ) {
     std::set<std::pair<int, int>> sg_set;
-    std::set<std::pair<int, int>> sm_sub;
-
     for (auto& s: sgs) sg_set.insert(std::minmax(s.i0, s.i1));
+
+    // seam sub-edge -> (halfedge id, ratio of key.first, ratio of key.second):
+    // lets a midpoint inserted on it be threaded back into h_aux so the
+    // seam1 / matching1 propagation still finds every sub-halfedge
+    std::map<std::pair<int, int>, std::tuple<int, double, double>> sm_info;
 
     for (Edge e: hm.edges) {
         if (!seam0[e.id]) continue;
-        auto ch = chain_of(h_aux, e.half());
-        for (size_t k = 0; k + 1 < ch.size(); ++k)
-            sm_sub.insert(std::minmax(ch[k], ch[k + 1]));
+        Half h  = e.half();
+        auto ch = chain_of(h_aux, h);
+        vec<double> rs = {1.};   // r = 1 at tail, 0 at head along h
+        for (const auto& [r, _]: vw::reverse(h_aux[h.id])) rs.push_back(r);
+        rs.push_back(0.);
+        for (size_t k = 0; k + 1 < ch.size(); ++k) {
+            auto key = std::minmax(ch[k], ch[k + 1]);
+            sm_info[key] = key.first == ch[k]
+                ? std::tuple{h.id, rs[k], rs[k + 1]}
+                : std::tuple{h.id, rs[k + 1], rs[k]};
+        }
     }
 
     for (bool again = true; std::exchange(again, false);) {
@@ -204,51 +215,54 @@ inline void split_face(
         for (int j = 0; j < 3; ++j)
             tri_of[{tris[i][j], tris[i][(j + 1) % 3]}] = i;
 
-        for (int i = 0; i < tris.size() && !again; ++i) {
-            int l = common_side(sides, tris[i].x(), tris[i].y(), tris[i].z());
-            if (l < 0) continue;
-            for (int j = 0; j < 3; ++j) {
-                int a = tris[i][j];
-                int b = tris[i][(j + 1) % 3];
-                int c = tris[i][(j + 2) % 3];
-                if (sg_set.contains(std::minmax(a, b))) continue;
-                if (sm_sub.contains(std::minmax(a, b))) { std::println("[cut] [warn]: cut on seam happens"); continue; } // todo: might cause edge case
-                int k = tri_of.at({b, a});
-                int d = tris[k][0] + tris[k][1] + tris[k][2] - a - b;
-                int m = vpos.size();
-                if (is_on_side(sides, d, l)) continue;
-                Row3d mid = (vpos[a] + vpos[b]) / 2;
-                tris[i] = {a, m, c};
-                tris[k] = {b, m, d};
-                tris.emplace_back(m, b, c);
-                tris.emplace_back(m, a, d);
-                vpos.emplace_back(mid);
-                again = true;
-                break;
-            }
-        }
-
-        for (int i = 0; i < tris.size() && !again; ++i) {
-        for (int j = 0; j < 3; ++j) {
+        // split edge j of triangle i (and the neighbor across it) at the midpoint.
+        // s: the side the degeneracy is on; rejected when the neighbor's opposite
+        // vertex is also on it (the split would not resolve anything)
+        auto split_at = [&](int i, int j, int s) -> bool {
             int a = tris[i][j];
             int b = tris[i][(j + 1) % 3];
             int c = tris[i][(j + 2) % 3];
-            if (int s = common_side(sides, a, b); s >= 0 && !is_on_side(sides, c, s) && !sg_set.contains(std::minmax(a, b))) {
-                if (sm_sub.contains(std::minmax(a, b))) { std::println("[cut] [warn]: cut on seam happens"); continue; } // todo: might cause edge case
-                int k = tri_of.at({b, a});
-                int d = tris[k][0] + tris[k][1] + tris[k][2] - a - b;
-                int m = vpos.size();
-                if (is_on_side(sides, d, s)) continue;
-                Row3d mid = (vpos[a] + vpos[b]) / 2;
-                tris[i] = {a, m, c};
-                tris[k] = {b, m, d};
-                tris.emplace_back(m, b, c);
-                tris.emplace_back(m, a, d);
-                vpos.emplace_back(mid);
-                again = true;
-                break;
+            if (sg_set.contains(std::minmax(a, b))) return false;
+            int k = tri_of.at({b, a});
+            int d = tris[k][0] + tris[k][1] + tris[k][2] - a - b;
+            if (is_on_side(sides, d, s)) return false;
+            int m = vpos.size();
+
+            if (auto it = sm_info.find(std::minmax(a, b)); it != sm_info.end()) {
+                // the edge lies on a seam: thread the midpoint into h_aux
+                auto [hid, r_lo, r_hi] = it->second;
+                double rm = (r_lo + r_hi) / 2;
+                h_aux[hid].emplace(rm, m);
+                h_aux[hm.halfs[hid].twin().id].emplace(1 - rm, m);
+                auto [lo, hi] = std::minmax(a, b);
+                sm_info.erase(it);
+                sm_info[{lo, m}] = {hid, r_lo, rm}; // m is always the largest id
+                sm_info[{hi, m}] = {hid, r_hi, rm};
             }
+
+            Row3d mid = (vpos[a] + vpos[b]) / 2;
+            tris[i] = {a, m, c};
+            tris[k] = {b, m, d};
+            tris.emplace_back(m, b, c);
+            tris.emplace_back(m, a, d);
+            vpos.emplace_back(mid);
+            return true;
+        };
+
+        // fully collinear triangles
+        for (int i = 0; i < tris.size() && !again; ++i) {
+            int l = common_side(sides, tris[i].x(), tris[i].y(), tris[i].z());
+            if (l < 0) continue;
+            for (int j = 0; j < 3 && !again; ++j) again = split_at(i, j, l);
         }
+
+        // interior chords on a side
+        for (int i = 0; i < tris.size() && !again; ++i)
+        for (int j = 0; j < 3 && !again; ++j) {
+            int a = tris[i][j];
+            int b = tris[i][(j + 1) % 3];
+            int c = tris[i][(j + 2) % 3];
+            if (int s = common_side(sides, a, b); s >= 0 && !is_on_side(sides, c, s)) again = split_at(i, j, s);
         }
     }
 }
@@ -353,7 +367,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         else { face_cutting(f, cuts[f.id], auxs, sides, vpos, tris); }
     }
 
-    split_face(hm, seam0, sgms, auxs, sides, vpos, tris);
+    split_degenerate_faces(hm, seam0, sgms, auxs, sides, vpos, tris);
 
     MatXi face_info(tris.size(), 3);
     MatXd vert_info(vpos.size(), 3);
@@ -384,7 +398,12 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     data.clear();
     for (auto& [i0, i1, d0, d1]: sgms) {
         auto it = half_by_verts.find({i0, i1});
-        if (it == half_by_verts.end()) throw std::runtime_error("No half_by_verts");
+        if (it == half_by_verts.end())
+            throw std::runtime_error(std::format(
+                "No half_by_verts: i0 {} ({:.6f} {:.6f} {:.6f}), i1 {} ({:.6f} {:.6f} {:.6f}), thid {}, tqid {}, order {}",
+                i0, vpos[i0].x(), vpos[i0].y(), vpos[i0].z(),
+                i1, vpos[i1].x(), vpos[i1].y(), vpos[i1].z(),
+                d0.thid, d0.tqid, d0.order));
 
         d0.half = it->second;
         d1.half = it->second.twin();
