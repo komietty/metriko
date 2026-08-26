@@ -23,30 +23,26 @@ namespace metriko::qex {
     }
 
     inline vec<std::pair<Half, complex>> pick_next_half(
-        const VecXc &cf, // corner function
-        const complex o, // origin
-        const complex d, // direction
-        const Face f     // face
+        const VecXc &cf,    // corner function
+        const complex o,   // origin
+        const complex d,   // direction
+        const Face f,      // face
+        const int skip_hid // halfedge we entered through (or start on): never cross back
     ) {
-        //std::println("pick_next_half, fid: {}", f.id);
         for (Half h: f.adjHalfs()) {
+            if (h.id == skip_hid) continue;
             auto uv1 = cf(h.next().crnr().id);
             auto uv2 = cf(h.prev().crnr().id);
             double rab, rcd;
-
-            //if (abs(uv1 - o) > EPS && 1 - dot(normalize(uv1 - o), d) < EPS) {
-            //    return vec{
-            //        std::make_pair(h, uv1),
-            //        std::make_pair(h.prev(), uv1),
-            //    };
-            //}
-
-            if (find_strict_intersection(o, o + d * 1e2, uv1, uv2, rab, rcd) && rab > EPS)
-                return vec{std::make_pair(h, lerp(uv1, uv2, rcd))};
+            if (
+                find_extended_intersection(o, o + d * 1e2, uv1, uv2, rab, rcd) &&
+                rab > -EPS &&
+                rcd >  EPS &&
+                rcd < 1 - EPS
+            ) return vec{std::make_pair(h, lerp(uv1, uv2, rcd))};
         }
 
         return {};
-        //throw std::runtime_error("no next half found");
     }
 
     inline std::vector<Qedge> generate_q_edge(
@@ -65,25 +61,25 @@ namespace metriko::qex {
         auto fqports = vw::filter(qports, [&](const Qport &qp) { return qp.fid >= 0; });
 
         struct Cache {
-            complex ori;
-            complex dir;
-            complex gri;
-            int fid;
+            complex ori; //
+            complex dir; //
+            complex gri; //
+            int fid;     //
+            int hid;     // hid comming from (required for not going back)
         };
-
-
 
         for (Qport &pfr: qports) {
             if (pfr.isConnected) continue;
-            vec<Cache> caches = {{.ori=pfr.uv, .dir=pfr.dir, .gri=nearby_grid(pfr.uv, pfr.dir), .fid=pfr.fid}};
+            int in0 = -1;
+            if (pfr.eid >= 0) { // an eqvert port starts on its own edge
+                Half h0 = mesh.edges[pfr.eid].half();
+                in0 = (h0.face().id == pfr.fid ? h0 : h0.twin()).id;
+            }
+            vec<Cache> caches = {{.ori=pfr.uv, .dir=pfr.dir, .gri=nearby_grid(pfr.uv, pfr.dir), .fid=pfr.fid, .hid=in0}};
             std::set<int> pushed;
-            //auto ori = pfr.uv;
-            //auto dir = pfr.dir;
-            //auto gri = nearby_grid(ori, dir);
-            //Face f = mesh.faces[pfr.fid];
 
             while (!caches.empty()) {
-                auto [ori, dir, gri, fid] = caches.back();
+                auto [ori, dir, gri, fid, in] = caches.back();
                 caches.pop_back();
                 Face f = mesh.faces[fid];
 
@@ -131,27 +127,22 @@ namespace metriko::qex {
                 }
 
                 // cannot find the pair. move to the next face
-                //auto [nh, hit] = pick_next_half(cfn, ori, dir, f);
-                //if (nh.twin().isBoundary()) throw std::runtime_error("not implemented yet");
-                //f = nh.twin().face();
-                //ori = hit;
-                //complex t = heT(nh.id);
-                //complex r = heR(nh.id);
-                //ori = r * ori + t;
-                //dir = r * dir;
-                //gri = nearby_grid(ori, dir);
-                for (auto& [nh, hit]: pick_next_half(cfn, ori, dir, f)) {
+                for (auto& [nh, hit]: pick_next_half(cfn, ori, dir, f, in)) {
                     if (nh.twin().isBoundary()) throw std::runtime_error("not implemented yet");
                     if (!pushed.insert(nh.id).second) continue;   // already explored this crossing
                     complex r = heR(nh.id);
                     complex t = heT(nh.id);
                     complex o2 = r * hit + t;
                     complex d2 = r * dir;
-                    caches.push_back({.ori=o2, .dir=d2, .gri=nearby_grid(o2, d2), .fid=nh.twin().face().id});
+                    caches.push_back({.ori=o2, .dir=d2, .gri=nearby_grid(o2, d2), .fid=nh.twin().face().id, .hid=nh.twin().id});
                 }
             }
         loop_end:
         }
+
+        for (const Qport& p: qports)
+            if (!p.isConnected) std::println("[qedge] unpaired port {} (vid {}, eid {}, fid {})", p.idx, p.vid, p.eid, p.fid);
+
         return qedges;
     }
 }

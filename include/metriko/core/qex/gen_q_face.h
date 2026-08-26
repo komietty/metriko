@@ -27,12 +27,17 @@ namespace metriko::qex {
                 auto it2 = rg::find_if(qhs, [&](auto &qh) {
                     return qh.port1().idx == qps[qp.prev_id].idx;
                 });
-                assert(it2 != qhs.end());
-                if (it2 != qhs.end()) {
-                    qfhs.emplace_back(*it2);
-                    visit[it2->idx] = true;
-                    qp = it2->port2();
+                if (it2 == qhs.end()) {
+                    // TODO TEMP: report and skip instead of asserting; the
+                    // partial face is dropped by the size check below
+                    const auto& p = qps[qp.prev_id];
+                    std::println("[qface] no qhalf starts at port {} (vid {}, eid {}, fid {}, pos {} {} {})",
+                                 p.idx, p.vid, p.eid, p.fid, p.pos.x(), p.pos.y(), p.pos.z());
+                    break;
                 }
+                qfhs.emplace_back(*it2);
+                visit[it2->idx] = true;
+                qp = it2->port2();
             }
             if (qfhs.size() == 4) {
                 // the walk must return to the start port; otherwise some qvert's
