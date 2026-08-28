@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
     const int n = (int)tmm.tquads.size();
     out << "{\n";
     for (int tqid = 0; tqid < n; ++tqid) {
-        auto rng = tmm.allowed_range(tqid);     // vec<tuple<eid, r0, r1>>
+        auto rng = tmm.allowed_range_tquads({tqid});     // vec<tuple<eid, r0, r1>>
         std::sort(rng.begin(), rng.end());      // ascending by (eid, r0, r1)
         out << "  \"" << tqid << "\": [";
         for (size_t i = 0; i < rng.size(); ++i) {

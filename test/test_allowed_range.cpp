@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
     for (auto& [tqid, exp_in] : expected) {
         CHECK(tqid >= 0 && tqid < (int)tmm.tquads.size());
 
-        Tris got = tmm.allowed_range(tqid);
+        Tris got = tmm.allowed_range_tquads({tqid});
         Tris exp = exp_in;
         std::sort(got.begin(), got.end());
         std::sort(exp.begin(), exp.end());

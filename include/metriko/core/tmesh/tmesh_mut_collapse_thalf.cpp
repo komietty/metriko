@@ -35,7 +35,7 @@ void TmeshMut::collapse_thalf(int thid) {
             throw std::runtime_error("no impl");
         }();
 
-        auto region = allowed_range(tq_crr.id);
+        auto region = allowed_range_tquads({tq_crr.id});
         auto path   = approx_shortest_path(30, hm, *p_fr, *p_to, region);
         auto nid0   = p_fr - tnodes.data();
         auto nid1   = p_to - tnodes.data();

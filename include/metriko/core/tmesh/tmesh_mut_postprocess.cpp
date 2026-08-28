@@ -142,6 +142,32 @@ void TmeshMut::collapse_tedge_snap_inter(int teid, int nid, Vert v) {
 }
 
 
+// re-trace a tedge inside the union corridor of its two tquads. used to resolve
+// tedge-tedge contacts created by snapping: the corridor walls are the other
+// boundary tedges, so the new path cannot touch them by construction
+bool TmeshMut::reroute_tedge(int teid) {
+    int tq0 = -1, tq1 = -1;
+    for (const auto& th: thalfs)
+        if (th.id != -1 && th.teid == teid) (th.cano ? tq0 : tq1) = th.tqid;
+    if (tq0 < 0 || tq1 < 0) return false;
+
+    // unified corridor of both tquads: their shared tedges (this one included)
+    // are interior to the union and excluded from the walls automatically
+    auto allowed = allowed_range_tquads({tq0, tq1});
+
+    auto& nids = tedges[teid].nids;
+    auto path  = approx_shortest_path(30, hm, tnodes[nids.front()], tnodes[nids.back()], allowed);
+    if (path.size() < 2) return false;
+    nids = add_new_path(path, nids.front(), nids.back());
+
+    // refresh the geometric length of both thalfs
+    double r = 0;
+    for (size_t k = 0; k + 1 < nids.size(); ++k)
+        r += (get_ptloc_pos(hm, tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tnodes[nids[k]])).norm();
+    for (auto& th: thalfs) if (th.id != -1 && th.teid == teid) th.r = r;
+    return true;
+}
+
 void TmeshMut::collapse_tedge_snap(bool flag) {
     // 1: snap joint tnodes
     for (auto& [teid, nids]: live_tedges()) { collapse_tedge_snap_joint(teid); }

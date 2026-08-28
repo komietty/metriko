@@ -152,7 +152,8 @@ struct TmeshMut {
         return count;
     }
 
-    vec<std::tuple<int, double, double>> allowed_range(int tqid) const;
+    vec<std::tuple<int, double, double>> allowed_range_thalfs(const vec<int>& thids) const;
+    vec<std::tuple<int, double, double>> allowed_range_tquads(const vec<int>& tqids) const;
 
     auto live_tedges() const { return tedges | vw::filter([](const TedgeMut& te) { return te.id != -1; }); }
     auto live_tedges()       { return tedges | vw::filter([](      TedgeMut& te) { return te.id != -1; }); }
@@ -166,6 +167,7 @@ struct TmeshMut {
     void collapse_tedge_snap_inter(int teid, int nid, Vert v);
     void collapse_tedge_snap_dedup(int teid);
     void collapse_tedge_snap_joint(int teid);
+    bool reroute_tedge(int teid);
 
     void collapse_thalf(int thid);
     bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;

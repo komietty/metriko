@@ -2,20 +2,18 @@
 #define METRIKO_TMESH_MUT_COLLAPSE_RANGE_H
 #include "tmesh_mut.h"
 #include <queue>
+#include <set>
 
 namespace metriko {
 
-vec<std::tuple<int, double, double>> TmeshMut::allowed_range(int tqid) const {
-
+vec<std::tuple<int, double, double>> TmeshMut::allowed_range_thalfs(const vec<int>& thids) const {
     auto lpos = [&](int nid) -> Row3d { return get_ptloc_pos(hm, tnodes[nid]); };
     auto edir = [&](int eid) -> Row3d { return hm.edges[eid].half().vec(); };
 
-    const auto& data = tquads[tqid].data;
-    // 各 edge 交点を左側判定し、edge ごとに内側区間 [lo,hi] を交差で絞る（2回横切れば [min,max]、
-    // 1回なら [r,1] か [0,r]）。境界頂点（HmLocOnV）は flood の壁として v_stop に集める。
     umap<int, double> lo, hi;
     vec v_stop(hm.nV, false);
-    for (auto& [thid, _] : data) {
+
+    for (int thid : thids) {
         const auto& th = thalfs[thid];
         const auto& te = tedges[th.teid];
         int n = te.nids.size();
@@ -80,6 +78,18 @@ vec<std::tuple<int, double, double>> TmeshMut::allowed_range(int tqid) const {
     }
 
     return res;
+}
+
+vec<std::tuple<int, double, double>> TmeshMut::allowed_range_tquads(const vec<int>& tqids) const {
+    vec<int> thids;
+
+    for (int tqid: tqids)
+    for (auto& [thid, _]: tquads[tqid].data)
+        thids.push_back(thid);
+
+    std::set ids(thids.begin(), thids.end());
+    std::erase_if(thids, [&](int thid) { return ids.contains(thalfs[thid].twid); });
+    return allowed_range_thalfs(thids);
 }
 }
 #endif

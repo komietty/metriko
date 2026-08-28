@@ -15,7 +15,7 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
 
     // create map of tqid and region
     std::map<int, vec<std::tuple<int, double, double>>> regions;
-    for (int tqid : chain.tqids) regions[tqid] = allowed_range(tqid);
+    for (int tqid : chain.tqids) regions[tqid] = allowed_range_tquads({tqid});
 
     auto tquad_of = [&](int v) {
         for (size_t k = 0; k < chain.bounds.size(); ++k)
