@@ -123,7 +123,52 @@ int main(int argc, char** argv) {
     // snapping can bring two tedges into contact: re-trace the offenders and
     // refuse to emit a t-mesh that still has contacts
     repair_crossing_tedges(tmm);
-    if (validate_no_crossing(tmm, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
+    //if (validate_no_crossing(tmm, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
+
+    if (validate_no_crossing(tmm, "after repair") > 0) {
+        // TODO TEMP: show the surviving contacts before aborting
+        visualizer::visualize_mesh(hm.pos, hm.idx, true, "base mesh");
+        for (auto& c: find_tedge_contacts(tmm)) {
+            for (int teid: {c.te_seg, c.te_ndp}) {
+                const auto& nids = tmm.tedges[teid].nids;
+                std::vector<glm::vec3> ns;
+                std::vector<std::array<size_t, 2>> es;
+                std::vector<double> ord;
+                for (size_t k = 0; k < nids.size(); ++k) {
+                    Row3d p = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
+                    ns.emplace_back(p.x(), p.y(), p.z());
+                    ord.push_back((double)k);
+                    if (k + 1 < nids.size()) es.push_back({k, k + 1});
+                }
+                auto* cn = polyscope::registerCurveNetwork(std::format("contact teid {}", teid), ns, es);
+                cn->setMaterial("flat");
+                cn->setRadius(0.0003);
+                cn->resetTransform();
+                //auto* pc = polyscope::registerPointCloud(std::format("contact teid {} nodes", teid), ns);
+                //pc->addScalarQuantity("k", ord)->setEnabled(true);
+                //pc->setPointRadius(0.003);
+                //pc->resetTransform();
+            }
+            std::vector<glm::vec3> ns;
+            std::vector<std::array<size_t, 2>> es;
+            size_t k = 0;
+            for (Half h: hm.faces[c.fid].adjHalfs()) {
+                Row3d a = h.tail().pos();
+                Row3d b = h.head().pos();
+                ns.emplace_back(a.x(), a.y(), a.z());
+                ns.emplace_back(b.x(), b.y(), b.z());
+                es.push_back({k, k + 1});
+                k += 2;
+            }
+            auto* cn = polyscope::registerCurveNetwork(std::format("contact face {}", c.fid), ns, es);
+            cn->setMaterial("flat");
+            cn->setColor({1., 0.1, 0.1});
+            cn->setRadius(0.0015);
+            cn->resetTransform();
+        }
+        polyscope::show();
+        throw std::runtime_error("tedge contacts remain");
+    }
 
     save_tmm(std::format("{}.{}.tmm", argv[1], argv[2]), tmm);
     std::println("saved tmm cache");

@@ -64,6 +64,7 @@ void TmeshMut::collapse_tedge_snap_joint(int teid) {
         auto d = (v.pos() - p).squaredNorm();
         if (d < d_min && collapse_valid_snap_0(v)) { d_min = d; v_min = v; }
     }
+    if (v_min.id == -1) return;
 
     for (Face f: v_min.adjHalfs() | vw::transform(&Half::face)) {
         for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f, tnodes[nids[k]])) j = std::max(j, k); }}
@@ -169,8 +170,24 @@ bool TmeshMut::reroute_tedge(int teid) {
 }
 
 void TmeshMut::collapse_tedge_snap(bool flag) {
-    // 1: snap joint tnodes
-    for (auto& [teid, nids]: live_tedges()) { collapse_tedge_snap_joint(teid); }
+    // 1: snap joint tnodes, nearest joint first: a joint sitting almost on a
+    //    vertex claims it before a farther one can, which keeps the trims short
+    {
+        vec<std::pair<double, int>> order;   // (squared distance to the nearest face vertex, teid)
+        for (auto& [teid, nids]: live_tedges()) {
+            auto* loc = std::get_if<HmLocOnF>(&tnodes[nids.back()]);
+            if (!loc) continue;
+            auto p = get_ptloc_pos(hm, *loc);
+            double d = 1e9;
+            for (Vert v: hm.faces[loc->id].adjHalfs() | vw::transform(&Half::tail))
+                d = std::min(d, (v.pos() - p).squaredNorm());
+            order.emplace_back(d, teid);
+        }
+        rg::sort(order);
+        for (auto& teid: order | std::views::values) collapse_tedge_snap_joint(teid);
+    }
+
+    //for (auto& [teid, nids]: live_tedges()) { collapse_tedge_snap_joint(teid); }
 
     struct Cand { int nid; int eid; Vert v; double d; };
     vec candidates(tnodes.size(), vec<Cand>{});

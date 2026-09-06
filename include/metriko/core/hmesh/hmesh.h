@@ -22,7 +22,7 @@ struct AdjLH; // Adjacency iterator for loops and halfs
 template<typename N> struct AdjIter;
 
 struct Elem {
-    int id;
+    int id = -1;
     Hmesh* m;
     bool operator==(const Elem &rhs) const { return id == rhs.id; }
 };
