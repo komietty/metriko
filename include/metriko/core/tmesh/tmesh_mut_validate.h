@@ -49,10 +49,7 @@ inline vec<TeContact> find_tedge_contacts(const TmeshMut& tm) {
 
     for (auto& [fid, segs]: per_face) {
         Face f = hm.faces[fid];
-        const Row3d org = f.half().tail().pos();
-        const Row3d bx  = f.basisX();
-        const Row3d by  = f.basisY();
-        auto pos2 = [&](int nid) { Row3d d = get_ptloc_pos(hm, tm.tnodes[nid]) - org; return complex(d.dot(bx), d.dot(by)); };
+        auto pos2 = [&](int nid) { return calc_face_coefficient(f, get_ptloc_pos(hm, tm.tnodes[nid])); };
 
         // p strictly inside segment a-b (2d)
         auto on_seg = [&](const complex p, const complex a, const complex b) {

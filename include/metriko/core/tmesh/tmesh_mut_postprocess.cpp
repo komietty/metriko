@@ -45,35 +45,46 @@ bool TmeshMut::collapse_valid_snap_1(Vert snap_vrt, int snap_nid) {
 }
 
 
-void TmeshMut::collapse_tedge_snap_joint(int teid) {
-    auto  last_nid = tedges[teid].nids.back();
-    auto* loc = std::get_if<HmLocOnF>(&tnodes[last_nid]);
-    if (!loc) return;
+// validate and apply one joint candidate: move the OnF joint ending tedge
+// `teid` onto vertex v, trimming the incident chains inside v's one-ring.
+// returns false when the joint is already snapped, v is occupied, or the move
+// would cross another tedge inside the joint's face
+bool TmeshMut::collapse_tedge_snap_joint(int teid, Vert v) {
+    auto  nid = tedges[teid].nids.back();
+    auto* loc = std::get_if<HmLocOnF>(&tnodes[nid]);
+    if (!loc || !collapse_valid_snap_0(v)) return false;
+
+    // moving the joint from p to v must not cross another tedge inside its face
+    Face f = hm.faces[loc->id];
+    auto p = get_ptloc_pos(hm, *loc);
+    auto a = calc_face_coefficient(f, p);
+    auto b = calc_face_coefficient(f, v.pos());
+    for (const auto& [id, nids]: live_tedges()) {
+    for (size_t k = 0; k + 1 < nids.size(); ++k) {
+        if (nids[k] == nid || nids[k + 1] == nid) continue;
+        if (!is_in_face(f, tnodes[nids[k]]) || !is_in_face(f, tnodes[nids[k + 1]])) continue;
+        double rab;
+        double rcd;
+        auto c = calc_face_coefficient(f, get_ptloc_pos(hm, tnodes[nids[k]]));
+        auto d = calc_face_coefficient(f, get_ptloc_pos(hm, tnodes[nids[k + 1]]));
+        if (find_strict_intersection(a, b, c, d, rab, rcd)) return false;
+    }}
+
+    // trim the incident chains inside v's one-ring and move the joint
     vec<std::pair<int, int>> te_tails; // teid, the biggest  nid
     vec<std::pair<int, int>> te_heads; // teid, the smallest nid
-
     for (auto& [id, nids]: live_tedges()) {
-        if (last_nid == nids.front()) te_tails.emplace_back(id, 0);
-        if (last_nid == nids.back())  te_heads.emplace_back(id, nids.size());
+        if (nid == nids.front()) te_tails.emplace_back(id, 0);
+        if (nid == nids.back())  te_heads.emplace_back(id, nids.size());
     }
-
-    auto p = get_ptloc_pos(hm, *loc);
-    auto d_min = 1e9;
-    Vert v_min = {};
-    for (Vert v: hm.faces[loc->id].adjHalfs() | vw::transform(&Half::tail)) {
-        auto d = (v.pos() - p).squaredNorm();
-        if (d < d_min && collapse_valid_snap_0(v)) { d_min = d; v_min = v; }
+    for (Face g: v.adjHalfs() | vw::transform(&Half::face)) {
+        for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(g, tnodes[nids[k]])) j = std::max(j, k); }}
+        for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(g, tnodes[nids[k]])) j = std::min(j, k); }}
     }
-    if (v_min.id == -1) return;
-
-    for (Face f: v_min.adjHalfs() | vw::transform(&Half::face)) {
-        for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f, tnodes[nids[k]])) j = std::max(j, k); }}
-        for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(f, tnodes[nids[k]])) j = std::min(j, k); }}
-    }
-
     for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; if (j >= 2)              nids.erase(nids.begin() + 1, nids.begin() + j);   }
     for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; if (j + 2 < nids.size()) nids.erase(nids.begin() + j + 1, nids.end() - 1); }
-    tnodes[last_nid] = HmLocOnV{.id = v_min.id};
+    tnodes[nid] = HmLocOnV{.id = v.id};
+    return true;
 }
 
 void TmeshMut::collapse_tedge_snap_dedup(int teid) {
@@ -170,26 +181,24 @@ bool TmeshMut::reroute_tedge(int teid) {
 }
 
 void TmeshMut::collapse_tedge_snap(bool flag) {
-    // 1: snap joint tnodes, nearest joint first: a joint sitting almost on a
-    //    vertex claims it before a farther one can, which keeps the trims short
+    struct Cand { int nid; int eid; Vert v; double d; };
+
+    // 1: snap joint tnodes. every (joint, face vertex) pair is a candidate,
+    //    processed nearest first; the validation happens at apply time because
+    //    earlier snaps change the occupancy and the geometry
     {
-        vec<std::pair<double, int>> order;   // (squared distance to the nearest face vertex, teid)
+        vec<Cand> cands;
         for (auto& [teid, nids]: live_tedges()) {
             auto* loc = std::get_if<HmLocOnF>(&tnodes[nids.back()]);
             if (!loc) continue;
             auto p = get_ptloc_pos(hm, *loc);
-            double d = 1e9;
             for (Vert v: hm.faces[loc->id].adjHalfs() | vw::transform(&Half::tail))
-                d = std::min(d, (v.pos() - p).squaredNorm());
-            order.emplace_back(d, teid);
+                cands.push_back({.eid=teid, .v=v, .d=(v.pos() - p).squaredNorm()});
         }
-        rg::sort(order);
-        for (auto& teid: order | std::views::values) collapse_tedge_snap_joint(teid);
+        rg::sort(cands, {}, &Cand::d);
+        for (auto& [nid, teid, v, d]: cands) collapse_tedge_snap_joint(teid, v);
     }
 
-    //for (auto& [teid, nids]: live_tedges()) { collapse_tedge_snap_joint(teid); }
-
-    struct Cand { int nid; int eid; Vert v; double d; };
     vec candidates(tnodes.size(), vec<Cand>{});
 
     // 2.0: snap inter tnodes

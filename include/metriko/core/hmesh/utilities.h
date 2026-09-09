@@ -21,6 +21,11 @@ inline complex calc_coefficient(
         uv);
 }
 
+inline complex calc_face_coefficient(const Face& f, const Row3d& p) {
+    Row3d diff = p - f.half().tail().pos();
+    return {diff.dot(f.basisX()), diff.dot(f.basisY())};
+}
+
 inline Row3d conversion_2d_3d(
     const complex o2, // origin of 2d
     const complex a2, //

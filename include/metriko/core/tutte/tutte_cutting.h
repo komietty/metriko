@@ -78,10 +78,7 @@ inline void face_cutting(
         halfs.emplace_back(h.tail().id, sp.rbegin()->second);
     }
 
-    const Row3d org = f.half().tail().pos();
-    const Row3d bx  = f.basisX();
-    const Row3d by  = f.basisY();
-    auto pos2 = [&](int vid) { Row3d d = vpos[vid] - org; return complex(d.dot(bx), d.dot(by)); };
+    auto pos2 = [&](int vid) { return calc_face_coefficient(f, vpos[vid]); };
     auto cr   = [](complex u, complex v) { return (std::conj(u) * v).imag(); };
 
     constexpr double penalty = 100.; // dominates min_angle in (-pi, pi]
