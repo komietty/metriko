@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     Hmesh hm(V, F);
 
-    FaceRosyField rawf(hm, N, FieldType::Smoothest);
+    FaceRosyField rawf(hm, N, FieldType::CurvatureAligned);
     rawf.computeMatching(MatchingType::Principal);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(hm, seam);

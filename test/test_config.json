@@ -28,6 +28,16 @@
     "meshes": [
       "spot"
     ]
+  },
+  {
+    "gridscale": 0.01,
+    "expected": "expected_allowed.json",
+    "vectorfield": "smoothest",
+    "meshes": [
+      "fertility",
+      "gargoyle",
+      "bunny"
+    ]
   }
 ]
 }

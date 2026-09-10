@@ -21,6 +21,11 @@ add_executable(test_allowed_range test_allowed_range.cpp)
 target_link_libraries(test_allowed_range PRIVATE metriko)
 target_include_directories(test_allowed_range PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+# end-to-end smoke test through quad extraction (lib.h)
+add_executable(test_remesh test_remesh.cpp)
+target_link_libraries(test_remesh PRIVATE metriko)
+target_include_directories(test_remesh PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
 # test settings come from test_config.json (read at configure time).
 #   { "directory": "/abs/dir",
 #     "patterns": [ { "gridscale":0.05, "vectorfield":"smoothest"|"curvature_aligned",
@@ -53,6 +58,12 @@ else()
                 string(JSON _name GET ${_p} meshes ${_mi})
                 set(_mesh "${_dir}/${_name}.obj")
                 add_test(NAME tmesh.${_vf}.${_name} COMMAND test_tmesh ${_gs} ${_vf} ${_mesh})
+                add_test(NAME remesh.${_vf}.${_name} COMMAND test_remesh ${_gs} ${_vf} ${_mesh})
+                # schedule heavy meshes first: file size is a good enough proxy for run time
+                if(EXISTS ${_mesh})
+                    file(SIZE ${_mesh} _sz)
+                    set_tests_properties(tmesh.${_vf}.${_name} remesh.${_vf}.${_name} PROPERTIES COST ${_sz})
+                endif()
                 set(_fx "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tquad_region/${_vf}/${_name}.json")
                 if(EXISTS ${_fx})
                     add_test(NAME region.${_vf}.${_name} COMMAND test_allowed_range ${_gs} ${_vf} ${_mesh} ${_fx})

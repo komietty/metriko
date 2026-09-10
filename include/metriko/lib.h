@@ -28,6 +28,9 @@ struct RemeshResult {
     MatXd                          cfn_d;
     VecXc                          cfn_c;
     MatXd                          qnt_x;
+    vec<qex::Qport>                q_ports;
+    vec<qex::Qedge>                q_edges;
+    vec<qex::Qface>                q_faces;
 };
 
 inline RemeshResult compute_remesh(
@@ -101,45 +104,46 @@ inline RemeshResult compute_remesh(
     auto hm_cut = compute_cut_mesh(*hm_emb, seam1);
 
     MatXd uv;
-    if (compute_tutte_parameterization(*hm_emb, *em, seam1, hdata, uv)) {
-        igl::SLIMData sData;
-        MatXd uv_init(hm_cut->nV, 2);
-        for (auto v: hm_cut->verts) uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
+    bool flag = compute_tutte_parameterization(*hm_emb, *em, seam1, hdata, uv);
+    if (!flag) throw std::runtime_error("compute_tutte parameterization failed");
 
-        vec<int>   b_;
-        vec<Row2d> bc_;
-        for (auto v: hm_cut->verts) {
-            if (!v.isBoundary()) continue;
-            b_.push_back(v.id);
-            bc_.emplace_back(uv_init.row(v.id));
-        }
-        VecXi b = Eigen::Map<VecXi>(b_.data(), b_.size());
-        MatXd bc(bc_.size(), 2);
-        for (int i = 0; i < bc_.size(); ++i) bc.row(i) = bc_[i];
+    igl::SLIMData sData;
+    MatXd uv_init(hm_cut->nV, 2);
+    for (auto v: hm_cut->verts) uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
 
-        sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
-        slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-        slim_solve(sData, 50);
+    vec<int>   b_;
+    vec<Row2d> bc_;
+    for (auto v: hm_cut->verts) {
+        if (!v.isBoundary()) continue;
+        b_.push_back(v.id);
+        bc_.emplace_back(uv_init.row(v.id));
+    }
+    VecXi b = Eigen::Map<VecXi>(b_.data(), b_.size());
+    MatXd bc(bc_.size(), 2);
+    for (int i = 0; i < bc_.size(); ++i) bc.row(i) = bc_[i];
 
-        // ------ qex on the slim result ------
-        VecXc cfn(hm_emb->nF * 3);
-        for (int i = 0; i < hm_cut->nF; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            int k = hm_cut->idx(i, j);
-            cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
-        }}
+    sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
+    slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
+    slim_solve(sData, 50);
 
-        qex::sanitization(*hm_emb, matching1, singular1, 4, cfn);
+    // ------ qex on the slim result ------
+    VecXc cfn(hm_emb->nF * 3);
+    for (int i = 0; i < hm_cut->nF; ++i) {
+    for (int j = 0; j < 3; ++j) {
+        int k = hm_cut->idx(i, j);
+        cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
+    }}
 
-        vec<qex::Qport> q_ports;
-        vec<qex::Qvert> vqvs, eqvs, fqvs;
-        qex::generate_q_vert(*hm_emb, cfn, vqvs, eqvs, fqvs);
-        qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
-        qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
-        qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
-        auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
-        auto qfaces = qex::generate_q_faces(q_ports, qedges);
-    } else std::println("[tutte] compute_tutte_parameterization failed");
+    qex::sanitization(*hm_emb, matching1, singular1, 4, cfn);
+
+    vec<qex::Qport> q_ports;
+    vec<qex::Qvert> vqvs, eqvs, fqvs;
+    qex::generate_q_vert(*hm_emb, cfn, vqvs, eqvs, fqvs);
+    qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
+    qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
+    qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
+    auto q_edges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
+    auto q_faces = qex::generate_q_faces(q_ports, q_edges);
 
     res.hmesh = std::move(hm);
     res.cmbf  = std::move(cmbf);
@@ -150,6 +154,9 @@ inline RemeshResult compute_remesh(
     res.cfn_d = std::move(rp.cfn);
     res.cfn_c = std::move(cfn_c);
     res.qnt_x = std::move(X);
+    res.q_ports = std::move(q_ports);
+    res.q_edges = std::move(q_edges);
+    res.q_faces = std::move(q_faces);
     return res;
 }
 }
