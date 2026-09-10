@@ -161,7 +161,6 @@ struct TmeshMut {
     auto live_tquads()       { return tquads | vw::filter([](      TquadMut& tq) { return tq.id != -1; }); }
 
     bool collapse_valid_snap_0(Vert v);
-    bool collapse_valid_snap_1(Vert snap_vrt, int snap_nid);
 
     void collapse_tedge_snap(bool flag);
     void collapse_tedge_snap_inter(int teid, int nid, Vert v);

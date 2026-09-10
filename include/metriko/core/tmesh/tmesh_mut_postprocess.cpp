@@ -3,12 +3,6 @@
 
 namespace metriko {
 bool TmeshMut::collapse_valid_snap_0(Vert v) {
-    //for (int nid = 0; nid < tnodes.size(); nid++) {
-    //    if (teids[nid] == -1) continue;
-    //    auto* l = std::get_if<HmLocOnV>(&tnodes[nid]);
-    //    if (l && l->id == v.id) return false;
-    //}
-
     for (auto& [id, nids]: live_tedges()) {
         if (rg::any_of(nids, [&](int nid) {
             auto* l = std::get_if<HmLocOnV>(&tnodes[nid]);
@@ -17,33 +11,6 @@ bool TmeshMut::collapse_valid_snap_0(Vert v) {
     }
     return true;
 }
-
-bool TmeshMut::collapse_valid_snap_1(Vert snap_vrt, int snap_nid) {
-
-    for (auto& tq: live_tquads()) {
-    for (int side = 0; side < 4; side++) {
-
-        std::set<int>  nids = {};
-        umap<int, int> fids = {};
-
-        for (int i: tq.thids(side)) {
-        for (int j: tedges[thalfs[i].teid].nids) { nids.insert(j); }}
-
-        for (int nid: nids) {
-            if (nid == snap_nid) {
-                for (Half h: hm.verts[snap_vrt.id].adjHalfs()) fids[h.face().id]++;
-            } else if (auto* l = std::get_if<HmLocOnV>(&tnodes[nid])) {
-                for (Half h: hm.verts[l->id].adjHalfs()) fids[h.face().id]++;
-            }
-        }
-
-        for (auto c: fids | std::views::values) { if (c >= 3) return false; }
-
-    }}
-
-    return true;
-}
-
 
 // validate and apply one joint candidate: move the OnF joint ending tedge
 // `teid` onto vertex v, trimming the incident chains inside v's one-ring.
@@ -59,8 +26,8 @@ bool TmeshMut::collapse_tedge_snap_joint(int teid, Vert v) {
     auto p = get_ptloc_pos(hm, *loc);
     auto a = calc_face_coefficient(f, p);
     auto b = calc_face_coefficient(f, v.pos());
-    for (const auto& [id, nids]: live_tedges()) {
-    for (size_t k = 0; k + 1 < nids.size(); ++k) {
+    for (auto& [id, nids]: live_tedges()) {
+    for (int k = 0; k + 1 < nids.size(); ++k) {
         if (nids[k] == nid || nids[k + 1] == nid) continue;
         if (!is_in_face(f, tnodes[nids[k]]) || !is_in_face(f, tnodes[nids[k + 1]])) continue;
         double rab;
@@ -128,9 +95,7 @@ void TmeshMut::collapse_tedge_snap_dedup(int teid) {
         if (!same_face) { ++i; continue; }
 
         // drop the middle node; keep the removal only if the validation holds
-        int backup = nid_curr;
         nids.erase(nids.begin() + i);
-        //if (!collapse_valid_snap_1(Vert{}, nid_curr)) { nids.insert(nids.begin() + i, backup); ++i; }
     }
 }
 
@@ -240,7 +205,6 @@ void TmeshMut::collapse_tedge_snap(bool flag) {
     if (flag) {
         for (auto& c: candidates) {
         for (auto& [nid, eid, vrt, _]: c) {
-            //if (collapse_valid_snap_0(vrt) && collapse_valid_snap_1(vrt, nid) ) {
             if (collapse_valid_snap_0(vrt)) {
                 collapse_tedge_snap_inter(eid, nid, vrt);
                 break;
@@ -250,7 +214,6 @@ void TmeshMut::collapse_tedge_snap(bool flag) {
         for (auto& c: candidates) {
             if (c.size() == 0) continue;
             auto& [nid, eid, vrt, _] = c.front();
-            //if (collapse_valid_snap_0(vrt) && collapse_valid_snap_1(vrt, nid) ) { collapse_tedge_snap_inter(eid, nid, vrt); }
             if (collapse_valid_snap_0(vrt)) { collapse_tedge_snap_inter(eid, nid, vrt); }
         }
     }

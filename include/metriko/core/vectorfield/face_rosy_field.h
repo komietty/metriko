@@ -248,9 +248,9 @@ namespace metriko {
         return F;
     }
 
-    inline MatXd compute_extrinsic_field(const Hmesh& mesh, const FaceRosyField& field, int rosyN) {
-        MatXd ext(mesh.nF, 3 * rosyN);
-        for (Face f: mesh.faces) {
+    inline MatXd compute_extrinsic_field(const FaceRosyField& field, int rosyN) {
+        MatXd ext(field.mesh.nF, 3 * rosyN);
+        for (Face f: field.mesh.faces) {
             complex c0 = field.field(f.id, 0);
             complex c1 = field.field(f.id, 1);
             complex c2 = field.field(f.id, 2);
