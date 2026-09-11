@@ -13,50 +13,13 @@ inline vec<HmLoc> approx_shortest_path(
     const HmLoc& loc_end,
     const vec<std::tuple<int, double, double>>& allowed // (eid, r0, r1) allowed region ranges
 ) {
-
-    auto incidentFaces = [&](const HmLoc& loc) -> vec<int> {
-        return std::visit(overloaded{
-            [&](const HmLocOnF& l) -> vec<int> { return { l.id }; },
-            [&](const HmLocOnH& l) -> vec<int> {
-                vec<int> fs; Half h = hm.halfs[l.id];
-                if (h.face().id != -1)        fs.push_back(h.face().id);
-                if (h.twin().face().id != -1) fs.push_back(h.twin().face().id);
-                return fs;
-            },
-            [&](const HmLocOnE& l) -> vec<int> {
-                vec<int> fs; Edge e = hm.edges[l.id];
-                if (e.face0().id != -1) fs.push_back(e.face0().id);
-                if (e.face1().id != -1) fs.push_back(e.face1().id);
-                return fs;
-            },
-            [&](const HmLocOnV& l) -> vec<int> {
-                vec<int> fs;
-                for (Half h : hm.verts[l.id].adjHalfs())
-                    if (h.face().id != -1) fs.push_back(h.face().id);
-                return fs;
-            },
-            [&](const auto&) -> vec<int> { return {}; },
-        }, loc);
-    };
-    auto incidentEdges = [&](const HmLoc& loc) -> vec<int> {
-        return std::visit(overloaded{
-            [&](const HmLocOnE& l) -> vec<int> { return { l.id }; },
-            [&](const HmLocOnH& l) -> vec<int> { return { hm.halfs[l.id].edge().id }; },
-            [&](const HmLocOnV& l) -> vec<int> {
-                vec<int> es;
-                for (Half h : hm.verts[l.id].adjHalfs()) es.push_back(h.edge().id);
-                return es;
-            },
-            [&](const auto&) -> vec<int> { return {}; },
-        }, loc);
-    };
     auto shares = [](const vec<int>& a, const vec<int>& b) {
         for (int x : a) for (int y : b) if (x == y) return true;
         return false;
     };
     // same edge or shared face -> straight segment, skip the graph search.
-    if (shares(incidentEdges(loc_bgn), incidentEdges(loc_end))) return { loc_bgn, loc_end };
-    if (shares(incidentFaces(loc_bgn), incidentFaces(loc_end))) return { loc_bgn, loc_end };
+    if (shares(get_ptloc_edges(hm, loc_bgn), get_ptloc_edges(hm, loc_end))) return { loc_bgn, loc_end };
+    if (shares(get_ptloc_faces(hm, loc_bgn), get_ptloc_faces(hm, loc_end))) return { loc_bgn, loc_end };
 
     // if not on the same element, follows
 
@@ -110,7 +73,7 @@ inline vec<HmLoc> approx_shortest_path(
         nodes.push_back({ loc, get_ptloc_pos(hm, loc) });
         adj.resize(nodes.size());
         std::unordered_set<int> linked;
-        for (int fid : incidentFaces(loc))
+        for (int fid : get_ptloc_faces(hm, loc))
         for (Half h : hm.faces[fid].adjHalfs())
             if (auto it = e2n.find(h.edge().id); it != e2n.end())
                 for (int n : it->second)

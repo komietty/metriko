@@ -1,7 +1,6 @@
 #ifndef METRIKO_TMESH_MUT_COLLAPSE_RANGE_H
 #define METRIKO_TMESH_MUT_COLLAPSE_RANGE_H
 #include "tmesh_mut.h"
-#include <queue>
 #include <set>
 
 namespace metriko {
@@ -34,7 +33,7 @@ vec<std::tuple<int, double, double>> TmeshMut::allowed_range_thalfs(const vec<in
             if (!lo.contains(eid)) { lo[eid] = 0.; hi[eid] = 1.; }
             int jn = th.cano ? j + 1 : j - 1;
             Row3d dir = lpos(te.nids[jn]) - lpos(nid);
-            Row3d nrm = get_ptloc_normal(hm, loc);
+            Row3d nrm = get_ptloc_nml(hm, loc);
             if (nrm.dot(dir.cross(edir(eid))) > 0) lo[eid] = std::max(lo[eid], r);  // 内側 ⊂ [r,1]
             else                                   hi[eid] = std::min(hi[eid], r);  // 内側 ⊂ [0,r]
         }

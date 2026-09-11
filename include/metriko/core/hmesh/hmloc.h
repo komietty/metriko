@@ -14,25 +14,12 @@ struct HmLocOnP { int id; complex uv; bool operator==(const HmLocOnP&) const = d
 
 using HmLoc = std::variant<HmLocOnV, HmLocOnE, HmLocOnF, HmLocOnH, HmLocOnC, HmLocOnP>;
 
-inline Row3d get_ptloc_pos(
-    const Hmesh& hm,
-    const HmLoc& hl
-) {
+inline Row3d get_ptloc_pos(const Hmesh& hm, const HmLoc& loc) {
     return std::visit(overloaded{
         [&](const HmLocOnV& l) -> Row3d { return hm.verts[l.id].pos(); },
         [&](const HmLocOnC& l) -> Row3d { return hm.crnrs[l.id].vert().pos(); },
-        [&](const HmLocOnE& l) -> Row3d {
-            Edge e = hm.edges[l.id];
-            Row3d p0 = e.vert0().pos();
-            Row3d p1 = e.vert1().pos();
-            return p0 * (1 - l.r) + p1 * l.r;
-        },
-        [&](const HmLocOnH& l) -> Row3d {
-            Half h = hm.halfs[l.id];
-            Row3d p0 = h.tail().pos();
-            Row3d p1 = h.head().pos();
-            return p0 * (1 - l.r) + p1 * l.r;
-        },
+        [&](const HmLocOnE& l) -> Row3d { return hm.edges[l.id].lerp(l.r); },
+        [&](const HmLocOnH& l) -> Row3d { return hm.halfs[l.id].lerp(l.r); },
         [&](const HmLocOnF& l) -> Row3d {
             Face f = hm.faces[l.id];
             Row3d o = f.half().tail().pos();
@@ -41,13 +28,10 @@ inline Row3d get_ptloc_pos(
             return o + x * l.xy.real() + y * l.xy.imag();
         },
         [&](const HmLocOnP& _) -> Row3d { throw std::runtime_error("no impl"); },
-    }, hl);
+    }, loc);
 }
 
-inline Row3d get_ptloc_normal(
-    const Hmesh& hm,
-    const HmLoc& hl
-) {
+inline Row3d get_ptloc_nml(const Hmesh& hm, const HmLoc& loc) {
     return std::visit(overloaded{
         [&](const HmLocOnV& l) -> Row3d { return hm.verts[l.id].normal(); },
         [&](const HmLocOnF& l) -> Row3d { return hm.faces[l.id].normal(); },
@@ -62,55 +46,64 @@ inline Row3d get_ptloc_normal(
             return d.norm() > 0 ? d.normalized() : Row3d::Zero();
         },
         [&](const auto& _) -> Row3d { throw std::runtime_error("no impl"); },
-    }, hl);
+    }, loc);
+}
+
+inline vec<int> get_ptloc_faces(const Hmesh& hm, const HmLoc& loc) {
+    vec<int> out = {};
+    std::visit(overloaded{
+        [&](const HmLocOnV& l) { for (Half h : hm.verts[l.id].adjHalfs()) out.push_back(h.face().id); },
+        [&](const HmLocOnE& l) { out.push_back(hm.edges[l.id].face0().id); out.push_back(hm.edges[l.id].face1().id); },
+        [&](const HmLocOnH& l) { Half h = hm.halfs[l.id]; out.push_back(h.face().id); out.push_back(h.twin().face().id) ; },
+        [&](const HmLocOnF& l) { out.push_back(l.id); },
+        [&](const auto&) { },
+    }, loc);
+    std::erase(out, -1);
+    return out;
+}
+
+inline vec<int> get_ptloc_edges(const Hmesh& hm, const HmLoc& loc) {
+    vec<int> out = {};
+    std::visit(overloaded{
+        [&](const HmLocOnV& l) { for (Half h : hm.verts[l.id].adjHalfs()) out.push_back(h.edge().id); },
+        [&](const HmLocOnE& l) { out.push_back(hm.edges[l.id].id); },
+        [&](const HmLocOnH& l) { out.push_back(hm.halfs[l.id].edge().id); },
+        [&](const auto&) { },
+    }, loc);
+    return out;
 }
 
 inline std::optional<Face> try_get_face(const Hmesh& hm, const HmLoc& a, const HmLoc& b) {
-    auto faces_of = [&](const HmLoc& l, vec<int>& out) {
-        std::visit(overloaded{
-            [&](const HmLocOnV& v) { for (Half h : hm.verts[v.id].adjHalfs()) out.push_back(h.face().id); },
-            [&](const HmLocOnE& e) { out.push_back(hm.edges[e.id].face0().id); out.push_back(hm.edges[e.id].face1().id); },
-            [&](const HmLocOnH& h) { Half hh = hm.halfs[h.id]; out.push_back(hh.face().id); out.push_back(hh.twin().face().id); },
-            [&](const HmLocOnF& f) { out.push_back(f.id); },
-            [&](const auto&) { },
-        }, l);
-    };
-    vec<int> fa, fb;
-    faces_of(a, fa);
-    faces_of(b, fb);
+    auto fa = get_ptloc_faces(hm, a);
+    auto fb = get_ptloc_faces(hm, b);
     for (int x : fa)
-    for (int y : fb) if (x == y) return hm.faces[x];
+    for (int y : fb)
+        if (x == y) return hm.faces[x];
     return std::nullopt;
 }
 
 inline std::optional<Edge> try_get_edge(const Hmesh& hm, const HmLoc& a, const HmLoc& b) {
-    auto edges_of = [&](const HmLoc& l, vec<int>& out) {
-        std::visit(overloaded{
-            [&](const HmLocOnV& v) { for (Half h : hm.verts[v.id].adjHalfs()) out.push_back(h.edge().id); },
-            [&](const HmLocOnE& e) { out.push_back(e.id); },
-            [&](const HmLocOnH& h) { out.push_back(hm.halfs[h.id].edge().id); },
-            [&](const auto&)       {},
-        }, l);
-    };
-    vec<int> ea, eb;
-    edges_of(a, ea);
-    edges_of(b, eb);
+    auto ea = get_ptloc_edges(hm, a);
+    auto eb = get_ptloc_edges(hm, b);
     for (int x : ea)
-    for (int y : eb) if (x == y) return hm.edges[x];
+    for (int y : eb)
+        if (x == y) return hm.edges[x];
     return std::nullopt;
 }
 
 inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
     Face f = hm.faces[fid];
     Vert v = hm.verts[vid];
-    for (auto h: f.adjHalfs()) if (h.crnr().vert() == v) return h.crnr();
+    for (auto h: f.adjHalfs())
+        if (h.crnr().vert() == v) return h.crnr();
     return std::nullopt;
 }
 
 inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
     Face f = hm.faces[fid];
     Edge e = hm.edges[eid];
-    for (auto h: f.adjHalfs()) if (h.edge() == e) return h;
+    for (auto h: f.adjHalfs())
+        if (h.edge() == e) return h;
     return std::nullopt;
 }
 

@@ -40,15 +40,6 @@ inline std::optional<Crnr> try_get_opposite_crnr_from_half(
     auto v = b - o;
     if (abs(v) > tol && dot(v, d) > 0 && is_collinear(o, o + d, b, tol)) return c;
     return std::nullopt;
-
-    //for (Half h: h0.face().adjHalfs()) {
-    //    Crnr c = h.crnr();
-    //    auto b = cf(c.id);
-    //    auto v = b - o;
-    //    //if (abs(v) > tol && dot(v, d) > 0 && is_collinear(o, o + d, b, tol)) return c;
-    //    if (dot(v, d) > 0 && is_collinear(o, o + d, b, tol)) return c;
-    //    return std::nullopt;
-    //}
 }
 
 // case 3

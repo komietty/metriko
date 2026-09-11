@@ -19,10 +19,6 @@ struct SegRec {
     HalfData d1;
 };
 
-struct IntermidiateData {
-
-};
-
 inline bool is_on_side(const vec<vec<int>>& sides, int vid, int sid) {
     return vid < sides.size() && rg::contains(sides[vid], sid);
 }

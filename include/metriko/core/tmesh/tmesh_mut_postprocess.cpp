@@ -66,16 +66,6 @@ void TmeshMut::collapse_tedge_snap_dedup(int teid) {
         for (int nid: nids_) shared[nid] = true;
     }
 
-    auto faces_of = [&](const HmLoc& l, vec<int>& out) {
-        std::visit(overloaded{
-            [&](const HmLocOnV& v) { for (Face f: hm.verts[v.id].adjHalfs() | vw::transform(&Half::face)) out.push_back(f.id); },
-            [&](const HmLocOnE& e) { out.push_back(hm.edges[e.id].face0().id); out.push_back(hm.edges[e.id].face1().id); },
-            [&](const HmLocOnH& h) { Half hh = hm.halfs[h.id]; out.push_back(hh.face().id); out.push_back(hh.twin().face().id); },
-            [&](const HmLocOnF& f) { out.push_back(f.id); },
-            [&](const auto&)       {},
-        }, l);
-    };
-
     for (int i = 1; i < nids.size() - 1;) {
         int nid_prev = nids[i - 1];
         int nid_curr = nids[i];
@@ -84,12 +74,9 @@ void TmeshMut::collapse_tedge_snap_dedup(int teid) {
         if (shared[nid_curr] || nid_prev == nid_next) { ++i; continue; }
 
         // a face carrying all three nodes: the chord prev-next stays inside it
-        vec<int> fids;
-        vec<int> fids_prev;
-        vec<int> fids_next;
-        faces_of(tnodes[nid_curr], fids);
-        faces_of(tnodes[nid_prev], fids_prev);
-        faces_of(tnodes[nid_next], fids_next);
+        vec<int> fids = get_ptloc_faces(hm, tnodes[nid_curr]);
+        vec<int> fids_prev = get_ptloc_faces(hm, tnodes[nid_prev]);
+        vec<int> fids_next = get_ptloc_faces(hm, tnodes[nid_next]);
 
         bool same_face = rg::any_of(fids, [&](int fid) { return rg::contains(fids_prev, fid) && rg::contains(fids_next, fid); });
         if (!same_face) { ++i; continue; }

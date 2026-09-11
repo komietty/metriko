@@ -151,9 +151,9 @@ inline RemeshResult compute_remesh(
     res.tmesh = std::move(tm);
     res.emesh = std::move(em);
     res.seam  = seam;
+    res.qnt_x = X;
     res.cfn_d = std::move(rp.cfn);
     res.cfn_c = std::move(cfn_c);
-    res.qnt_x = std::move(X);
     res.q_ports = std::move(q_ports);
     res.q_edges = std::move(q_edges);
     res.q_faces = std::move(q_faces);

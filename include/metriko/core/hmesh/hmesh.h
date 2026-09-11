@@ -47,6 +47,8 @@ struct Edge : Elem {
     [[nodiscard]] double len() const;
     [[nodiscard]] double cot() const;
     [[nodiscard]] bool isBoundary() const;
+    [[nodiscard]] Row3d vec() const;
+    [[nodiscard]] Row3d lerp(double r) const;
 };
 
 struct Vert : Elem {
@@ -91,6 +93,7 @@ struct Half : Elem {
     [[nodiscard]] bool isBoundary()  const;
     [[nodiscard]] bool isCanonical() const;
     [[nodiscard]] Row3d vec() const;
+    [[nodiscard]] Row3d lerp(double r) const;
 };
 
 struct Hmesh {
@@ -231,7 +234,8 @@ inline double Half::darg() const { return m->dihedralArg[id]; }
 inline double Face::area() const { return m->faceArea[id]; }
 inline double Vert::baryArea() const { return m->baryDualArea[id]; }
 inline double Vert::circArea() const { return m->circDualArea[id]; }
-inline Row3d Half::vec() const { return head().pos() - tail().pos(); }
+inline Row3d Half::vec() const { return head().pos()  - tail().pos();  }
+inline Row3d Edge::vec() const { return vert1().pos() - vert0().pos(); }
 inline Row3d Vert::pos() const { return m->pos.row(id); }
 inline Row3d Vert::basisX() const { return m->vertBasisX.row(id); }
 inline Row3d Vert::basisY() const { return m->vertBasisY.row(id); }
@@ -240,6 +244,8 @@ inline Row3d Face::basisX() const { return m->faceBasisX.row(id); }
 inline Row3d Face::basisY() const { return m->faceBasisY.row(id); }
 inline Row3d Face::normal() const { return m->faceNormal.row(id); }
 inline Row3d Face::center() const { return m->baryCenter.row(id); }
+inline Row3d Edge::lerp(double r) const { return vert0().pos() * (1 - r) + vert1().pos() * r; }
+inline Row3d Half::lerp(double r) const { return tail().pos()  * (1 - r) + head().pos()  * r; }
 
 inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) const { return {m, m->vert2half[id], ccw}; }
 inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) const { return {m, m->face2half[id], ccw}; }

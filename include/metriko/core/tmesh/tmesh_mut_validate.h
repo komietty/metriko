@@ -18,22 +18,11 @@ struct TeContact {
 inline vec<TeContact> find_tedge_contacts(const TmeshMut& tm) {
     const Hmesh& hm = tm.hm;
 
-    auto faces_of = [&](const HmLoc& l, vec<int>& out) {
-        std::visit(overloaded{
-            [&](const HmLocOnV& v) { for (Half h: hm.verts[v.id].adjHalfs()) out.push_back(h.face().id); },
-            [&](const HmLocOnE& e) { out.push_back(hm.edges[e.id].face0().id); out.push_back(hm.edges[e.id].face1().id); },
-            [&](const HmLocOnH& h) { Half hh = hm.halfs[h.id]; out.push_back(hh.face().id); out.push_back(hh.twin().face().id); },
-            [&](const HmLocOnF& f) { out.push_back(f.id); },
-            [&](const auto&)       {},
-        }, l);
-    };
-
     struct Seg { int teid; int n0; int n1; };
     umap<int, vec<Seg>> per_face;
     for (const auto& [teid, nids]: tm.live_tedges()) {
         for (size_t k = 0; k + 1 < nids.size(); ++k) {
-            vec<int> fids;
-            faces_of(tm.tnodes[nids[k]], fids);
+            auto fids = get_ptloc_faces(hm, tm.tnodes[nids[k]]);
             for (int fid: fids)
                 if (fid != -1 && is_in_face(hm.faces[fid], tm.tnodes[nids[k + 1]]))
                     per_face[fid].push_back({teid, nids[k], nids[k + 1]});
