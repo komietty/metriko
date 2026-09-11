@@ -139,14 +139,13 @@ namespace metriko {
 
         bool solve(const bool verbose) {
             using namespace Eigen;
-            using namespace std;
             ST->initial_solution(x0);
             prevx << x0;
 
             VectorXd rhs(ST->xSize);
             VectorXd direction;
             if (verbose)
-                cout << "******Beginning Optimization******" << endl;
+                std::cout << "******Beginning Optimization******" << std::endl;
 
             //estimating initial miu
             SparseMatrix<double> dampJ;
@@ -160,20 +159,18 @@ namespace metriko {
             do {
                 ST->pre_iteration(prevx);
 
-                if (verbose) cout << "Initial objective for Iteration " << currIter << ": " << EVec.squaredNorm() << endl;
+                if (verbose) std::cout << "Initial objective for Iteration " << currIter << ": " << EVec.squaredNorm() << std::endl;
 
                 //multiply_adjoint_vector(ST->JRows, ST->JCols, JVals, -EVec, rhs);
                 rhs = -(J.transpose() * EVec);
 
                 fooOptimality = rhs.template lpNorm<Infinity>();
-                if (verbose) cout << "firstOrderOptimality: " << fooOptimality << endl;
+                if (verbose) std::cout << "firstOrderOptimality: " << fooOptimality << std::endl;
 
                 if (fooOptimality < fooTolerance) {
                     x = prevx;
-                    if (verbose) {
-                        cout << "First-order optimality has been reached" << endl;
-                        break;
-                    }
+                    if (verbose) std::cout << "First-order optimality has been reached" << std::endl;
+                    break;
                 }
 
                 //trying to do A'*A manually
@@ -182,17 +179,17 @@ namespace metriko {
 
                 //solving to get the LM direction
                 if (!LS->factorize(dampJ.transpose() * dampJ)) {
-                    cout << "Solver Failed to factorize! " << endl;
+                    std::cout << "Solver Failed to factorize! " << std::endl;
                     return false;
                 }
 
                 LS->solve(rhs, direction);
 
-                if (verbose) cout << "direction magnitude: " << direction.norm() << endl;
+                if (verbose) std::cout << "direction magnitude: " << direction.norm() << std::endl;
 
                 if (direction.norm() < funcTolerance) {
                     x = prevx;
-                    if (verbose) cout << "Stopping since direction magnitude small." << endl;
+                    if (verbose) std::cout << "Stopping since direction magnitude small." << std::endl;
                     return true;
                 }
 
@@ -206,13 +203,13 @@ namespace metriko {
                 if (prevEnergy2 > newEnergy2) {
                     x = prevx + direction; {
                         if (std::abs(prevEnergy2 - newEnergy2) < funcTolerance) {
-                            if (verbose) cout << "Stopping sincefunction didn't change above tolerance." << endl;
+                            if (verbose) std::cout << "Stopping sincefunction didn't change above tolerance." << std::endl;
                             break;
                         }
                     }
                 } else x = prevx;
 
-                if (verbose) cout << "New energy: " << energy << endl;
+                if (verbose) std::cout << "New energy: " << energy << std::endl;
                 ST->objective_jacobian(x, EVec, J, true);
                 energy = EVec.squaredNorm();
 
@@ -220,7 +217,7 @@ namespace metriko {
 
                 //The SolverTraits can order the optimization to stop by giving "true" of to continue by giving "false"
                 if (ST->post_iteration(x)) {
-                    if (verbose) cout << "ST->Post_iteration() gave a stop" << endl;
+                    if (verbose) std::cout << "ST->Post_iteration() gave a stop" << std::endl;
                     return true;
                 }
                 currIter++;
