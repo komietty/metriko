@@ -1,7 +1,6 @@
 //
 //--- Copyright (C) 2025 Saki Komikado <komietty@gmail.com>,
 //--- This Source Code Form is subject to the terms of the Mozilla Public License v.2.0.
-
 #ifndef METRIKO_COMMON_UTILITIES_H
 #define METRIKO_COMMON_UTILITIES_H
 #include <iostream>
@@ -131,41 +130,5 @@ inline bool find_strict_intersection(
            ratio_c2d >= 0 + eps &&
            ratio_c2d <= 1 - eps;
 }
-
 }
-
-namespace metriko::depricates {
-[[deprecated]]
-inline bool isccw(
-    const complex a,
-    const complex b,
-    const complex c
-) {
-    const double v = cross(b - a, c - a);
-    if (v == 0) {
-        std::cout << "edge case: cross == 0" << std::endl;
-    }
-    return v > 0;
-}
-
-[[deprecated]]
-inline double orientation(
-    const complex a,
-    const complex b,
-    const complex c
-) {
-    return cross(b - a, c - a);
-}
-
-[[deprecated]]
-inline bool points_into(
-    const complex dir,
-    const complex a,
-    const complex b,
-    const complex c
-) {
-    return isccw(a, b, a + dir) && isccw(a, a + dir, c);
-}
-}
-
 #endif

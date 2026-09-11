@@ -189,10 +189,7 @@ void TmeshMut::collapse_tedge_snap(bool flag) {
     if (flag) {
         for (auto& c: candidates) {
         for (auto& [nid, eid, vrt, _]: c) {
-            if (collapse_valid_snap_0(vrt)) {
-                collapse_tedge_snap_inter(eid, nid, vrt);
-                break;
-            }
+            if (collapse_valid_snap_0(vrt)) { collapse_tedge_snap_inter(eid, nid, vrt); break; }
         }}
     } else {
         for (auto& c: candidates) {

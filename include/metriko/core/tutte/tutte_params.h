@@ -304,29 +304,12 @@ inline bool compute_tutte_parameterization(
     vec<SprsD> uv_tq;
     uv_tq.resize(tm.tquads.size());
 
-    //{//todo: for debug
-    //    uv.resize(hm.nC, 2);
-    //    uv.setZero();
-    //    for (int i = 0; i < tm.equads.size(); i++) {
-    //        if (i != 7) continue;
-    //        if (tm.equads[i].id != -1) {
-    //            std::cout << "tutte params tqid: " << i << std::endl;
-    //            MatXd uv_ = embedding_tutte_for_tquad(i, data, hm, tm);
-    //            uv += uv_;
-    //        }
-    //    }
-    //    return false;
-    //}
-
-    //#pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < tm.tquads.size(); i++) {
-        if (tm.tquads[i].id != -1)
-            uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
+        if (tm.tquads[i].id != -1) uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
     }
 
-
-    uv.resize(hm.nC, 2);
-    uv.setZero();
+    uv.setZero(hm.nC, 2);
 
     auto flag = vec(hm.nF, false);
     std::stack<int> stack;
@@ -375,5 +358,4 @@ inline bool compute_tutte_parameterization(
     return success;
 }
 }
-
-#endif //TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H
+#endif

@@ -461,12 +461,12 @@ inline Hmesh::Hmesh(
         }
     }
 
-    vertNormal.resize(nV, 3);
-    vertBasisX.resize(nV, 3);
-    vertBasisY.resize(nV, 3);
-    faceBasisX.resize(nF, 3);
-    faceBasisY.resize(nF, 3);
-    faceNormal.resize(nF, 3);
+    vertNormal.setZero(nV, 3);
+    vertBasisX.setZero(nV, 3);
+    vertBasisY.setZero(nV, 3);
+    faceBasisX.setZero(nF, 3);
+    faceBasisY.setZero(nF, 3);
+    faceNormal.setZero(nF, 3);
     faceArea.resize(nF);
     halfCotan.resize(nH);
     edgeCotan.resize(nE);
