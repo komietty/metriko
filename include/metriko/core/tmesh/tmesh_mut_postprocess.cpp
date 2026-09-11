@@ -23,17 +23,16 @@ bool TmeshMut::collapse_tedge_snap_joint(int teid, Vert v) {
 
     // moving the joint from p to v must not cross another tedge inside its face
     Face f = hm.faces[loc->id];
-    auto p = get_ptloc_pos(hm, *loc);
-    auto a = calc_face_coefficient(f, p);
-    auto b = calc_face_coefficient(f, v.pos());
+    auto a = f.to_local(get_ptloc_pos(hm, *loc));
+    auto b = f.to_local(v.pos());
     for (auto& [id, nids]: live_tedges()) {
     for (int k = 0; k + 1 < nids.size(); ++k) {
         if (nids[k] == nid || nids[k + 1] == nid) continue;
         if (!is_in_face(f, tnodes[nids[k]]) || !is_in_face(f, tnodes[nids[k + 1]])) continue;
         double rab;
         double rcd;
-        auto c = calc_face_coefficient(f, get_ptloc_pos(hm, tnodes[nids[k]]));
-        auto d = calc_face_coefficient(f, get_ptloc_pos(hm, tnodes[nids[k + 1]]));
+        auto c = f.to_local(get_ptloc_pos(hm, tnodes[nids[k]]));
+        auto d = f.to_local(get_ptloc_pos(hm, tnodes[nids[k + 1]]));
         if (find_strict_intersection(a, b, c, d, rab, rcd)) return false;
     }}
 
@@ -74,11 +73,11 @@ void TmeshMut::collapse_tedge_snap_dedup(int teid) {
         if (shared[nid_curr] || nid_prev == nid_next) { ++i; continue; }
 
         // a face carrying all three nodes: the chord prev-next stays inside it
-        vec<int> fids = get_ptloc_faces(hm, tnodes[nid_curr]);
+        vec<int> fids_curr = get_ptloc_faces(hm, tnodes[nid_curr]);
         vec<int> fids_prev = get_ptloc_faces(hm, tnodes[nid_prev]);
         vec<int> fids_next = get_ptloc_faces(hm, tnodes[nid_next]);
 
-        bool same_face = rg::any_of(fids, [&](int fid) { return rg::contains(fids_prev, fid) && rg::contains(fids_next, fid); });
+        bool same_face = rg::any_of(fids_curr, [&](int fid) { return rg::contains(fids_prev, fid) && rg::contains(fids_next, fid); });
         if (!same_face) { ++i; continue; }
 
         // drop the middle node; keep the removal only if the validation holds
@@ -173,9 +172,7 @@ void TmeshMut::collapse_tedge_snap(bool flag) {
                 candidates[nid].emplace_back(nid, teid, v1, (v1.pos() - pos).squaredNorm());
             },
             [&](const HmLocOnF& l) {
-                Vert v0 = hm.faces[l.id].half().tail();
-                Vert v1 = hm.faces[l.id].half().head();
-                Vert v2 = hm.faces[l.id].half().crnr().vert();
+                auto [v0, v1, v2] = hm.faces[l.id].verts();
                 candidates[nid].emplace_back(nid, teid, v0, (v0.pos() - pos).squaredNorm());
                 candidates[nid].emplace_back(nid, teid, v1, (v1.pos() - pos).squaredNorm());
                 candidates[nid].emplace_back(nid, teid, v2, (v2.pos() - pos).squaredNorm());

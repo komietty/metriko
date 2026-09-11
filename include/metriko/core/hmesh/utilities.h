@@ -9,21 +9,9 @@
 #include "hmesh.h"
 
 namespace metriko {
-inline complex calc_coefficient(
-    const Face f,
-    const VecXc &cf,
-    const complex uv
-) {
-    return calc_coefficient(
-        cf(f.half().crnr().id),
-        cf(f.half().next().crnr().id),
-        cf(f.half().prev().crnr().id),
-        uv);
-}
-
-inline complex calc_face_coefficient(const Face& f, const Row3d& p) {
-    Row3d diff = p - f.half().tail().pos();
-    return {diff.dot(f.basisX()), diff.dot(f.basisY())};
+inline complex calc_coefficient(const Face f, const VecXc& cf, const complex uv) {
+    auto cs = f.crnrs();
+    return calc_coefficient(cf(cs[0].id), cf(cs[1].id), cf(cs[2].id), uv);
 }
 
 inline Row3d conversion_2d_3d(
@@ -39,14 +27,8 @@ inline Row3d conversion_2d_3d(
     return o3 + (a3 - o3) * c.real() + (b3 - o3) * c.imag();
 }
 
-inline Row3d conversion_2d_3d(
-    const Face &f,
-    const VecXc &cf,
-    const complex uv
-) {
-    const Crnr c1 = f.half().crnr();
-    const Crnr c2 = f.half().next().crnr();
-    const Crnr c3 = f.half().prev().crnr();
+inline Row3d conversion_2d_3d(const Face& f, const VecXc& cf, const complex uv) {
+    auto [c1, c2, c3] = f.crnrs();
     return conversion_2d_3d(
         cf(c1.id),
         cf(c2.id),
@@ -57,24 +39,27 @@ inline Row3d conversion_2d_3d(
         uv);
 }
 
-inline bool is_inside_face(
-    const Face f,
-    const VecXc &cf,
-    const complex uv
-) {
+inline bool is_inside_face(const Face f, const VecXc& cf, const complex uv) {
     auto uv1 = cf(f.id * 3 + 0);
     auto uv2 = cf(f.id * 3 + 1);
     auto uv3 = cf(f.id * 3 + 2);
     return is_inside_triangle(uv1, uv2, uv3, uv);
 }
 
-inline vec<Face> get_faces(const Hmesh &hm, Vert v) {
-    vec<Face> faces;
-    for (auto h : hm.halfs)
-        if (h.crnr().vert() == v) faces.push_back(h.face());
-    return faces;
+inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
+    Face f = hm.faces[fid];
+    Vert v = hm.verts[vid];
+    for (auto h: f.adjHalfs())
+        if (h.crnr().vert() == v) return h.crnr();
+    return std::nullopt;
 }
 
-};
-
+inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
+    Face f = hm.faces[fid];
+    Edge e = hm.edges[eid];
+    for (auto h: f.adjHalfs())
+        if (h.edge() == e) return h;
+    return std::nullopt;
+}
+}
 #endif

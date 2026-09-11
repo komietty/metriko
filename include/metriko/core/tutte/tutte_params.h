@@ -103,7 +103,7 @@ inline SprsD embedding_tutte_for_tquad(
 
     for (Face f: hm.faces) {
         if (!visit[f.id]) continue;
-        for (Half h: f.adjHalfs()) verts[h.tail().id] = true;
+        for (Vert v: f.verts()) verts[v.id] = true;
     }
 
     int nF_sub = (int)rg::count(visit, true);
@@ -168,10 +168,8 @@ inline vec<int> sequential_mapping(
     if (flag[half_in.face().id]) return nextH;
 
     while (!Q.empty()) {
-        auto f  = Q.front().face();
-        auto c0 = f.half().crnr();
-        auto c1 = f.half().next().crnr();
-        auto c2 = f.half().prev().crnr();
+        auto f = Q.front().face();
+        auto [c0, c1, c2] = f.crnrs();
         uv_all.row(c0.id) = uv_in.row(c0.id);
         uv_all.row(c1.id) = uv_in.row(c1.id);
         uv_all.row(c2.id) = uv_in.row(c2.id);

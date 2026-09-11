@@ -100,13 +100,8 @@ struct TmeshMut {
             tnodes.push_back(std::visit(overloaded{
                 [&](const auto&     _) -> HmLoc { throw std::runtime_error("no impl"); },
                 [&](const HmLocOnV& v) -> HmLoc { return HmLocOnV{v.id}; },
-                [&](const HmLocOnE& e) -> HmLoc { return HmLocOnE{e.id, e.r}; },
-                [&](const HmLocOnP& f) -> HmLoc {
-                    Face fc = hm.faces[f.id];
-                    Row3d p = conversion_2d_3d(fc, cf, f.uv);
-                    Row3d v = p - fc.half().tail().pos();
-                    return HmLocOnF{f.id, complex(v.dot(fc.basisX()), v.dot(fc.basisY()))};
-                },
+                [&](const HmLocOnE& e) -> HmLoc { return HmLocOnE{.id = e.id, .r = e.r}; },
+                [&](const HmLocOnP& l) -> HmLoc { Face f = hm.faces[l.id]; return HmLocOnF{.id = l.id, .xy = f.to_local(conversion_2d_3d(f, cf, l.uv))}; },
             }, mn.loc));
         }
 

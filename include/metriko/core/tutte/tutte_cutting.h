@@ -74,7 +74,7 @@ inline void face_cutting(
         halfs.emplace_back(h.tail().id, sp.rbegin()->second);
     }
 
-    auto pos2 = [&](int vid) { return calc_face_coefficient(f, vpos[vid]); };
+    auto pos2 = [&](int vid) { return f.to_local(vpos[vid]); };
     auto cr   = [](complex u, complex v) { return (std::conj(u) * v).imag(); };
 
     constexpr double penalty = 100.; // dominates min_angle in (-pi, pi]

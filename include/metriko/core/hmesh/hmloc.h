@@ -20,13 +20,7 @@ inline Row3d get_ptloc_pos(const Hmesh& hm, const HmLoc& loc) {
         [&](const HmLocOnC& l) -> Row3d { return hm.crnrs[l.id].vert().pos(); },
         [&](const HmLocOnE& l) -> Row3d { return hm.edges[l.id].lerp(l.r); },
         [&](const HmLocOnH& l) -> Row3d { return hm.halfs[l.id].lerp(l.r); },
-        [&](const HmLocOnF& l) -> Row3d {
-            Face f = hm.faces[l.id];
-            Row3d o = f.half().tail().pos();
-            Row3d x = f.basisX();
-            Row3d y = f.basisY();
-            return o + x * l.xy.real() + y * l.xy.imag();
-        },
+        [&](const HmLocOnF& l) -> Row3d { return hm.faces[l.id].to_world(l.xy); },
         [&](const HmLocOnP& _) -> Row3d { throw std::runtime_error("no impl"); },
     }, loc);
 }
@@ -35,16 +29,8 @@ inline Row3d get_ptloc_nml(const Hmesh& hm, const HmLoc& loc) {
     return std::visit(overloaded{
         [&](const HmLocOnV& l) -> Row3d { return hm.verts[l.id].normal(); },
         [&](const HmLocOnF& l) -> Row3d { return hm.faces[l.id].normal(); },
-        [&](const HmLocOnE& l) -> Row3d {
-            Edge  e = hm.edges[l.id];
-            Row3d d = e.face0().normal() + e.face1().normal();
-            return d.norm() > 0 ? d.normalized() : Row3d::Zero();
-        },
-        [&](const HmLocOnH& l) -> Row3d {
-            Half  h = hm.halfs[l.id];
-            Row3d d = h.face().normal() + h.twin().face().normal();
-            return d.norm() > 0 ? d.normalized() : Row3d::Zero();
-        },
+        [&](const HmLocOnE& l) -> Row3d { return hm.edges[l.id].nml(); },
+        [&](const HmLocOnH& l) -> Row3d { return hm.halfs[l.id].nml(); },
         [&](const auto& _) -> Row3d { throw std::runtime_error("no impl"); },
     }, loc);
 }
@@ -88,22 +74,6 @@ inline std::optional<Edge> try_get_edge(const Hmesh& hm, const HmLoc& a, const H
     for (int x : ea)
     for (int y : eb)
         if (x == y) return hm.edges[x];
-    return std::nullopt;
-}
-
-inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
-    Face f = hm.faces[fid];
-    Vert v = hm.verts[vid];
-    for (auto h: f.adjHalfs())
-        if (h.crnr().vert() == v) return h.crnr();
-    return std::nullopt;
-}
-
-inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
-    Face f = hm.faces[fid];
-    Edge e = hm.edges[eid];
-    for (auto h: f.adjHalfs())
-        if (h.edge() == e) return h;
     return std::nullopt;
 }
 

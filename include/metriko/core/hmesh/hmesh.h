@@ -4,7 +4,7 @@
 
 #ifndef METRIKO_HMESH_H
 #define METRIKO_HMESH_H
-#include <uuid/uuid.h>
+#include <array>
 #include "igl/edge_topology.h"
 #include "metriko/core/common/typedef.h"
 
@@ -34,8 +34,13 @@ struct Face : Elem {
     [[nodiscard]] Row3d normal() const;
     [[nodiscard]] Row3d center() const;
     [[nodiscard]] double area() const;
+    [[nodiscard]] Row3d to_world(const complex& v) const;
+    [[nodiscard]] complex to_local(const Row3d& v) const;
     [[nodiscard]] AdjIter<AdjFH> adjHalfs(bool ccw = true) const;
     [[nodiscard]] AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true) const;
+    [[nodiscard]] std::array<Half, 3> halfs() const; // curr, next, prev
+    [[nodiscard]] std::array<Vert, 3> verts() const; // tails of halfs above
+    [[nodiscard]] std::array<Crnr, 3> crnrs() const; // crnrs of halfs above
 };
 
 struct Edge : Elem {
@@ -48,6 +53,7 @@ struct Edge : Elem {
     [[nodiscard]] double cot() const;
     [[nodiscard]] bool isBoundary() const;
     [[nodiscard]] Row3d vec() const;
+    [[nodiscard]] Row3d nml() const;
     [[nodiscard]] Row3d lerp(double r) const;
 };
 
@@ -93,6 +99,7 @@ struct Half : Elem {
     [[nodiscard]] bool isBoundary()  const;
     [[nodiscard]] bool isCanonical() const;
     [[nodiscard]] Row3d vec() const;
+    [[nodiscard]] Row3d nml() const;
     [[nodiscard]] Row3d lerp(double r) const;
 };
 
@@ -235,6 +242,8 @@ inline double Face::area() const { return m->faceArea[id]; }
 inline double Vert::baryArea() const { return m->baryDualArea[id]; }
 inline double Vert::circArea() const { return m->circDualArea[id]; }
 inline Row3d Half::vec() const { return head().pos()  - tail().pos();  }
+inline Row3d Half::nml() const { Row3d d = face().normal() + twin().face().normal(); return d.norm() > 0 ? d.normalized() : Row3d::Zero(); }
+inline Row3d Edge::nml() const { Row3d d = face0().normal() + face1().normal();      return d.norm() > 0 ? d.normalized() : Row3d::Zero(); }
 inline Row3d Edge::vec() const { return vert1().pos() - vert0().pos(); }
 inline Row3d Vert::pos() const { return m->pos.row(id); }
 inline Row3d Vert::basisX() const { return m->vertBasisX.row(id); }
@@ -246,12 +255,19 @@ inline Row3d Face::normal() const { return m->faceNormal.row(id); }
 inline Row3d Face::center() const { return m->baryCenter.row(id); }
 inline Row3d Edge::lerp(double r) const { return vert0().pos() * (1 - r) + vert1().pos() * r; }
 inline Row3d Half::lerp(double r) const { return tail().pos()  * (1 - r) + head().pos()  * r; }
+inline Row3d Face::to_world(const complex& v) const { return half().tail().pos() + basisX() * v.real() + basisY() * v.imag(); }
+inline complex Face::to_local(const Row3d& v) const { Row3d d = v - half().tail().pos(); return {d.dot(basisX()), d.dot(basisY())}; }
+
+inline std::array<Half, 3> Face::halfs() const { Half h = half(); return {h, h.next(), h.prev()}; }
+inline std::array<Vert, 3> Face::verts() const { auto [h0, h1, h2] = halfs(); return {h0.tail(), h1.tail(), h2.tail()}; }
+inline std::array<Crnr, 3> Face::crnrs() const { auto [h0, h1, h2] = halfs(); return {h0.crnr(), h1.crnr(), h2.crnr()}; }
 
 inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) const { return {m, m->vert2half[id], ccw}; }
 inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) const { return {m, m->face2half[id], ccw}; }
 inline AdjIter<AdjLH> Loop::adjHalfs(bool ccw) const { return {m, m->loop2half[id], ccw}; }
 inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) const { assert(h.tail().id == id); return {m, h.id, ccw}; }
 inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) const { assert(h.face().id == id); return {m, h.id, ccw}; }
+
 
 inline void dcel(
     const VecXi &D,
@@ -436,8 +452,7 @@ inline Hmesh::Hmesh(
         for (int it = 0; it < 3; ++it) {
             int vid = F(iF, it);
             int cid = iF * 3 + it;
-            Half hc = halfs[face2half[iF]];
-            for (Half h: {hc, hc.next(), hc.prev()}) {
+            for (Half h: faces[iF].halfs()) {
                 if (h.tail().id != vid && h.head().id != vid) {
                     crnr2half[cid] = h.id;
                     crnr[h.id] = cid;

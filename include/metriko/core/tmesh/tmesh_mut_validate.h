@@ -38,7 +38,7 @@ inline vec<TeContact> find_tedge_contacts(const TmeshMut& tm) {
 
     for (auto& [fid, segs]: per_face) {
         Face f = hm.faces[fid];
-        auto pos2 = [&](int nid) { return calc_face_coefficient(f, get_ptloc_pos(hm, tm.tnodes[nid])); };
+        auto pos2 = [&](int nid) { return f.to_local(get_ptloc_pos(hm, tm.tnodes[nid])); };
 
         // p strictly inside segment a-b (2d)
         auto on_seg = [&](const complex p, const complex a, const complex b) {

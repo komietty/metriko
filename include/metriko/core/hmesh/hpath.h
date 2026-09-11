@@ -14,9 +14,12 @@ inline vec<HmLoc> approx_shortest_path(
     const vec<std::tuple<int, double, double>>& allowed // (eid, r0, r1) allowed region ranges
 ) {
     auto shares = [](const vec<int>& a, const vec<int>& b) {
-        for (int x : a) for (int y : b) if (x == y) return true;
+        for (int x : a)
+        for (int y : b)
+            if (x == y) return true;
         return false;
     };
+
     // same edge or shared face -> straight segment, skip the graph search.
     if (shares(get_ptloc_edges(hm, loc_bgn), get_ptloc_edges(hm, loc_end))) return { loc_bgn, loc_end };
     if (shares(get_ptloc_faces(hm, loc_bgn), get_ptloc_faces(hm, loc_end))) return { loc_bgn, loc_end };
