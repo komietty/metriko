@@ -10,17 +10,6 @@
 
 namespace metriko {
 
-inline Mat2d compute_rotation(int i) {
-    Mat2d r0, r1, r2, r3;
-    r0 <<  1,  0,  0,  1;
-    r1 <<  0, -1,  1,  0;
-    r2 << -1,  0,  0, -1;
-    r3 <<  0,  1, -1,  0;
-    auto r = vec{r2, r1, r0, r3}; // need fix
-    return r[i];
-}
-
-
 inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
     SprsD S(mesh.nV, mesh.nV);
     std::vector<TripD> T;
@@ -176,34 +165,34 @@ inline vec<int> sequential_mapping(
 // need to consider: is there any possibility of flip?
 inline bool apply_transition(
     const Half h,    // the halfedge of unfixed side
-    const SprsD& m0, // the fixed uv information
+    const MatXd& m0, // the fixed uv information
           SprsD& m1  // the unfixed adjacent uv information
 ) {
-    Vec2d uv0  = m0.row(h.twin().next().crnr().id).transpose();
-    Vec2d uv0a = m0.row(h.twin().prev().crnr().id).transpose();
-    Vec2d uv1  = m1.row(h.prev().crnr().id).transpose();
-    Vec2d uv1a = m1.row(h.next().crnr().id).transpose();
+    auto at = [](const SprsD& m, int i) { return complex(m.coeff(i, 0), m.coeff(i, 1)); };
+    auto c0 = h.twin().next().crnr();
+    auto c1 = h.twin().prev().crnr();
+    auto uv0  = complex(m0(c0.id, 0), m0(c0.id, 1));
+    auto uv0a = complex(m0(c1.id, 0), m0(c1.id, 1));
+    auto uv1  = at(m1, h.prev().crnr().id);
+    auto uv1a = at(m1, h.next().crnr().id);
+    auto dir0 = uv0a - uv0;
+    auto dir1 = uv1a - uv1;
 
     for (int i = 0; i < 4; i++) {
-        Mat2d r = compute_rotation(i);
-        Vec2d v1 = r * (uv1a - uv1);
-        Vec2d v2 = uv0a - uv0;
+        auto rot = get_quater_rot(i);
+        if (abs(rot * dir1 - dir0) > 1e-5) continue;
 
-        if ((v1 - v2).norm() < 1e-5) {
-            for (SprsD::InnerIterator it(m1, 0); it; ++it) {
-                int ir = it.row();
-                Vec2d p(it.value(), m1.coeff(ir, 1));
-                p = r * (p - uv1) + uv0;
-                m1.coeffRef(ir, 0) = p.x();
-                m1.coeffRef(ir, 1) = p.y();
-            }
-            return true;
+        for (SprsD::InnerIterator it(m1, 0); it; ++it) {
+            auto r = it.row();
+            auto p = rot * (at(m1, r) - uv1) + uv0;
+            m1.coeffRef(r, 0) = p.real();
+            m1.coeffRef(r, 1) = p.imag();
         }
+        return true;
     }
     return false;
 }
 
-struct HalfHash { std::size_t operator()(const Half& h) const noexcept { return std::hash<int>{}(h.id); } };
 
 inline bool compute_tutte_parameterization(
     const Hmesh& hm,           // hmesh after tutte cutting
@@ -212,6 +201,10 @@ inline bool compute_tutte_parameterization(
     const vec<HalfData>& data, //
     MatXd& uv
 ) {
+    struct HalfHash {
+        std::size_t operator()(const Half& h) const noexcept { return std::hash<int>{}(h.id); }
+    };
+
     bool success = true;
     // compute uv per tquad first...
     vec<SprsD> uv_tq;
@@ -249,14 +242,11 @@ inline bool compute_tutte_parameterization(
         if (flag[h.face().id]) continue;
 
         auto it = data_by_half.find(h);
-        if (it == data_by_half.end()) {
-            std::cerr << "[Error] compute_tutte_parameterization: Halfedge " << h.id << " not found in data_by_half map." << '\n';
-            return false;
-        }
+        if (it == data_by_half.end()) { return false; }
 
         auto curr = it->second;
         SprsD& uv_curr = uv_tq[curr->tqid];
-        bool res = apply_transition(h, uv.sparseView(), uv_curr);
+        bool res = apply_transition(h, uv, uv_curr);
         success &= res;
 
         vec b(hm.nH, false);

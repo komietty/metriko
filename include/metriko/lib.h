@@ -124,7 +124,17 @@ inline RemeshResult compute_remesh(
 
     sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
     slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-    slim_solve(sData, 50);
+
+    constexpr int    slim_max_iter = 50;
+    constexpr double slim_rel_tol  = 1e-4;
+    double prev = std::numeric_limits<double>::infinity();
+    for (int i = 0; i < slim_max_iter; ++i) {
+        slim_solve(sData, 1);
+        if (std::abs(prev - sData.energy) < slim_rel_tol * std::abs(sData.energy)) break;
+        std::println("[slim] iter {} energy {}", i, sData.energy);
+        prev = sData.energy;
+    }
+    //slim_solve(sData, 50);
 
     // ------ qex on the slim result ------
     VecXc cfn(hm_emb->nF * 3);
