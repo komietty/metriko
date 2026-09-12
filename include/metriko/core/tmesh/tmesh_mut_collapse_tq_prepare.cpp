@@ -59,21 +59,21 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         chain.thids_b.insert(chain.thids_b.end(), thids_3.begin(), thids_3.end());
     }
 
-    auto find_terminal = [&](int thid, bool s0, bool s1) -> std::pair<const HmLoc&, bool> {
+    auto find_terminal = [&](int thid, bool s0, bool s1) -> std::pair<int, bool> {
         const auto& th0 = thalfs[thid];
         const auto& th1 = thalfs[th0.twid];
-        if (th0.bgn) return { th0.loc_fr(), s0 };
-        if (th1.bgn) return { th1.loc_fr(), s1 };
-        if (th0.end) return { th0.loc_to(), s1 };
-        if (th1.end) return { th1.loc_to(), s0 };
+        if (th0.bgn) return { th0.nid_fr(), s0 };
+        if (th1.bgn) return { th1.nid_fr(), s1 };
+        if (th0.end) return { th0.nid_to(), s1 };
+        if (th1.end) return { th1.nid_to(), s0 };
         throw std::runtime_error("error in find_terminal (chain)");
     };
-    auto [loc_bgn, side_bgn] = find_terminal(chain.thid_l, true, false);
-    auto [loc_end, side_end] = find_terminal(chain.thid_r, false, true);
+    auto [nid_bgn, side_bgn] = find_terminal(chain.thid_l, true, false);
+    auto [nid_end, side_end] = find_terminal(chain.thid_r, false, true);
 
     int s = 0; for (int t : chain.thids_t) s += thalfs[t].x;
-    chain.pts.push_back({ .loc = loc_bgn, .val = 0, .ord = 0.,        .adj = count_adj_tquads(chain.thid_l), .top = side_bgn });
-    chain.pts.push_back({ .loc = loc_end, .val = s, .ord = (double)s, .adj = count_adj_tquads(chain.thid_r), .top = side_end });
+    chain.pts.push_back({ .nid = nid_bgn, .val = 0, .ord = 0.,        .adj = count_adj_tquads(chain.thid_l), .top = side_bgn });
+    chain.pts.push_back({ .nid = nid_end, .val = s, .ord = (double)s, .adj = count_adj_tquads(chain.thid_r), .top = side_end });
 
     auto oft = 0;
 
@@ -84,15 +84,15 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         const auto& tq_    = tquads[th_r.tqid];
         auto a0 = count_adj_tquads(th_twn.id); // top
         auto a1 = count_adj_tquads(th_r.id);   // btm
-        auto l0 = th_r.loc_to();
-        auto l1 = th_r.loc_fr();
+        auto n0 = th_r.nid_to();
+        auto n1 = th_r.nid_fr();
         auto sr = tq_.side_of(th_r);
         auto thids_t = tq_.thids((sr + 1) % 4);
         auto thids_b = tq_.thids((sr + 3) % 4);
 
         auto btm = oft;
-        auto f = [&](const HmLoc& l, int thid_at) {
-            bool f1 = l != th_l.loc_fr() && l != th_l.loc_to() && l != th_r.loc_fr() && l != th_r.loc_to();
+        auto f = [&](int nid, int thid_at) {
+            bool f1 = nid != th_l.nid_fr() && nid != th_l.nid_to() && nid != th_r.nid_fr() && nid != th_r.nid_to();
             bool f2 = count_adj_tquads(thid_at) != 2; // adjacency around the pushed node
             return f1 && f2;
         };
@@ -103,17 +103,17 @@ bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         int    span   = 0; for (int t: thids_t) span   += thalfs[t].x;
         double rt_sum = 0; for (int t: thids_t) rt_sum += thalfs[t].r;
         double rb_sum = 0; for (int t: thids_b) rb_sum += thalfs[t].r;
-        for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (f(th.loc_fr(), th.id))   chain.pts.push_back({ .loc = th.loc_fr(), .val = oft, .ord = base + rt / rt_sum * span, .adj = 3, .top = true  }); }
-        for (int thid: thids_b)               { auto& th = thalfs[thid]; btm += th.x; rb += th.r; if (f(th.loc_to(), th.twid)) chain.pts.push_back({ .loc = th.loc_to(), .val = btm, .ord = base + rb / rb_sum * span, .adj = 3, .top = false }); }
+        for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (f(th.nid_fr(), th.id))   chain.pts.push_back({ .nid = th.nid_fr(), .val = oft, .ord = base + rt / rt_sum * span, .adj = 3, .top = true  }); }
+        for (int thid: thids_b)               { auto& th = thalfs[thid]; btm += th.x; rb += th.r; if (f(th.nid_to(), th.twid)) chain.pts.push_back({ .nid = th.nid_to(), .val = btm, .ord = base + rb / rb_sum * span, .adj = 3, .top = false }); }
 
         chain.bounds.push_back(oft);
 
         // push ladder thalf points
         if (i == chain.thids_z.size() - 1) break;
-        if      (th_r.bgn)   chain.pts.push_back({.loc = l1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
-        else if (th_twn.bgn) chain.pts.push_back({.loc = l0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
-        else if (th_r.end)   chain.pts.push_back({.loc = l0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
-        else if (th_twn.end) chain.pts.push_back({.loc = l1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
+        if      (th_r.bgn)   chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
+        else if (th_twn.bgn) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
+        else if (th_r.end)   chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
+        else if (th_twn.end) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
     }
 
     rg::stable_sort(chain.pts, {}, [](const Tqpoint& p) { return std::pair(p.val, p.ord); });

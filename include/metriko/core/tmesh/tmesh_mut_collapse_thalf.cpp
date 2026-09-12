@@ -27,19 +27,17 @@ void TmeshMut::collapse_thalf(int thid) {
     else {
         bool collapse_to_prev = it_crr->side != it_prv->side;
 
-        auto [p_fr, p_to] = [&]{
-            if ( collapse_to_prev &&  th_prv.cano) return std::pair{&th_prv.loc_fr(), &th_crr.loc_to()};
-            if ( collapse_to_prev && !th_prv.cano) return std::pair{&th_crr.loc_to(), &th_prv.loc_fr()};
-            if (!collapse_to_prev &&  th_nxt.cano) return std::pair{&th_crr.loc_fr(), &th_nxt.loc_to()};
-            if (!collapse_to_prev && !th_nxt.cano) return std::pair{&th_nxt.loc_to(), &th_crr.loc_fr()};
+        auto [n_fr, n_to] = [&]{
+            if ( collapse_to_prev &&  th_prv.cano) return std::pair{th_prv.nid_fr(), th_crr.nid_to()};
+            if ( collapse_to_prev && !th_prv.cano) return std::pair{th_crr.nid_to(), th_prv.nid_fr()};
+            if (!collapse_to_prev &&  th_nxt.cano) return std::pair{th_crr.nid_fr(), th_nxt.nid_to()};
+            if (!collapse_to_prev && !th_nxt.cano) return std::pair{th_nxt.nid_to(), th_crr.nid_fr()};
             throw std::runtime_error("no impl");
         }();
 
         auto region = allowed_range_tquads({tq_crr.id});
-        auto path   = approx_shortest_path(30, hm, *p_fr, *p_to, region);
-        auto nid0   = p_fr - tnodes.data();
-        auto nid1   = p_to - tnodes.data();
-        auto nids   = add_new_path(path, nid0, nid1);
+        auto path   = approx_shortest_path(30, hm, tnodes[n_fr], tnodes[n_to], region);
+        auto nids   = add_new_path(path, n_fr, n_to);
 
         auto  it_twn_adj = collapse_to_prev ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
         auto& th_twn_adj = thalfs[it_twn_adj->thid];

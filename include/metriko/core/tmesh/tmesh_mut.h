@@ -8,18 +8,8 @@
 namespace metriko {
 struct TmeshMut;
 
-struct Tqaux {
-    vec<std::tuple<HmLoc, double, double, int>> checkpoints = {};  // collapse point of tquad. (loc, val, ord, side)
-    std::pair<int, vec<int>> side_thids_t = {};
-    std::pair<int, vec<int>> side_thids_b = {};
-    std::pair<int, int> side_thid_l = {};
-    std::pair<int, int> side_thid_r = {};
-    bool thid_l_merge_to_ahead = false;
-    bool thid_r_merge_to_ahead = false;
-};
-
 struct Tqpoint {
-    HmLoc loc;
+    int    nid = -1; // tnode of this point
     int    val = -1;
     double ord = -1; // geometric sort key: arc-length (th.r) position along the spine, per-tquad normalized
     int    adj = -1; // adjancy count
@@ -54,6 +44,8 @@ struct ThalfMut {
     bool end  = false;
     double x  = -1;
     double r  = -1;
+    int nid_fr() const;
+    int nid_to() const;
     const HmLoc& loc_fr() const;
     const HmLoc& loc_to() const;
 };
@@ -67,7 +59,8 @@ struct TquadMut {
     int id = -1;
     vec<TdataMut> data;
 
-    int side_of(const ThalfMut& th) const { return rg::find(data, th.id, &TdataMut::thid)->side; }
+    auto find_of(this auto& self, int thid) { return rg::find(self.data, thid, &TdataMut::thid); }
+    int  side_of(const ThalfMut& th) const { return rg::find(data, th.id, &TdataMut::thid)->side; }
 
     vec<int> thids(int side) const {
         return data | vw::filter([&](auto& d) { return d.side == side; })
@@ -178,8 +171,10 @@ struct TmeshMut {
     }
 };
 
-inline const HmLoc& ThalfMut::loc_fr() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.front() : nids.back()]; }
-inline const HmLoc& ThalfMut::loc_to() const { const auto& [_, nids] = tm->tedges[this->teid]; return tm->tnodes[cano ? nids.back() : nids.front()]; }
+inline int ThalfMut::nid_fr() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.front() : nids.back(); }
+inline int ThalfMut::nid_to() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.back() : nids.front(); }
+inline const HmLoc& ThalfMut::loc_fr() const { return tm->tnodes[nid_fr()]; }
+inline const HmLoc& ThalfMut::loc_to() const { return tm->tnodes[nid_to()]; }
 
 inline void TedgeMut::insert_locs(const vec<int>& locs) {
     int f = locs.front();

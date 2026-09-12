@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
                     for (size_t k = 0; k < chain.pts.size(); ++k) {
                         const auto& p = chain.pts[k];
                         std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} adj {} top {}",
-                                     k, loc_str(p.loc), p.val, p.ord, p.adj, p.top);
+                                     k, loc_str(tmm.tnodes[p.nid]), p.val, p.ord, p.adj, p.top);
                     }
                     auto dump_side = [&](const char* name, const vec<int>& thids) {
                         for (int t: thids) {
