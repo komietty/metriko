@@ -89,45 +89,37 @@ void TmeshMut::collapse_tedge_snap_inter(int teid, int nid, Vert v) {
     auto in_ring = [&](const HmLoc& l) { return rg::any_of(v.adjHalfs(), [&](Half h) { return is_in_face(h.face(), l); });};
 
     auto& nids = tedges[teid].nids;
-
     auto it = rg::find(nids, nid);
     if (it == nids.end()) return;   // trimmed away by an earlier snap
-    int i_cur = rg::find(nids, nid) - nids.begin();
+    int i_cur = it - nids.begin();
     int i_min = i_cur;
     int i_max = i_cur;
     while (i_min > 0               && in_ring(tnodes[nids[i_min - 1]])) --i_min;
     while (i_max < nids.size() - 1 && in_ring(tnodes[nids[i_max + 1]])) ++i_max;
 
-    //for (int i = i_min + 1; i < i_max; i++) teids[nids[i]] = -1;
     if (i_max - i_cur >= 2) nids.erase(nids.begin() + i_cur + 1, nids.begin() + i_max);
     if (i_cur - i_min >= 2) nids.erase(nids.begin() + i_min + 1, nids.begin() + i_cur);
     tnodes[nid] = HmLocOnV{.id = v.id};
 }
 
-
 // re-trace a tedge inside the union corridor of its two tquads. used to resolve
 // tedge-tedge contacts created by snapping: the corridor walls are the other
 // boundary tedges, so the new path cannot touch them by construction
 bool TmeshMut::reroute_tedge(int teid) {
-    int tq0 = -1, tq1 = -1;
-    for (const auto& th: thalfs)
-        if (th.id != -1 && th.teid == teid) (th.cano ? tq0 : tq1) = th.tqid;
+    auto ths = thalfs | vw::filter([&](const ThalfMut& th) { return th.id != -1 && th.teid == teid; });
+    auto tq0 = -1;
+    auto tq1 = -1;
+    for (auto& th: ths) (th.cano ? tq0 : tq1) = th.tqid;
     if (tq0 < 0 || tq1 < 0) return false;
 
-    // unified corridor of both tquads: their shared tedges (this one included)
-    // are interior to the union and excluded from the walls automatically
-    auto allowed = allowed_range_tquads({tq0, tq1});
-
+    auto  allw = allowed_range_tquads({tq0, tq1});
     auto& nids = tedges[teid].nids;
-    auto path  = approx_shortest_path(30, hm, tnodes[nids.front()], tnodes[nids.back()], allowed);
+    auto  path = approx_shortest_path(30, hm, tnodes[nids.front()], tnodes[nids.back()], allw);
     if (path.size() < 2) return false;
     nids = add_new_path(path, nids.front(), nids.back());
 
-    // refresh the geometric length of both thalfs
-    double r = 0;
-    for (size_t k = 0; k + 1 < nids.size(); ++k)
-        r += (get_ptloc_pos(hm, tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tnodes[nids[k]])).norm();
-    for (auto& th: thalfs) if (th.id != -1 && th.teid == teid) th.r = r;
+    auto r = path_length(nids);
+    for (auto& th: ths) th.r = r;
     return true;
 }
 
@@ -152,40 +144,29 @@ void TmeshMut::collapse_tedge_snap(bool flag) {
 
     vec candidates(tnodes.size(), vec<Cand>{});
 
-    // 2.0: snap inter tnodes
+    // 2: snap inter tnodes
     for (auto& [teid, nids]: live_tedges()) {
     for (int i = 1; i < nids.size() - 1; i++) {
         auto nid = nids[i];
         auto pos = get_ptloc_pos(hm, tnodes[nid]);
 
-        std::visit(overloaded{
-            [&](const HmLocOnH& l) {
-                Vert v0 = hm.halfs[l.id].tail();
-                Vert v1 = hm.halfs[l.id].head();
-                candidates[nid].emplace_back(nid, teid, v0, (v0.pos() - pos).squaredNorm());
-                candidates[nid].emplace_back(nid, teid, v1, (v1.pos() - pos).squaredNorm());
-            },
-            [&](const HmLocOnE& l) {
-                Vert v0 = hm.edges[l.id].vert0();
-                Vert v1 = hm.edges[l.id].vert1();
-                candidates[nid].emplace_back(nid, teid, v0, (v0.pos() - pos).squaredNorm());
-                candidates[nid].emplace_back(nid, teid, v1, (v1.pos() - pos).squaredNorm());
-            },
-            [&](const HmLocOnF& l) {
-                auto [v0, v1, v2] = hm.faces[l.id].verts();
-                candidates[nid].emplace_back(nid, teid, v0, (v0.pos() - pos).squaredNorm());
-                candidates[nid].emplace_back(nid, teid, v1, (v1.pos() - pos).squaredNorm());
-                candidates[nid].emplace_back(nid, teid, v2, (v2.pos() - pos).squaredNorm());
-            },
-            [&](const auto&) {},
-        }, tnodes[nid]);
+        if (std::holds_alternative<HmLocOnV>(tnodes[nid])) continue;
+        for (int vid: get_ptloc_verts(hm, tnodes[nid])) {
+            auto v = hm.verts[vid];
+            auto d = (v.pos() - pos).squaredNorm();
+            candidates[nid].push_back({.nid = nid, .eid = teid, .v = v, .d = d});
+        }
     }}
 
-    // 2.1: sort candidates in inner/outer order
+    // 3: sort candidates in inner/outer order
     for (auto& c: candidates) rg::sort(c, {}, &Cand::d);
     rg::sort(candidates, {}, [](const vec<Cand>& c) { return c.empty() ? 1e9 : c.front().d; });
 
-    // 2.2: snap if it's valid
+    // 4: snap if it's valid
+    //for (auto& c: candidates)
+    //for (auto& [nid, eid, vrt, _]: c | vw::take(flag ? c.size() : 1))
+    //    if (collapse_valid_snap_0(vrt)) { collapse_tedge_snap_inter(eid, nid, vrt); break; }
+
     if (flag) {
         for (auto& c: candidates) {
         for (auto& [nid, eid, vrt, _]: c) {

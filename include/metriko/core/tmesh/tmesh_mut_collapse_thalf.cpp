@@ -16,8 +16,8 @@ void TmeshMut::collapse_thalf(int thid) {
     auto& te_prv = tedges[th_prv.teid];
     auto& te_nxt = tedges[th_nxt.teid];
 
-    assert(!(it_crr->side != it_prv->side && it_crr->side != it_nxt->side));
-    assert(!(it_crr->side == it_prv->side && it_crr->side == it_nxt->side));
+    if(it_crr->side != it_prv->side && it_crr->side != it_nxt->side) throw std::runtime_error("collapse thalf error");
+    if(it_crr->side == it_prv->side && it_crr->side == it_nxt->side) throw std::runtime_error("collapse thalf error");
 
     int cout_fr = count_adj_tquads(th_crr.id);
     int cout_to = count_adj_tquads(th_twn.id);
@@ -42,7 +42,7 @@ void TmeshMut::collapse_thalf(int thid) {
         auto  it_twn_adj = collapse_to_prev ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
         auto& th_twn_adj = thalfs[it_twn_adj->thid];
         auto& te_twn_adj = tedges[th_twn_adj.teid];
-        assert(it_twn_adj->side == it_twn->side);
+        if(it_twn_adj->side != it_twn->side) throw std::runtime_error("collapse thalf error");
 
         // 1: collapse to the prv/nxt edge
         // 2: insert missing segments to the adjacent edge.

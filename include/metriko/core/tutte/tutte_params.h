@@ -159,7 +159,7 @@ inline vec<int> sequential_mapping(
 
 // try to multiply rotation until halfedge coner values corresponds
 // need to consider: is there any possibility of flip?
-inline bool apply_transition(
+inline void apply_transition(
     const Half h,    // the halfedge of unfixed side
     const MatXd& m0, // the fixed uv information
           SprsD& m1  // the unfixed adjacent uv information
@@ -184,34 +184,34 @@ inline bool apply_transition(
             m1.coeffRef(r, 0) = p.real();
             m1.coeffRef(r, 1) = p.imag();
         }
-        return true;
+        return;
     }
-    return false;
+    throw std::runtime_error("failed to apply_transition");
 }
 
 
-inline bool compute_tutte_parameterization(
-    const Hmesh& hm,           // hmesh after tutte cutting
-    const TmeshMut& tm,        // tmesh original
-    const vec<bool>& seam,     // seam adapted to tutte cutting
-    const vec<HalfData>& data, //
-    MatXd& uv
+inline MatXd compute_tutte_parameterization(
+    const Hmesh& hm,          // hmesh after tutte cutting
+    const TmeshMut& tm,       // tmesh original
+    const vec<bool>& seam,    // seam adapted to tutte cutting
+    const vec<HalfData>& data //
 ) {
+    MatXd uv = MatXd::Zero(hm.nC, 2);
+
     struct HalfHash {
         std::size_t operator()(const Half& h) const noexcept { return std::hash<int>{}(h.id); }
     };
 
-    bool success = true;
     // compute uv per tquad first...
     vec<SprsD> uv_tq;
     uv_tq.resize(tm.tquads.size());
 
     #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < tm.tquads.size(); i++) {
-        if (tm.tquads[i].id != -1) uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
+        if (tm.tquads[i].id == -1) continue;
+        uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
     }
 
-    uv.setZero(hm.nC, 2);
 
     auto flag = vec(hm.nF, false);
     std::stack<int> stack;
@@ -230,25 +230,21 @@ inline bool compute_tutte_parameterization(
 
     // 2: other tquads
     while (!stack.empty()) {
-        auto h = hm.halfs[stack.top()];
-        stack.pop();
+        auto h = hm.halfs[stack.top()]; stack.pop();
         if (flag[h.face().id]) continue;
 
         auto it = data_by_half.find(h);
-        if (it == data_by_half.end()) { return false; }
+        if (it == data_by_half.end()) throw std::runtime_error("failed to find data_by_half");
 
         auto  curr = it->second;
         auto& uv_curr = uv_tq[curr->tqid];
-        bool  res = apply_transition(h, uv, uv_curr);
-        success &= res;
+        apply_transition(h, uv, uv_curr);
 
         vec b(hm.nH, false);
         for (auto& d: data) { if (d.tqid == curr->tqid) b[d.half.id] = true; }
         for (auto nh: sequential_mapping(hm, uv_curr, h, b, seam, flag, uv)) stack.emplace(nh);
-
-        if (!success) return false;
     }
-    return success;
+    return uv;
 }
 }
 #endif

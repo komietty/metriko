@@ -103,9 +103,7 @@ inline RemeshResult compute_remesh(
     auto hm_emb = compute_embedding_cut_hmesh(*hm, *em, seam, cmbf->matching, cmbf->singular, seam1, matching1, singular1, hdata);
     auto hm_cut = compute_cut_mesh(*hm_emb, seam1);
 
-    MatXd uv;
-    bool flag = compute_tutte_parameterization(*hm_emb, *em, seam1, hdata, uv);
-    if (!flag) throw std::runtime_error("compute_tutte parameterization failed");
+    MatXd uv = compute_tutte_parameterization(*hm_emb, *em, seam1, hdata);
 
     igl::SLIMData sData;
     MatXd uv_init(hm_cut->nV, 2);

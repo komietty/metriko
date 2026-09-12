@@ -31,44 +31,31 @@ namespace metriko {
         const Thalf& bgn,
         Func compare
     ) {
-        std::priority_queue<Comparator, std::vector<Comparator>, decltype(compare)> q(compare);
+        std::priority_queue<Comparator, vec<Comparator>, decltype(compare)> q(compare);
         std::unordered_map<int, int> m;
-        std::vector<int> visited;
-        std::vector<std::vector<int>> result;
+        vec<int> visited;
+        vec<vec<int>> result;
 
         int counter = 0;
-        q.emplace(Comparator{0, 0, bgn.id});
+        q.emplace(Comparator{.length = 0, .weight = 0, .thid = bgn.id});
 
         do {
             int len = q.top().length;
             Thalf prev = thalfs[q.top().thid];
             q.pop();
 
-            int tquad_idx = thalf_tquad_table[prev.id];
-            int sides_idx = thalf_sides_table[prev.id];
-            auto& tq = tquads[tquad_idx];
-
-            std::vector<int> pair_idcs;
-            for(int i = 0; i < tq.data.size(); i++) {
-                int thid = tq.data[i].thid;
-                int side = tq.data[i].side;
-                if (side == (sides_idx + 2) % 4) {
-                    pair_idcs.emplace_back(thid);
-                }
-            }
-
-            for (int pair_idx: pair_idcs) {
-                const auto &pair = thalfs[pair_idx];
+            int tqid = thalf_tquad_table[prev.id];
+            int side = thalf_sides_table[prev.id];
+            for (int thid: tquads[tqid].thids_by_side((side + 2) % 4)) {
+                const auto &pair = thalfs[thid];
                 const auto &curr = pair.twin();
 
                 if (curr.id == bgn.id && counter > 0) {
                     int idx = prev.id;
-                    std::vector<int> res;
+                    vec<int> res;
                     res.emplace_back(idx);
-                    do {
-                        idx = m[idx];
-                        res.emplace_back(idx);
-                    } while (idx != bgn.id);
+                    do { idx = m[idx]; res.emplace_back(idx); }
+                    while (idx != bgn.id);
                     return res;
                 }
 
@@ -79,13 +66,14 @@ namespace metriko {
                     tmp_idx = m[tmp_idx];
                 }
                 if (!visited_ && rg::none_of(visited, [&](int id) { return id == curr.id; })) {
-                    q.emplace(Comparator{len - 1, R[curr.edge().id], curr.id});
+                    q.emplace(Comparator{.length = len - 1, .weight = R[curr.edge().id], .thid = curr.id});
                     m.emplace(curr.id, prev.id);
                     visited.emplace_back(curr.id);
                 }
             }
             counter++;
         } while (!q.empty());
+        throw std::runtime_error("cannot find a loop");
     }
 }
 

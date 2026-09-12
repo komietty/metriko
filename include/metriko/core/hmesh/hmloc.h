@@ -35,17 +35,14 @@ inline Row3d get_ptloc_nml(const Hmesh& hm, const HmLoc& loc) {
     }, loc);
 }
 
-inline vec<int> get_ptloc_faces(const Hmesh& hm, const HmLoc& loc) {
-    vec<int> out = {};
-    std::visit(overloaded{
-        [&](const HmLocOnV& l) { for (Half h : hm.verts[l.id].adjHalfs()) out.push_back(h.face().id); },
-        [&](const HmLocOnE& l) { out.push_back(hm.edges[l.id].face0().id); out.push_back(hm.edges[l.id].face1().id); },
-        [&](const HmLocOnH& l) { Half h = hm.halfs[l.id]; out.push_back(h.face().id); out.push_back(h.twin().face().id) ; },
-        [&](const HmLocOnF& l) { out.push_back(l.id); },
-        [&](const auto&) { },
+inline vec<int> get_ptloc_verts(const Hmesh& hm, const HmLoc& loc) {
+    return std::visit(overloaded{
+        [&](const HmLocOnV& l) -> vec<int> { return {l.id}; },
+        [&](const HmLocOnE& l) -> vec<int> { auto e = hm.edges[l.id]; return {e.vert0().id, e.vert1().id}; },
+        [&](const HmLocOnH& l) -> vec<int> { auto h = hm.halfs[l.id]; return {h.tail().id, h.head().id}; },
+        [&](const HmLocOnF& l) -> vec<int> { auto [a, b, c] = hm.faces[l.id].verts(); return {a.id, b.id, c.id}; },
+        [&](const auto&)       -> vec<int> { return {}; },
     }, loc);
-    std::erase(out, -1);
-    return out;
 }
 
 inline vec<int> get_ptloc_edges(const Hmesh& hm, const HmLoc& loc) {
@@ -56,6 +53,19 @@ inline vec<int> get_ptloc_edges(const Hmesh& hm, const HmLoc& loc) {
         [&](const HmLocOnH& l) { out.push_back(hm.halfs[l.id].edge().id); },
         [&](const auto&) { },
     }, loc);
+    return out;
+}
+
+inline vec<int> get_ptloc_faces(const Hmesh& hm, const HmLoc& loc) {
+    vec<int> out = {};
+    std::visit(overloaded{
+        [&](const HmLocOnV& l) { for (Half h : hm.verts[l.id].adjHalfs()) out.push_back(h.face().id); },
+        [&](const HmLocOnE& l) { out.push_back(hm.edges[l.id].face0().id); out.push_back(hm.edges[l.id].face1().id); },
+        [&](const HmLocOnH& l) { Half h = hm.halfs[l.id]; out.push_back(h.face().id); out.push_back(h.twin().face().id) ; },
+        [&](const HmLocOnF& l) { out.push_back(l.id); },
+        [&](const auto&) { },
+    }, loc);
+    std::erase(out, -1);
     return out;
 }
 

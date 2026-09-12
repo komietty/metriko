@@ -169,6 +169,13 @@ struct TmeshMut {
         }
         return nids;
     }
+
+    double path_length(const vec<int>& nids) const {
+        double r = 0;
+        for (size_t k = 0; k + 1 < nids.size(); ++k)
+            r += (get_ptloc_pos(hm, tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tnodes[nids[k]])).norm();
+        return r;
+    }
 };
 
 inline int ThalfMut::nid_fr() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.front() : nids.back(); }
