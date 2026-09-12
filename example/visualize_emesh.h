@@ -1,12 +1,12 @@
-#ifndef TMESH_MUT_COLLAPSE_TQUAD_CPP_VISUALIZE_TMESH_MUT_H
-#define TMESH_MUT_COLLAPSE_TQUAD_CPP_VISUALIZE_TMESH_MUT_H
+#ifndef METRIKO_VISUALIZE_EMESH_H
+#define METRIKO_VISUALIZE_EMESH_H
 #include "./visualize_common.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/emesh.h"
 
 namespace metriko::visualizer {
 inline void visualize_tedge_mut_collapsed(
     const Hmesh& hm,
-    const TmeshMut& tm,
+    const Emesh& tm,
     const bool show = true,
     const double scale = 0.001
 ) {
@@ -35,7 +35,7 @@ inline void visualize_tedge_mut_collapsed(
 
 inline void visualize_tedge_mut_snapped(
     const Hmesh& hm,
-    const TmeshMut& tm,
+    const Emesh& tm,
     const bool show = true,
     const double scale = 0.001
 ) {
@@ -64,7 +64,7 @@ inline void visualize_tedge_mut_snapped(
 
 inline void visualize_tquad_mut_collapsed(
     const Hmesh& hm,
-    const TmeshMut& tm,
+    const Emesh& tm,
     const bool show = true,
     const double scale = 0.001
 ) {
@@ -74,9 +74,9 @@ inline void visualize_tquad_mut_collapsed(
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> eside, ex, ey, er, ethid;   // per-edge (thalf) params
         size_t c = 0;
-        for (const TdataMut& d : data) {
-            const ThalfMut& th = tm.thalfs[d.thid];
-            const TedgeMut& te = tm.tedges[th.teid];
+        for (const Edata& d : data) {
+            const Ehalf& th = tm.thalfs[d.thid];
+            const Eedge& te = tm.tedges[th.teid];
             for (size_t i = 0; i + 1 < te.nids.size(); ++i) {
                 Row3d a = get_ptloc_pos(hm, tm.tnodes[te.nids[i]]);
                 Row3d b = get_ptloc_pos(hm, tm.tnodes[te.nids[i + 1]]);
@@ -106,7 +106,7 @@ inline void visualize_tquad_mut_collapsed(
 
 inline void visualize_non_snapped_tnodes(
     const Hmesh& hm,
-    const TmeshMut& tm,
+    const Emesh& tm,
     const bool show = true,
     const double scale = 0.003
 ) {
@@ -142,7 +142,7 @@ inline void visualize_non_snapped_tnodes(
 
 inline void visualize_face_collinear_error(
     const Hmesh& hm,
-    const TmeshMut& tm,
+    const Emesh& tm,
     const bool show = true
 ) {
     std::set<int> bad;   // hm face ids violating the snap_1 criterion

@@ -1,7 +1,7 @@
 //
 // Created by saki on 2026/07/14.
 //
-// demo: collapse the TmeshMut, then cut the original hmesh along the collapsed
+// demo: collapse the Emesh, then cut the original hmesh along the collapsed
 // t-mesh (emesh_cutting) and display the resulting cut mesh with its patch
 // boundaries.
 #include <fstream>
@@ -13,7 +13,7 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/emesh.h"
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/qex/sanitization.h"
@@ -25,7 +25,7 @@
 #include "common.h"
 #include "visualize_hmesh.h"
 #include "visualize_qex.h"
-#include "visualize_tmesh_mut.h"
+#include "visualize_emesh.h"
 #include "visualize_quad_patch.h"
 
 using namespace metriko;
@@ -42,18 +42,18 @@ int main(int argc, char** argv) {
     if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam)) throw std::runtime_error("the cache does not exist");
 
     ///--- load the collapsed t-mesh produced by example_1 ---///
-    TmeshMut tmm(hm);
-    if (!load_tmm(std::format("{}.{}.tmm", argv[1], argv[2]), tmm))
-        throw std::runtime_error("the tmm cache does not exist. run example_1 first");
+    Emesh em(hm);
+    if (!load_emesh(std::format("{}.{}.em", argv[1], argv[2]), em))
+        throw std::runtime_error("the em cache does not exist. run example_1 first");
 
     ///--- validate tedge nid chains: duplicated / backtracking nodes break the cut ---///
-    for (const auto& th: tmm.thalfs) {
+    for (const auto& th: em.thalfs) {
         if (th.id == -1 || !th.cano) continue;
-        const auto& nids = tmm.tedges[th.teid].nids;
+        const auto& nids = em.tedges[th.teid].nids;
         for (size_t k = 0; k + 1 < nids.size(); ++k) {
-            Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
-            Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
-            if (nids[k] == nids[k + 1] || (a - b).norm() < 1e-12) std::println("[warn] tedge {} (thid {}, x {}): duplicate node at {} (nid {} / {}, locs {} / {})", th.teid, th.id, th.x, k, nids[k], nids[k + 1], loc_str(tmm.tnodes[nids[k]]), loc_str(tmm.tnodes[nids[k + 1]]));
+            Row3d a = get_ptloc_pos(hm, em.tnodes[nids[k]]);
+            Row3d b = get_ptloc_pos(hm, em.tnodes[nids[k + 1]]);
+            if (nids[k] == nids[k + 1] || (a - b).norm() < 1e-12) std::println("[warn] tedge {} (thid {}, x {}): duplicate node at {} (nid {} / {}, locs {} / {})", th.teid, th.id, th.x, k, nids[k], nids[k + 1], loc_str(em.tnodes[nids[k]]), loc_str(em.tnodes[nids[k + 1]]));
         }
         for (size_t k = 0; k + 2 < nids.size(); ++k) {
             if (nids[k] == nids[k + 2]) std::println("[warn] tedge {} (thid {}, x {}): backtrack at {} (nid {})", th.teid, th.id, th.x, k, nids[k]);
@@ -62,21 +62,21 @@ int main(int argc, char** argv) {
 
     { // cross-tedge duplicate nodes: two distinct tnodes at the same location
         std::map<std::string, std::pair<int, int>> seen; // loc string -> (nid, teid)
-        for (const auto& th: tmm.thalfs) {
+        for (const auto& th: em.thalfs) {
             if (th.id == -1 || !th.cano) continue;
-            for (int nid: tmm.tedges[th.teid].nids) {
-                auto key = loc_str(tmm.tnodes[nid]);
+            for (int nid: em.tedges[th.teid].nids) {
+                auto key = loc_str(em.tnodes[nid]);
                 if (auto [it, ins] = seen.try_emplace(key, nid, th.teid); !ins && it->second.first != nid) std::println("[warn] duplicate tnode: {} (nid {} in teid {} / nid {} in teid {})", key, it->second.first, it->second.second, nid, th.teid);
             }
         }
     }
 
     { // boundary of every live tquad must be a closed loop in order
-        for (const auto& tq: tmm.live_tquads()) {
+        for (const auto& tq: em.live_tquads()) {
             auto& d = tq.data;
             for (size_t k = 0; k < d.size(); ++k) {
-                const auto& a = tmm.thalfs[d[k].thid];
-                const auto& b = tmm.thalfs[d[(k + 1) % d.size()].thid];
+                const auto& a = em.thalfs[d[k].thid];
+                const auto& b = em.thalfs[d[(k + 1) % d.size()].thid];
                 if (a.loc_to() != b.loc_fr()) std::println("[warn] tquad {}: boundary broken between thid {} and thid {} ({} vs {})", tq.id, a.id, b.id, loc_str(a.loc_to()), loc_str(b.loc_fr()));
             }
         }
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
     VecXi matching1;
     VecXi singular1;
     vec<HalfData> hdata;
-    auto hm_emb = compute_embedding_cut_hmesh(hm, tmm, seam, matching, singular, seam1, matching1, singular1, hdata);
+    auto hm_emb = compute_embedding_cut_hmesh(hm, em, seam, matching, singular, seam1, matching1, singular1, hdata);
     auto hm_cut = compute_cut_mesh(*hm_emb, seam1);
 
 
@@ -114,13 +114,13 @@ int main(int argc, char** argv) {
     auto* base = visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
     auto* embd = visualizer::visualize_mesh(hm_emb->pos, hm_emb->idx, false, "embd mesh");
     visualizer::visualize_seam(*hm_emb, seam1, VecXi(), "cut seam", false);
-    visualizer::visualize_non_snapped_tnodes(hm, tmm, false);
-    visualizer::visualize_tedge_mut_collapsed(hm, tmm, false);
-    visualizer::visualize_face_collinear_error(hm, tmm, true);
+    visualizer::visualize_non_snapped_tnodes(hm, em, false);
+    visualizer::visualize_tedge_mut_collapsed(hm, em, false);
+    visualizer::visualize_face_collinear_error(hm, em, true);
 
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
     MatXd uv;
-    if (compute_tutte_parameterization(*hm_emb, tmm, seam1, hdata, uv)) {
+    if (compute_tutte_parameterization(*hm_emb, em, seam1, hdata, uv)) {
         embd->addParameterizationQuantity("tutte uv", uv);
         igl::SLIMData sData;
 
@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
 
             visualizer::visualize_qedges(qedges);
             visualizer::visualize_qfaces(hm, qfaces, true);
-            visualizer::visualize_quad_patch(hm, tmm, singular, qfaces);
+            visualizer::visualize_quad_patch(hm, em, singular, qfaces);
         }
     } else std::println("[tutte] compute_tutte_parameterization failed");
 

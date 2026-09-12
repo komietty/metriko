@@ -1,7 +1,7 @@
-#ifndef METRIKO_TMESH_MUT_VALIDATE_H
-#define METRIKO_TMESH_MUT_VALIDATE_H
+#ifndef METRIKO_EMESH_VALIDATE_H
+#define METRIKO_EMESH_VALIDATE_H
 #include <set>
-#include "tmesh_mut.h"
+#include "emesh.h"
 
 namespace metriko {
 
@@ -15,7 +15,7 @@ struct TeContact {
 };
 
 // tedges must not touch each other except at shared junction nodes
-inline vec<TeContact> find_tedge_contacts(const TmeshMut& tm) {
+inline vec<TeContact> find_tedge_contacts(const Emesh& tm) {
     const Hmesh& hm = tm.hm;
 
     struct Seg { int teid; int n0; int n1; };
@@ -69,7 +69,7 @@ inline vec<TeContact> find_tedge_contacts(const TmeshMut& tm) {
     return res;
 }
 
-inline int validate_no_crossing(const TmeshMut& tm, const char* stage) {
+inline int validate_no_crossing(const Emesh& tm, const char* stage) {
     auto cs = find_tedge_contacts(tm);
     for (auto& [fid, te_seg, te_ndp, cross]: cs)
         std::println("[crossing] {}: {} at face {}, teid {} x teid {}", stage, cross ? "cross" : "touch", fid, te_seg, te_ndp);
@@ -78,7 +78,7 @@ inline int validate_no_crossing(const TmeshMut& tm, const char* stage) {
 }
 
 // resolve contacts by re-tracing the intruding tedge (fall back to the other)
-inline void repair_crossing_tedges(TmeshMut& tm, const int max_iter = 10) {
+inline void repair_crossing_tedges(Emesh& tm, const int max_iter = 10) {
     for (int it = 0; it < max_iter; ++it) {
         auto cs = find_tedge_contacts(tm);
         if (cs.empty()) return;

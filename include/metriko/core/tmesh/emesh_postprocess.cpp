@@ -1,8 +1,8 @@
 #include <set>
-#include "./tmesh_mut.h"
+#include "./emesh.h"
 
 namespace metriko {
-bool TmeshMut::collapse_valid_snap_0(Vert v) {
+bool Emesh::collapse_valid_snap_0(Vert v) {
     for (auto& [id, nids]: live_tedges()) {
         if (rg::any_of(nids, [&](int nid) {
             auto* l = std::get_if<HmLocOnV>(&tnodes[nid]);
@@ -16,7 +16,7 @@ bool TmeshMut::collapse_valid_snap_0(Vert v) {
 // `teid` onto vertex v, trimming the incident chains inside v's one-ring.
 // returns false when the joint is already snapped, v is occupied, or the move
 // would cross another tedge inside the joint's face
-bool TmeshMut::collapse_tedge_snap_joint(int teid, Vert v) {
+bool Emesh::collapse_tedge_snap_joint(int teid, Vert v) {
     auto  nid = tedges[teid].nids.back();
     auto* loc = std::get_if<HmLocOnF>(&tnodes[nid]);
     if (!loc || !collapse_valid_snap_0(v)) return false;
@@ -53,7 +53,7 @@ bool TmeshMut::collapse_tedge_snap_joint(int teid, Vert v) {
     return true;
 }
 
-void TmeshMut::collapse_tedge_snap_dedup(int teid) {
+void Emesh::collapse_tedge_snap_dedup(int teid) {
     auto& nids = tedges[teid].nids;
 
     // nodes shared with other chains (junctions / crossings) must stay: dropping
@@ -85,7 +85,7 @@ void TmeshMut::collapse_tedge_snap_dedup(int teid) {
     }
 }
 
-void TmeshMut::collapse_tedge_snap_inter(int teid, int nid, Vert v) {
+void Emesh::collapse_tedge_snap_inter(int teid, int nid, Vert v) {
     auto in_ring = [&](const HmLoc& l) { return rg::any_of(v.adjHalfs(), [&](Half h) { return is_in_face(h.face(), l); });};
 
     auto& nids = tedges[teid].nids;
@@ -105,8 +105,8 @@ void TmeshMut::collapse_tedge_snap_inter(int teid, int nid, Vert v) {
 // re-trace a tedge inside the union corridor of its two tquads. used to resolve
 // tedge-tedge contacts created by snapping: the corridor walls are the other
 // boundary tedges, so the new path cannot touch them by construction
-bool TmeshMut::reroute_tedge(int teid) {
-    auto ths = thalfs | vw::filter([&](const ThalfMut& th) { return th.id != -1 && th.teid == teid; });
+bool Emesh::reroute_tedge(int teid) {
+    auto ths = thalfs | vw::filter([&](const Ehalf& th) { return th.id != -1 && th.teid == teid; });
     auto tq0 = -1;
     auto tq1 = -1;
     for (auto& th: ths) (th.cano ? tq0 : tq1) = th.tqid;
@@ -123,7 +123,7 @@ bool TmeshMut::reroute_tedge(int teid) {
     return true;
 }
 
-void TmeshMut::collapse_tedge_snap(bool flag) {
+void Emesh::collapse_tedge_snap(bool flag) {
     struct Cand { int nid; int eid; Vert v; double d; };
 
     // 1: snap joint tnodes. every (joint, face vertex) pair is a candidate,

@@ -1,13 +1,13 @@
-#include "./tmesh_mut.h"
+#include "./emesh.h"
 using namespace metriko;
 
-void TmeshMut::collapse_thalf(int thid) {
+void Emesh::collapse_thalf(int thid) {
     auto& th_crr = thalfs[thid];
     auto& th_twn = thalfs[th_crr.twid];
     auto& tq_crr = tquads[th_crr.tqid];
     auto& tq_twn = tquads[th_twn.tqid];
-    auto  it_crr = rg::find(tq_crr.data, thid     , &TdataMut::thid);
-    auto  it_twn = rg::find(tq_twn.data, th_twn.id, &TdataMut::thid);
+    auto  it_crr = rg::find(tq_crr.data, thid     , &Edata::thid);
+    auto  it_twn = rg::find(tq_twn.data, th_twn.id, &Edata::thid);
     auto  it_prv = circular_prev(tq_crr.data, it_crr);
     auto  it_nxt = circular_next(tq_crr.data, it_crr);
     auto& th_prv = thalfs[it_prv->thid];

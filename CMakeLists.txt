@@ -89,11 +89,11 @@ endif()
 add_library(${PROJECT_NAME} STATIC
         include/metriko/core/tmesh/motorcycle.h
         include/metriko/core/tmesh/motorcycle.cpp
-        include/metriko/core/tmesh/tmesh_mut_collapse_range.cpp
-        include/metriko/core/tmesh/tmesh_mut_collapse_thalf.cpp
-        include/metriko/core/tmesh/tmesh_mut_collapse_tq_prepare.cpp
-        include/metriko/core/tmesh/tmesh_mut_collapse_tq_execute.cpp
-        include/metriko/core/tmesh/tmesh_mut_postprocess.cpp
+        include/metriko/core/tmesh/emesh_collapse_range.cpp
+        include/metriko/core/tmesh/emesh_collapse_thalf.cpp
+        include/metriko/core/tmesh/emesh_collapse_tq_prepare.cpp
+        include/metriko/core/tmesh/emesh_collapse_tq_execute.cpp
+        include/metriko/core/tmesh/emesh_postprocess.cpp
         include/metriko/core/quantization/quantization.h
 )
 

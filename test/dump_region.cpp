@@ -23,16 +23,16 @@ int main(int argc, char** argv) {
 
     TmeshPipeline P(argv[1], std::stod(argv[2]), parse_field_type(argv[3]));
     if (!P.ok) { std::cerr << "failed to load mesh: " << argv[1] << "\n"; return 1; }
-    auto& tmm = *P.tmm;
+    auto& em = *P.em;
 
     std::ofstream out(argv[4]);
     if (!out.good()) { std::cerr << "cannot open output: " << argv[4] << "\n"; return 1; }
     out << std::setprecision(17);
 
-    const int n = (int)tmm.tquads.size();
+    const int n = (int)em.tquads.size();
     out << "{\n";
     for (int tqid = 0; tqid < n; ++tqid) {
-        auto rng = tmm.allowed_range_tquads({tqid});     // vec<tuple<eid, r0, r1>>
+        auto rng = em.allowed_range_tquads({tqid});     // vec<tuple<eid, r0, r1>>
         std::sort(rng.begin(), rng.end());      // ascending by (eid, r0, r1)
         out << "  \"" << tqid << "\": [";
         for (size_t i = 0; i < rng.size(); ++i) {

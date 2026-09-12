@@ -1,11 +1,9 @@
-#ifndef METRIKO_TMESH_MUT_COLLAPSE_RANGE_H
-#define METRIKO_TMESH_MUT_COLLAPSE_RANGE_H
-#include "tmesh_mut.h"
+#include "emesh.h"
 #include <set>
 
 namespace metriko {
 
-vec<std::tuple<int, double, double>> TmeshMut::allowed_range_thalfs(const vec<int>& thids) const {
+vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
     auto lpos = [&](int nid) -> Row3d { return get_ptloc_pos(hm, tnodes[nid]); };
     auto edir = [&](int eid) -> Row3d { return hm.edges[eid].half().vec(); };
 
@@ -79,7 +77,7 @@ vec<std::tuple<int, double, double>> TmeshMut::allowed_range_thalfs(const vec<in
     return res;
 }
 
-vec<std::tuple<int, double, double>> TmeshMut::allowed_range_tquads(const vec<int>& tqids) const {
+vec<std::tuple<int, double, double>> Emesh::allowed_range_tquads(const vec<int>& tqids) const {
     vec<int> thids;
 
     for (int tqid: tqids)
@@ -91,4 +89,3 @@ vec<std::tuple<int, double, double>> TmeshMut::allowed_range_tquads(const vec<in
     return allowed_range_thalfs(thids);
 }
 }
-#endif

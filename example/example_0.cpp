@@ -8,7 +8,7 @@
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
 #include "metriko/core/hmesh/hpath.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/emesh.h"
 #include "metriko/core/tutte/tutte.h"
 #include "common.h"
 #include "visualize_hmesh.h"

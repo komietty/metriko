@@ -1,7 +1,7 @@
-#include "./tmesh_mut.h"
+#include "./emesh.h"
 using namespace metriko;
 
-void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
+void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
 
     struct Candidate {
         int  tqid;
@@ -129,25 +129,25 @@ void TmeshMut::collapse_tquad_chain_execute(Tqchain& chain) {
 
             // same body as single-tquad replace, per element
             auto& [id, data] = tquads[thalfs[old].tqid];
-            auto it = rg::find(data, old, &TdataMut::thid); assert(it != data.end());
+            auto it = rg::find(data, old, &Edata::thid); assert(it != data.end());
             auto si = it->side;
             it = data.erase(it);
-            vec<TdataMut> repl;
+            vec<Edata> repl;
             for (int t : seg) { thalfs[t].tqid = id; repl.push_back({ t, si }); }
             data.insert(it, repl.begin(), repl.end());
         }
     };
 
-    auto extend = [&](const ThalfMut& th, bool ahd, bool not_consume) {
+    auto extend = [&](const Ehalf& th, bool ahd, bool not_consume) {
         auto step = [&](int thid) { return ahd ? step_next(thid) : step_prev(thid); };
         auto& th1 = thalfs[step(th.id)];    // nxt or prv
         auto& th2 = thalfs[step(th1.twid)]; // ahd or bhd
         auto& [id, data] = tquads[th2.tqid];
         if (not_consume) {
-            auto it = rg::find(data, th2.id, &TdataMut::thid);
+            auto it = rg::find(data, th2.id, &Edata::thid);
             auto si = it->side;
             thalfs[th.id].tqid = id;
-            data.insert(ahd ? it : it + 1, TdataMut{ th.id, si });
+            data.insert(ahd ? it : it + 1, Edata{ th.id, si });
         } else {
             auto& nids    = tedges[th.teid].nids;
             auto& th_twn  = thalfs[th.twid];

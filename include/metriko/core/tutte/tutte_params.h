@@ -2,11 +2,11 @@
 // Created by saki on 2026/07/19.
 //
 
-#ifndef TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H
-#define TMESH_MUT_COLLAPSE_TQUAD_CPP_TUTTE_PARAMS_H
+#ifndef METRIKO_TUTTE_PARAMS_H
+#define METRIKO_TUTTE_PARAMS_H
 
 #include "tutte.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/emesh.h"
 
 namespace metriko {
 
@@ -37,7 +37,7 @@ inline SprsD embedding_tutte_for_tquad(
     const int tqid,
     const vec<HalfData>& data,
     const Hmesh& hm,   // the cut mesh
-    const TmeshMut& tm // the tmesh of original hmesh
+    const Emesh& tm // the tmesh of original hmesh
 ) {
     auto tq_rg = rg::equal_range(data, tqid, {}, &HalfData::tqid);
 
@@ -192,7 +192,7 @@ inline void apply_transition(
 
 inline MatXd compute_tutte_parameterization(
     const Hmesh& hm,          // hmesh after tutte cutting
-    const TmeshMut& tm,       // tmesh original
+    const Emesh& tm,       // tmesh original
     const vec<bool>& seam,    // seam adapted to tutte cutting
     const vec<HalfData>& data //
 ) {

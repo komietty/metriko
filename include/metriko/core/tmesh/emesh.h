@@ -1,12 +1,12 @@
-#ifndef EXAMPLE_EBD_CPP_TMESH_MUT_H
-#define EXAMPLE_EBD_CPP_TMESH_MUT_H
+#ifndef METRIKO_EMESH_H
+#define METRIKO_EMESH_H
 #include "tmesh.h"
 #include "metriko/core/hmesh/hmloc.h"
 #include "metriko/core/hmesh/hpath.h"
 #include "metriko/core/hmesh/utilities.h"
 
 namespace metriko {
-struct TmeshMut;
+struct Emesh;
 
 struct Tqpoint {
     int    nid = -1; // tnode of this point
@@ -27,14 +27,14 @@ struct Tqchain {
     int      thid_l  = -1;
 };
 
-struct TedgeMut {
+struct Eedge {
     int id = -1;
     vec<int> nids = {};
     void insert_locs(const vec<int>& locs);
 };
 
-struct ThalfMut {
-    const TmeshMut* tm = nullptr;
+struct Ehalf {
+    const Emesh* tm = nullptr;
     int id   = -1;
     int twid = -1;
     int teid = -1;
@@ -50,17 +50,17 @@ struct ThalfMut {
     const HmLoc& loc_to() const;
 };
 
-struct TdataMut {
+struct Edata {
     int thid = -1;
     int side = -1;
 };
 
-struct TquadMut {
+struct Equad {
     int id = -1;
-    vec<TdataMut> data;
+    vec<Edata> data;
 
-    auto find_of(this auto& self, int thid) { return rg::find(self.data, thid, &TdataMut::thid); }
-    int  side_of(const ThalfMut& th) const { return rg::find(data, th.id, &TdataMut::thid)->side; }
+    auto find_of(this auto& self, int thid) { return rg::find(self.data, thid, &Edata::thid); }
+    int  side_of(const Ehalf& th) const { return rg::find(data, th.id, &Edata::thid)->side; }
 
     vec<int> thids(int side) const {
         return data | vw::filter([&](auto& d) { return d.side == side; })
@@ -69,16 +69,16 @@ struct TquadMut {
     }
 };
 
-struct TmeshMut {
+struct Emesh {
     const Hmesh& hm;
     vec<HmLoc>    tnodes = {};
-    vec<TedgeMut> tedges = {};
-    vec<ThalfMut> thalfs = {};
-    vec<TquadMut> tquads = {};
+    vec<Eedge> tedges = {};
+    vec<Ehalf> thalfs = {};
+    vec<Equad> tquads = {};
 
-    explicit TmeshMut(const Hmesh& hm): hm(hm) {}   // empty shell for deserialization
+    explicit Emesh(const Hmesh& hm): hm(hm) {}   // empty shell for deserialization
 
-    explicit TmeshMut(
+    explicit Emesh(
         const Mgrph& mg,
         const Tmesh& tm,
         const VecXd& X
@@ -99,7 +99,7 @@ struct TmeshMut {
         }
 
         for (const Tedge& te : tm.tedges) {
-            TedgeMut tem {};
+            Eedge tem {};
             tem.id = te.id;
             tem.nids.reserve(te.segs.size() + 1);
             tem.nids.push_back(te.segs.front().fr_nid);
@@ -123,7 +123,7 @@ struct TmeshMut {
         }
 
         for (const auto& [id, data] : tm.tquads) {
-            TquadMut tqm;
+            Equad tqm;
             tqm.id = id;
             tqm.data.reserve(data.size());
             for (const auto& d : data) tqm.data.push_back({d.thid, d.side});
@@ -131,8 +131,8 @@ struct TmeshMut {
         }
     }
 
-    int step_next(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error("step_next"); return circular_next(d, it)->thid; };
-    int step_prev(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &TdataMut::thid); if (it == d.end()) throw std::runtime_error("step_prev"); return circular_prev(d, it)->thid; };
+    int step_next(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); if (it == d.end()) throw std::runtime_error("step_next"); return circular_next(d, it)->thid; };
+    int step_prev(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); if (it == d.end()) throw std::runtime_error("step_prev"); return circular_prev(d, it)->thid; };
     int count_adj_tquads(int thid0) const {
         int count = 0, thid = thid0;
         do { ++count; thid = step_next(thalfs[thid].twid); }
@@ -143,10 +143,10 @@ struct TmeshMut {
     vec<std::tuple<int, double, double>> allowed_range_thalfs(const vec<int>& thids) const;
     vec<std::tuple<int, double, double>> allowed_range_tquads(const vec<int>& tqids) const;
 
-    auto live_tedges() const { return tedges | vw::filter([](const TedgeMut& te) { return te.id != -1; }); }
-    auto live_tedges()       { return tedges | vw::filter([](      TedgeMut& te) { return te.id != -1; }); }
-    auto live_tquads() const { return tquads | vw::filter([](const TquadMut& tq) { return tq.id != -1; }); }
-    auto live_tquads()       { return tquads | vw::filter([](      TquadMut& tq) { return tq.id != -1; }); }
+    auto live_tedges() const { return tedges | vw::filter([](const Eedge& te) { return te.id != -1; }); }
+    auto live_tedges()       { return tedges | vw::filter([](      Eedge& te) { return te.id != -1; }); }
+    auto live_tquads() const { return tquads | vw::filter([](const Equad& tq) { return tq.id != -1; }); }
+    auto live_tquads()       { return tquads | vw::filter([](      Equad& tq) { return tq.id != -1; }); }
 
     bool collapse_valid_snap_0(Vert v);
 
@@ -178,12 +178,12 @@ struct TmeshMut {
     }
 };
 
-inline int ThalfMut::nid_fr() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.front() : nids.back(); }
-inline int ThalfMut::nid_to() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.back() : nids.front(); }
-inline const HmLoc& ThalfMut::loc_fr() const { return tm->tnodes[nid_fr()]; }
-inline const HmLoc& ThalfMut::loc_to() const { return tm->tnodes[nid_to()]; }
+inline int Ehalf::nid_fr() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.front() : nids.back(); }
+inline int Ehalf::nid_to() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.back() : nids.front(); }
+inline const HmLoc& Ehalf::loc_fr() const { return tm->tnodes[nid_fr()]; }
+inline const HmLoc& Ehalf::loc_to() const { return tm->tnodes[nid_to()]; }
 
-inline void TedgeMut::insert_locs(const vec<int>& locs) {
+inline void Eedge::insert_locs(const vec<int>& locs) {
     int f = locs.front();
     int b = locs.back();
     if      (nids.front() == b) { nids.insert(nids.begin(), locs.begin(), locs.end() - 1); } // prepend [f..b-1]

@@ -2,8 +2,8 @@
 // Created by saki on 2026/07/14.
 //
 
-#ifndef TMESH_MUT_COLLAPSE_TQUAD_CPP_EMESH_H
-#define TMESH_MUT_COLLAPSE_TQUAD_CPP_EMESH_H
+#ifndef METRIKO_TUTTE_H
+#define METRIKO_TUTTE_H
 #include <tuple>
 #include "metriko/core/hmesh/hmesh.h"
 

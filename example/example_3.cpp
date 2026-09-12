@@ -13,7 +13,7 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/emesh.h"
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/qex/sanitization.h"
@@ -26,7 +26,7 @@
 #include "visualize_hmesh.h"
 #include "visualize_vectorfield.h"
 #include "visualize_qex.h"
-#include "visualize_tmesh_mut.h"
+#include "visualize_emesh.h"
 #include "visualize_quad_patch.h"
 
 using namespace metriko;
@@ -35,8 +35,8 @@ static MatXd V;
 static MatXi F;
 static VecXc uv2;
 
-static void validate_tmeshmut(const TmeshMut& tm) {
-    for (const TquadMut& tq : tm.tquads) {
+static void validate_emesh(const Emesh& tm) {
+    for (const Equad& tq : tm.tquads) {
         if (tq.data.empty()) continue;
         double s[4] = {0, 0, 0, 0};
         for (const auto& [thid, side] : tq.data) {
@@ -96,51 +96,51 @@ int main(int argc, char** argv) {
     validate_quantization(tm, X);
     assert(tm.check_non_zero_tquad(X));
 
-    TmeshMut tmm(mg, tm, X);
+    Emesh em(mg, tm, X);
 
     for (int i = 0; i < 10; ++i) {
         // collapse thalf
-        for (ThalfMut th0 : tmm.thalfs) {
+        for (Ehalf th0 : em.thalfs) {
             if (th0.id == -1) continue;
-            auto& th1 = tmm.thalfs[th0.twid];
-            auto& tq0 = tmm.tquads[th0.tqid];
-            auto& tq1 = tmm.tquads[th1.tqid];
+            auto& th1 = em.thalfs[th0.twid];
+            auto& tq0 = em.tquads[th0.tqid];
+            auto& tq1 = em.tquads[th1.tqid];
             if (th1.id == -1) continue;
             if (th0.x != 0)   continue;
             if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
             if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
             std::cout << "th collapse: " << th0.id << std::endl;
-            tmm.collapse_thalf(th0.id);
-            validate_tmeshmut(tmm);
+            em.collapse_thalf(th0.id);
+            validate_emesh(em);
         }
 
         // collapse tquad
-        for (const auto& [tqid, data] : tmm.tquads) {
+        for (const auto& [tqid, data] : em.tquads) {
             Tqchain chain;
-            if (tmm.collapse_tquad_chain_prepare(tqid, chain)) {
+            if (em.collapse_tquad_chain_prepare(tqid, chain)) {
                 std::cout << "tq collapse: " << tqid << std::endl;
-                tmm.collapse_tquad_chain_execute(chain);
-                validate_tmeshmut(tmm);
+                em.collapse_tquad_chain_execute(chain);
+                validate_emesh(em);
             }
         }
     }
 
-    tmm.collapse_tedge_snap(false);
-    tmm.collapse_tedge_snap(true);
-    for (const auto& [teid, _] : tmm.live_tedges()) { tmm.collapse_tedge_snap_dedup(teid); }
+    em.collapse_tedge_snap(false);
+    em.collapse_tedge_snap(true);
+    for (const auto& [teid, _] : em.live_tedges()) { em.collapse_tedge_snap_dedup(teid); }
 
-    save_tmm(std::format("{}.{}.tmm", argv[1], argv[2]), tmm);
-    std::println("saved tmm cache");
+    save_emesh(std::format("{}.{}.em", argv[1], argv[2]), em);
+    std::println("saved em cache");
 
     ///--- stage 2: cut along the collapsed t-mesh ---///
     // validate tedge nid chains: duplicated / backtracking nodes break the cut
-    for (const auto& th: tmm.thalfs) {
+    for (const auto& th: em.thalfs) {
         if (th.id == -1 || !th.cano) continue;
-        const auto& nids = tmm.tedges[th.teid].nids;
+        const auto& nids = em.tedges[th.teid].nids;
         for (size_t k = 0; k + 1 < nids.size(); ++k) {
-            Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
-            Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
-            if (nids[k] == nids[k + 1] || (a - b).norm() < 1e-12) std::println("[warn] tedge {} (thid {}, x {}): duplicate node at {} (nid {} / {}, locs {} / {})", th.teid, th.id, th.x, k, nids[k], nids[k + 1], loc_str(tmm.tnodes[nids[k]]), loc_str(tmm.tnodes[nids[k + 1]]));
+            Row3d a = get_ptloc_pos(hm, em.tnodes[nids[k]]);
+            Row3d b = get_ptloc_pos(hm, em.tnodes[nids[k + 1]]);
+            if (nids[k] == nids[k + 1] || (a - b).norm() < 1e-12) std::println("[warn] tedge {} (thid {}, x {}): duplicate node at {} (nid {} / {}, locs {} / {})", th.teid, th.id, th.x, k, nids[k], nids[k + 1], loc_str(em.tnodes[nids[k]]), loc_str(em.tnodes[nids[k + 1]]));
         }
         for (size_t k = 0; k + 2 < nids.size(); ++k) {
             if (nids[k] == nids[k + 2]) std::println("[warn] tedge {} (thid {}, x {}): backtrack at {} (nid {})", th.teid, th.id, th.x, k, nids[k]);
@@ -151,7 +151,7 @@ int main(int argc, char** argv) {
     VecXi matching1;
     VecXi singular1;
     vec<HalfData> hdata;
-    auto hm_emb = compute_embedding_cut_hmesh(hm, tmm, seam, matching, singular, seam1, matching1, singular1, hdata);
+    auto hm_emb = compute_embedding_cut_hmesh(hm, em, seam, matching, singular, seam1, matching1, singular1, hdata);
     auto hm_cut = compute_cut_mesh(*hm_emb, seam1);
 
     // --- validate: every halfedge must have its opposite pair. ---
@@ -179,13 +179,13 @@ int main(int argc, char** argv) {
     visualizer::visualize_frosy_field(surf0, hm, rawf, *cmbf);
     visualizer::visualize_seam(hm, seam);
     visualizer::visualize_tedge(tm, mg, uv2, &X);
-    visualizer::visualize_tedge_mut_snapped(hm, tmm, true);
-    visualizer::visualize_tedge_mut_collapsed(hm, tmm, false);
+    visualizer::visualize_tedge_mut_snapped(hm, em, true);
+    visualizer::visualize_tedge_mut_collapsed(hm, em, false);
 
     ///--- stage 2 continued: tutte parameterization (pre-SLIM initial uv) ---///
     MatXd uv;
     try {
-        uv = compute_tutte_parameterization(*hm_emb, tmm, seam1, hdata);
+        uv = compute_tutte_parameterization(*hm_emb, em, seam1, hdata);
     } catch (std::exception& e) {
         std::println(stderr, "[tutte] {}", e.what());
         polyscope::show();
@@ -298,7 +298,7 @@ int main(int argc, char** argv) {
         auto qfaces = qex::generate_q_faces(q_ports, qedges);
 
         visualizer::visualize_qedges(qedges);
-        visualizer::visualize_quad_patch(hm, tmm, singular, qfaces);
+        visualizer::visualize_quad_patch(hm, em, singular, qfaces);
     }
 
     polyscope::show(); return 0;

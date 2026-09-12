@@ -4,11 +4,11 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
-#include "metriko/core/tmesh/tmesh_mut_validate.h"
+#include "metriko/core/tmesh/emesh.h"
+#include "metriko/core/tmesh/emesh_validate.h"
 #include "common.h"
 #include "visualize_hmesh.h"
-#include "visualize_tmesh_mut.h"
+#include "visualize_emesh.h"
 
 using namespace metriko;
 static MatXd V;
@@ -18,8 +18,8 @@ static VecXi matching;
 static VecXi singular;
 static vec<bool> seam;
 
-static void validate_tmeshmut(const TmeshMut& tm) {
-    for (const TquadMut& tq : tm.tquads) {
+static void validate_emesh(const Emesh& tm) {
+    for (const Equad& tq : tm.tquads) {
         if (tq.data.empty()) continue;
         double s[4] = {0, 0, 0, 0};
         for (const auto& [thid, side] : tq.data) {
@@ -53,33 +53,33 @@ int main(int argc, char** argv) {
     visualizer::visualize_init();
     visualizer::visualize_tedge(tm, mg, uv2, &X);
 
-    TmeshMut tmm(mg, tm, X);
+    Emesh em(mg, tm, X);
 
     for (int i = 0; i < 10; ++i) {
         // collapse thalf
-        for (ThalfMut th0 : tmm.thalfs) {
+        for (Ehalf th0 : em.thalfs) {
             if (th0.id == -1) continue;
-            auto& th1 = tmm.thalfs[th0.twid];
-            auto& tq0 = tmm.tquads[th0.tqid];
-            auto& tq1 = tmm.tquads[th1.tqid];
+            auto& th1 = em.thalfs[th0.twid];
+            auto& tq0 = em.tquads[th0.tqid];
+            auto& tq1 = em.tquads[th1.tqid];
             if (th1.id == -1) continue;
             if (th0.x != 0)   continue;
             if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
             if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
             std::cout << "th collapse: " << th0.id << std::endl;
-            tmm.collapse_thalf(th0.id);
-            validate_tmeshmut(tmm);
+            em.collapse_thalf(th0.id);
+            validate_emesh(em);
         }
 
         // collapse tquad
-        for (const auto& [tqid, data] : tmm.live_tquads()) {
+        for (const auto& [tqid, data] : em.live_tquads()) {
             Tqchain chain;
-            if (tmm.collapse_tquad_chain_prepare(tqid, chain)) {
+            if (em.collapse_tquad_chain_prepare(tqid, chain)) {
                 std::cout << "tq collapse: " << tqid << std::endl;
 
                 // TODO TEMP: dump the chain when execute fails, then rethrow
                 try {
-                    tmm.collapse_tquad_chain_execute(chain);
+                    em.collapse_tquad_chain_execute(chain);
                 } catch (const std::exception& ex) {
                     std::println("[debug] execute failed at tqid {}: {}", tqid, ex.what());
                     std::print  ("[debug] tqids:");
@@ -90,11 +90,11 @@ int main(int argc, char** argv) {
                     for (size_t k = 0; k < chain.pts.size(); ++k) {
                         const auto& p = chain.pts[k];
                         std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} adj {} top {}",
-                                     k, loc_str(tmm.tnodes[p.nid]), p.val, p.ord, p.adj, p.top);
+                                     k, loc_str(em.tnodes[p.nid]), p.val, p.ord, p.adj, p.top);
                     }
                     auto dump_side = [&](const char* name, const vec<int>& thids) {
                         for (int t: thids) {
-                            const auto& th = tmm.thalfs[t];
+                            const auto& th = em.thalfs[t];
                             std::println("[debug] {} thid {} (teid {}, tqid {}, cano {}, x {}): {} -> {}",
                                          name, t, th.teid, th.tqid, th.cano, th.x,
                                          loc_str(th.loc_fr()), loc_str(th.loc_to()));
@@ -104,38 +104,38 @@ int main(int argc, char** argv) {
                     dump_side("thids_b", chain.thids_b);
                     dump_side("thids_z", chain.thids_z);
                     for (int t: {chain.thid_l, chain.thid_r}) {
-                        const auto& th = tmm.thalfs[t];
+                        const auto& th = em.thalfs[t];
                         std::println("[debug] {} thid {}: {} -> {}",
                                      t == chain.thid_l ? "thid_l" : "thid_r",
                                      t, loc_str(th.loc_fr()), loc_str(th.loc_to()));
                     }
                     throw;
                 }
-                validate_tmeshmut(tmm);
+                validate_emesh(em);
             }
         }
     }
 
-    tmm.collapse_tedge_snap(false);
-    tmm.collapse_tedge_snap(true);
-    for (const auto& [teid, _] : tmm.live_tedges()) { tmm.collapse_tedge_snap_dedup(teid); }
+    em.collapse_tedge_snap(false);
+    em.collapse_tedge_snap(true);
+    for (const auto& [teid, _] : em.live_tedges()) { em.collapse_tedge_snap_dedup(teid); }
 
     // snapping can bring two tedges into contact: re-trace the offenders and
     // refuse to emit a t-mesh that still has contacts
-    repair_crossing_tedges(tmm);
-    //if (validate_no_crossing(tmm, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
+    repair_crossing_tedges(em);
+    //if (validate_no_crossing(em, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
 
-    if (validate_no_crossing(tmm, "after repair") > 0) {
+    if (validate_no_crossing(em, "after repair") > 0) {
         // TODO TEMP: show the surviving contacts before aborting
         visualizer::visualize_mesh(hm.pos, hm.idx, true, "base mesh");
-        for (auto& c: find_tedge_contacts(tmm)) {
+        for (auto& c: find_tedge_contacts(em)) {
             for (int teid: {c.te_seg, c.te_ndp}) {
-                const auto& nids = tmm.tedges[teid].nids;
+                const auto& nids = em.tedges[teid].nids;
                 std::vector<glm::vec3> ns;
                 std::vector<std::array<size_t, 2>> es;
                 std::vector<double> ord;
                 for (size_t k = 0; k < nids.size(); ++k) {
-                    Row3d p = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
+                    Row3d p = get_ptloc_pos(hm, em.tnodes[nids[k]]);
                     ns.emplace_back(p.x(), p.y(), p.z());
                     ord.push_back((double)k);
                     if (k + 1 < nids.size()) es.push_back({k, k + 1});
@@ -170,15 +170,15 @@ int main(int argc, char** argv) {
         throw std::runtime_error("tedge contacts remain");
     }
 
-    save_tmm(std::format("{}.{}.tmm", argv[1], argv[2]), tmm);
-    std::println("saved tmm cache");
+    save_emesh(std::format("{}.{}.em", argv[1], argv[2]), em);
+    std::println("saved em cache");
 
     visualizer::visualize_mesh(hm.pos, hm.idx);
-    visualizer::visualize_non_snapped_tnodes(hm, tmm, false);
-    visualizer::visualize_tedge_mut_snapped(hm, tmm, true);
-    visualizer::visualize_tedge_mut_collapsed(hm, tmm, false);
-    visualizer::visualize_tquad_mut_collapsed(hm, tmm, false);
-    visualizer::visualize_face_collinear_error(hm, tmm, true);
+    visualizer::visualize_non_snapped_tnodes(hm, em, false);
+    visualizer::visualize_tedge_mut_snapped(hm, em, true);
+    visualizer::visualize_tedge_mut_collapsed(hm, em, false);
+    visualizer::visualize_tquad_mut_collapsed(hm, em, false);
+    visualizer::visualize_face_collinear_error(hm, em, true);
 
     polyscope::show(); return 0;
 }

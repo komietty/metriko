@@ -6,8 +6,8 @@
 #include "core/igm/parameterization.h"
 #include "core/quantization/quantization.h"
 #include "core/tmesh/tmesh.h"
-#include "core/tmesh/tmesh_mut.h"
-#include "core/tmesh/tmesh_mut_validate.h"
+#include "core/tmesh/emesh.h"
+#include "core/tmesh/emesh_validate.h"
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/qex/sanitization.h"
@@ -22,7 +22,7 @@ struct RemeshResult {
     std::unique_ptr<Hmesh>         hmesh;
     std::unique_ptr<Mgrph>         mgrph;
     std::unique_ptr<Tmesh>         tmesh;
-    std::unique_ptr<TmeshMut>      emesh;
+    std::unique_ptr<Emesh>         emesh;
     std::unique_ptr<FaceRosyField> cmbf;
     vec<bool>                      seam;
     MatXd                          cfn_d;
@@ -67,11 +67,11 @@ inline RemeshResult compute_remesh(
     validate_quantization(*tm, X);
 
 
-    auto em = std::make_unique<TmeshMut>(*mg, *tm, X);
+    auto em = std::make_unique<Emesh>(*mg, *tm, X);
 
     for (int i = 0; i < 10; ++i) {
         // collapse thalf
-        for (ThalfMut th0 : em->thalfs) {
+        for (Ehalf th0 : em->thalfs) {
             if (th0.id == -1 || th0.x != 0) continue;
             auto& th1 = em->thalfs[th0.twid];
             auto& tq0 = em->tquads[th0.tqid];

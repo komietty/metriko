@@ -1,5 +1,5 @@
-#ifndef TMESH_MUT_COLLAPSE_TQUAD_CPP_VISUALIZE_VECTORFIELD_H
-#define TMESH_MUT_COLLAPSE_TQUAD_CPP_VISUALIZE_VECTORFIELD_H
+#ifndef METRIKO_VISUALIZE_VECTORFIELD_H
+#define METRIKO_VISUALIZE_VECTORFIELD_H
 #include "./visualize_common.h"
 #include "metriko/core/vectorfield/face_rosy_field.h"
 

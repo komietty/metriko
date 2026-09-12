@@ -1,5 +1,5 @@
-#ifndef TMESH_MUT_COLLAPSE_TQUAD_CPP_VISUALIZE_MOTORCYCLE_H
-#define TMESH_MUT_COLLAPSE_TQUAD_CPP_VISUALIZE_MOTORCYCLE_H
+#ifndef METRIKO_VISUALIZE_MOTORCYCLE_H
+#define METRIKO_VISUALIZE_MOTORCYCLE_H
 #include "./visualize_common.h"
 #include "metriko/core/hmesh/hmloc.h"
 #include "metriko/core/hmesh/utilities.h"
@@ -105,8 +105,8 @@ inline void visualize_node_adjacency(const Mgrph& mg, const VecXc& uv, bool show
             bool is_outgoing = sg.fr_nid == nid;
             int fid = sg.face_id;
 
-            Row3d pA = conversion_2d_3d(mg.hm.faces[fid], uv, get_face_uv(mg.mnodes[sg.fr_nid], fid, mg.hm, mg.cf));
-            Row3d pB = conversion_2d_3d(mg.hm.faces[fid], uv, get_face_uv(mg.mnodes[sg.to_nid], fid, mg.hm, mg.cf));
+            Row3d pA = conversion_2d_3d(mg.hm.faces[fid], uv, get_face_uv(mg.mnodes[sg.fr_nid].loc, fid, mg.hm, mg.cf));
+            Row3d pB = conversion_2d_3d(mg.hm.faces[fid], uv, get_face_uv(mg.mnodes[sg.to_nid].loc, fid, mg.hm, mg.cf));
             Row3d p0 = is_outgoing ? pA : pB;
             Row3d p1 = is_outgoing ? pB : pA;
             Row3d pt = p0 * 0.85 + p1 * 0.15;

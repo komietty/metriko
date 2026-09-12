@@ -1,7 +1,7 @@
-#include "./tmesh_mut.h"
+#include "./emesh.h"
 using namespace metriko;
 
-bool TmeshMut::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
+bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     auto& tq = tquads[tqid];
     if (tq.id == -1) return false;
 

@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include "./tutte.h"
 #include "metriko/core/hmesh/hmesh.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/emesh.h"
 
 namespace metriko {
 
@@ -258,7 +258,7 @@ inline void split_degenerate_faces(
 
 inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     const Hmesh& hm,
-    const TmeshMut& tm,
+    const Emesh& tm,
     const vec<bool>& seam0,
     const VecXi& matching0,
     const VecXi& singular0,

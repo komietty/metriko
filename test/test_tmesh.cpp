@@ -17,59 +17,59 @@ int main(int argc, char** argv) {
         const Hmesh&     hm  = *P.hm;
         const Mgrph& mg  = *P.mg;
         const Tmesh&     tm  = *P.tm;
-        TmeshMut&        tmm = *P.tmm;
+        Emesh&        em = *P.em;
 
         CHECK(tm.nTH == 2 * tm.nTE);
-        CHECK(tmm.thalfs.size() == 2 * tmm.tedges.size());
-        CHECK(tmm.tnodes.size() == mg.mnodes.size());
-        CHECK(!tmm.tquads.empty());
-        CHECK(tmm.tquads.size() == tm.tquads.size());
+        CHECK(em.thalfs.size() == 2 * em.tedges.size());
+        CHECK(em.tnodes.size() == mg.mnodes.size());
+        CHECK(!em.tquads.empty());
+        CHECK(em.tquads.size() == tm.tquads.size());
 
         if (ft == FieldType::Smoothest) {
             for (int i = 0; i < 5; ++i) {
-                for (const ThalfMut& th0: tmm.thalfs) {
+                for (const Ehalf& th0: em.thalfs) {
                     if (th0.id == -1) continue;             // guards before any indexing:
-                    auto& th1 = tmm.thalfs[th0.twid];       // cleared thalfs have twid/tqid == -1
+                    auto& th1 = em.thalfs[th0.twid];       // cleared thalfs have twid/tqid == -1
                     if (th1.id == -1) continue;
                     if (th0.x != 0) continue;
-                    auto& tq0 = tmm.tquads[th0.tqid];
-                    auto& tq1 = tmm.tquads[th1.tqid];
+                    auto& tq0 = em.tquads[th0.tqid];
+                    auto& tq1 = em.tquads[th1.tqid];
                     if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
                     if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-                    tmm.collapse_thalf(th0.id);
+                    em.collapse_thalf(th0.id);
                 }
 
-                for (const TquadMut& tq: tmm.tquads) {
+                for (const Equad& tq: em.tquads) {
                     if (tq.id == -1) continue;
                     Tqchain chain;
-                    if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
+                    if (em.collapse_tquad_chain_prepare(tq.id, chain)) em.collapse_tquad_chain_execute(chain);
                 }
             }
         } else {
             for (int i = 0; i < 20; ++i) {
-                for (const ThalfMut& th0 : tmm.thalfs) {
+                for (const Ehalf& th0 : em.thalfs) {
                     if (th0.id == -1) continue;
-                    auto& th1 = tmm.thalfs[th0.twid];
+                    auto& th1 = em.thalfs[th0.twid];
                     if (th1.id == -1) continue;
                     if (th0.x != 0)   continue;
-                    auto& tq0 = tmm.tquads[th0.tqid];
-                    auto& tq1 = tmm.tquads[th1.tqid];
+                    auto& tq0 = em.tquads[th0.tqid];
+                    auto& tq1 = em.tquads[th1.tqid];
                     if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
                     if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-                    tmm.collapse_thalf(th0.id);
+                    em.collapse_thalf(th0.id);
                 }
 
-                for (const TquadMut& tq: tmm.tquads) {
+                for (const Equad& tq: em.tquads) {
                     if (tq.id == -1) continue;
                     Tqchain chain;
-                    if (tmm.collapse_tquad_chain_prepare(tq.id, chain)) tmm.collapse_tquad_chain_execute(chain);
+                    if (em.collapse_tquad_chain_prepare(tq.id, chain)) em.collapse_tquad_chain_execute(chain);
                 }
             }
         }
 
 
-        auto opp_balanced = [&](const TmeshMut& m) -> bool {
-            for (const TquadMut& q : m.tquads) {
+        auto opp_balanced = [&](const Emesh& m) -> bool {
+            for (const Equad& q : m.tquads) {
                 if (q.data.empty()) continue;
                 if (q.id == -1) continue;
                 double s[4] = {0, 0, 0, 0};
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
             }
             return true;
         };
-        CHECK(opp_balanced(tmm));
+        CHECK(opp_balanced(em));
 
         std::cout << "[test_tmesh] OK  " << mesh << std::endl;
     }

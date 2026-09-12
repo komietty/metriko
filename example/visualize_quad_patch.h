@@ -4,7 +4,7 @@
 #include <igl/remove_duplicate_vertices.h>
 #include <polyscope/surface_mesh.h>
 #include <polyscope/curve_network.h>
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/emesh.h"
 #include "metriko/core/qex/common.h"
 
 namespace metriko::visualizer {
@@ -21,7 +21,7 @@ namespace metriko::visualizer {
 // initial direction at a singularity.
 inline void visualize_quad_patch(
     const Hmesh& hm,
-    const TmeshMut& tm,
+    const Emesh& tm,
     const VecXi& singular,
     const vec<qex::Qface>& qfaces
 ) {

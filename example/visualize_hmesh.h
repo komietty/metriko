@@ -1,5 +1,5 @@
-#ifndef TMESH_MUT_COLLAPSE_TQUAD_CPP_VISUALIZE_HMESH_H
-#define TMESH_MUT_COLLAPSE_TQUAD_CPP_VISUALIZE_HMESH_H
+#ifndef METRIKO_VISUALIZE_HMESH_H
+#define METRIKO_VISUALIZE_HMESH_H
 #include "./visualize_common.h"
 
 namespace metriko::visualizer {

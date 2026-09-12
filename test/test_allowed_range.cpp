@@ -90,14 +90,14 @@ int main(int argc, char** argv) {
 
     TmeshPipeline P(mesh, scale, ft);
     CHECK(P.ok);                                     // mesh loads + pipeline builds
-    auto& tmm = *P.tmm;
+    auto& em = *P.em;
 
     const double EPS = 1e-9;
     int n_ok = 0, n_fail = 0;
     for (auto& [tqid, exp_in] : expected) {
-        CHECK(tqid >= 0 && tqid < (int)tmm.tquads.size());
+        CHECK(tqid >= 0 && tqid < (int)em.tquads.size());
 
-        Tris got = tmm.allowed_range_tquads({tqid});
+        Tris got = em.allowed_range_tquads({tqid});
         Tris exp = exp_in;
         std::sort(got.begin(), got.end());
         std::sort(exp.begin(), exp.end());

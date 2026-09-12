@@ -1,12 +1,12 @@
 #ifndef METRIKO_TEST_PIPELINE_H
 #define METRIKO_TEST_PIPELINE_H
-// テスト共通: OBJ から field -> param -> mc -> Tmesh -> TmeshMut までを一括構築する。
+// テスト共通: OBJ から field -> param -> mc -> Tmesh -> Emesh までを一括構築する。
 //
 // 参照保持の依存を満たすため、必要なオブジェクトを本構造体が所有して生かし続ける:
 //   ・mg  は hm と uv2(cf) を参照保持
-//   ・tmm は hm を参照保持
+//   ・em は hm を参照保持
 //   ・matching/singular は mg 構築時のみ使用（保持しない）→ ctor 内ローカルで可
-// メンバ宣言順＝破棄は逆順なので、被参照側（hm/uv2）が参照側（mg/tm/tmm）より後に消える。
+// メンバ宣言順＝破棄は逆順なので、被参照側（hm/uv2）が参照側（mg/tm/em）より後に消える。
 // 内部に this ポインタ（Mcurv.mg 等）を持つためコピー/ムーブ不可。
 #include <igl/readOBJ.h>
 #include <optional>
@@ -14,7 +14,7 @@
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tmesh/tmesh_mut.h"
+#include "metriko/core/tmesh/emesh.h"
 
 namespace metriko {
 
@@ -28,7 +28,7 @@ struct TmeshPipeline {
     std::optional<Mgrph> mg;
     std::optional<Tmesh>     tm;
     VecXd                    X;
-    std::optional<TmeshMut>  tmm;
+    std::optional<Emesh>  em;
     bool ok = false;
 
     TmeshPipeline(const std::string& mesh_path, double scale, FieldType ft = FieldType::Smoothest, int N = 4) {
@@ -68,7 +68,7 @@ struct TmeshPipeline {
         mg.emplace(h, uv2, cmbf->matching, cmbf->singular);
         tm.emplace(*mg);
         X = compute_quantization(*tm, *mg);
-        tmm.emplace(*mg, *tm, X);
+        em.emplace(*mg, *tm, X);
         ok = true;
     }
 

@@ -297,18 +297,18 @@ inline void visualize_half_data(
               << " HalfData segments for tqid: " << target_tqid << std::endl;
 }
 
-// debug views of a collapsed TmeshMut: collapsed tedge polylines, tnodes not
+// debug views of a collapsed Emesh: collapsed tedge polylines, tnodes not
 // yet snapped to a vertex, and faces violating the collapse_valid_snap_1 rule
-inline void visualize_tmesh_mut(
+inline void visualize_emesh(
     const Hmesh& hm,
-    const TmeshMut& tmm
+    const Emesh& em
 ) {
     // tnodes not snapped to a vertex, by carrier type
     {
         std::vector<glm::vec3> ps;
         std::vector<double> type, ids;
         std::set<int> seen;   // shared nodes (junctions/crossings) appear in several chains
-        for (const auto& [teid, nids]: tmm.tedges) {
+        for (const auto& [teid, nids]: em.tedges) {
             if (teid == -1) continue;
             for (int nid: nids) {
                 if (!seen.insert(nid).second) continue;
@@ -318,9 +318,9 @@ inline void visualize_tmesh_mut(
                     [&](const HmLocOnH& h) { t = 1; id = h.id; },
                     [&](const HmLocOnF& f) { t = 2; id = f.id; },
                     [&](const auto&)       {},
-                }, tmm.tnodes[nid]);
+                }, em.tnodes[nid]);
                 if (t < 0) continue;   // OnV: snapped, skip
-                Row3d p = get_ptloc_pos(hm, tmm.tnodes[nid]);
+                Row3d p = get_ptloc_pos(hm, em.tnodes[nid]);
                 ps.emplace_back(p.x(), p.y(), p.z());
                 type.push_back(t);
                 ids.push_back(id);
@@ -338,10 +338,10 @@ inline void visualize_tmesh_mut(
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> ids;
         size_t c = 0;
-        for (const auto& [id, nids]: tmm.live_tedges()) {
+        for (const auto& [id, nids]: em.live_tedges()) {
             for (size_t k = 0; k + 1 < nids.size(); ++k) {
-                Row3d a = get_ptloc_pos(hm, tmm.tnodes[nids[k]]);
-                Row3d b = get_ptloc_pos(hm, tmm.tnodes[nids[k + 1]]);
+                Row3d a = get_ptloc_pos(hm, em.tnodes[nids[k]]);
+                Row3d b = get_ptloc_pos(hm, em.tnodes[nids[k + 1]]);
                 ns.emplace_back(a.x(), a.y(), a.z());
                 ns.emplace_back(b.x(), b.y(), b.z());
                 es.push_back({c, c + 1});
@@ -359,14 +359,14 @@ inline void visualize_tmesh_mut(
     // faces holding 3+ same-side vertex-snapped nodes (collapse_valid_snap_1)
     {
         std::set<int> bad;   // hm face ids violating the snap_1 criterion
-        for (auto& tq: tmm.live_tquads()) {
+        for (auto& tq: em.live_tquads()) {
         for (int side = 0; side < 4; side++) {
             std::set<int>  nids;
             umap<int, int> count;
             for (int thid: tq.thids(side))
-            for (int nid: tmm.tedges[tmm.thalfs[thid].teid].nids) nids.insert(nid);
+            for (int nid: em.tedges[em.thalfs[thid].teid].nids) nids.insert(nid);
             for (int nid: nids) {
-                if (auto* l = std::get_if<HmLocOnV>(&tmm.tnodes[nid]))
+                if (auto* l = std::get_if<HmLocOnV>(&em.tnodes[nid]))
                     for (Face f: hm.verts[l->id].adjHalfs() | vw::transform(&Half::face)) count[f.id]++;
             }
             for (auto& [fid, c]: count) if (c >= 3) bad.insert(fid);
@@ -423,9 +423,9 @@ static void save_cache(const std::string& p, const VecXc& uv2, const VecXi& matc
     f.write(sb.data(), ne);
 }
 
-// binary snapshot of a (collapsed) TmeshMut, so downstream demos can skip the
+// binary snapshot of a (collapsed) Emesh, so downstream demos can skip the
 // motorcycle graph / quantization / collapse / snap stages
-static void save_tmm(const std::string& p, const TmeshMut& tm) {
+static void save_emesh(const std::string& p, const Emesh& tm) {
     std::ofstream f(p, std::ios::binary);
     auto wi = [&](int v)    { f.write((char*)&v, 4); };
     auto wd = [&](double v) { f.write((char*)&v, 8); };
@@ -462,9 +462,9 @@ static void save_tmm(const std::string& p, const TmeshMut& tm) {
     }
 }
 
-// fills a TmeshMut shell (constructed as TmeshMut(hm)). do not move the object
+// fills a Emesh shell (constructed as Emesh(hm)). do not move the object
 // afterwards: the thalf back-pointers are bound here
-static bool load_tmm(const std::string& p, TmeshMut& tm) {
+static bool load_emesh(const std::string& p, Emesh& tm) {
     std::ifstream f(p, std::ios::binary);
     if (!f) return false;
     auto ri = [&]() { int v = 0;    f.read((char*)&v, 4); return v; };
@@ -485,20 +485,20 @@ static bool load_tmm(const std::string& p, TmeshMut& tm) {
         }
     }
     for (int n = ri(), i = 0; i < n; ++i) {
-        TedgeMut te{.id = ri()};
+        Eedge te{.id = ri()};
         te.nids.resize(ri());
         f.read((char*)te.nids.data(), te.nids.size() * 4);
         tm.tedges.push_back(std::move(te));
     }
     for (int n = ri(), i = 0; i < n; ++i) {
-        ThalfMut th{.tm = &tm};
+        Ehalf th{.tm = &tm};
         th.id   = ri(); th.twid = ri(); th.teid = ri(); th.tqid = ri();
         th.cano = ri(); th.bgn  = ri(); th.end  = ri();
         th.x    = rd(); th.r    = rd();
         tm.thalfs.push_back(th);
     }
     for (int n = ri(), i = 0; i < n; ++i) {
-        TquadMut tq{.id = ri()};
+        Equad tq{.id = ri()};
         tq.data.resize(ri());
         for (auto& d: tq.data) { d.thid = ri(); d.side = ri(); }
         tm.tquads.push_back(std::move(tq));
