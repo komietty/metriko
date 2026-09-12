@@ -11,7 +11,7 @@
 #include "metriko/core/hmesh/hmloc.h"
 #include "metriko/core/hmesh/utilities.h"
 
-namespace metriko::mc {
+namespace metriko {
 constexpr double TOLERANCE_HALF = 1e-6;    //
 constexpr double TOLERANCE_CRNR = 2e-6;    //
 constexpr double TOLERANCE_EDGE_AB = 1e-6; // tolerance on two curvs crash close to an edge

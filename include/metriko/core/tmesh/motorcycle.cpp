@@ -1,6 +1,6 @@
 #include "./motorcycle.h"
 
-using namespace  metriko::mc;
+using namespace metriko;
 
 void Mgrph::gen_ports(const VecXi &singular) {
     for (Vert v: hm.verts) {

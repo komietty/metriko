@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
     std::println("saved cache");
 
     ///--- stage 1: quantization + t-mesh collapse / snap ---///
-    auto mg = mc::Mgrph(hm, uv2, matching, singular);
+    auto mg = Mgrph(hm, uv2, matching, singular);
     auto tm = Tmesh(mg);
     auto X  = compute_quantization(tm, mg);
     validate_quantization(tm, X);

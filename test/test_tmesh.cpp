@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
         TmeshPipeline P(mesh, scale, ft);
         CHECK(P.ok);
         const Hmesh&     hm  = *P.hm;
-        const mc::Mgrph& mg  = *P.mg;
+        const Mgrph& mg  = *P.mg;
         const Tmesh&     tm  = *P.tm;
         TmeshMut&        tmm = *P.tmm;
 

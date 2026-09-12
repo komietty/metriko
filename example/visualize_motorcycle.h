@@ -7,7 +7,7 @@
 
 namespace metriko::visualizer {
 inline void visualize_motorcycle_graph(
-    const mc::Mgrph& mg,
+    const Mgrph& mg,
     const VecXc& uv,
     bool show = true
 ) {
@@ -35,8 +35,8 @@ inline void visualize_motorcycle_graph(
         auto iTo = s.to_nid;
         auto nFr = mg.mnodes[iFr];
         auto nTo = mg.mnodes[iTo];
-        auto uv1 = mc::get_face_uv(nFr, s.face_id, mg.hm, mg.cf);
-        auto uv2 = mc::get_face_uv(nTo, s.face_id, mg.hm, mg.cf);
+        auto uv1 = get_face_uv(nFr, s.face_id, mg.hm, mg.cf);
+        auto uv2 = get_face_uv(nTo, s.face_id, mg.hm, mg.cf);
         Row3d p1 = conversion_2d_3d(mg.hm.faces[s.face_id], uv, uv1);
         Row3d p2 = conversion_2d_3d(mg.hm.faces[s.face_id], uv, uv2);
         if (abs(uv1 - uv2) < EPS) { l0.emplace_back(p1.x(), p1.y(), p1.z()); }
@@ -88,7 +88,7 @@ inline void visualize_motorcycle_graph(
     c->setMaterial("flat");
 }
 
-inline void visualize_node_adjacency(const mc::Mgrph& mg, const VecXc& uv, bool show = true) {
+inline void visualize_node_adjacency(const Mgrph& mg, const VecXc& uv, bool show = true) {
     std::vector<glm::vec3> pts;
     std::vector<double> adj_order;
     std::vector<double> nid_list;
@@ -105,8 +105,8 @@ inline void visualize_node_adjacency(const mc::Mgrph& mg, const VecXc& uv, bool 
             bool is_outgoing = sg.fr_nid == nid;
             int fid = sg.face_id;
 
-            Row3d pA = conversion_2d_3d(mg.hm.faces[fid], uv, mc::get_face_uv(mg.mnodes[sg.fr_nid], fid, mg.hm, mg.cf));
-            Row3d pB = conversion_2d_3d(mg.hm.faces[fid], uv, mc::get_face_uv(mg.mnodes[sg.to_nid], fid, mg.hm, mg.cf));
+            Row3d pA = conversion_2d_3d(mg.hm.faces[fid], uv, get_face_uv(mg.mnodes[sg.fr_nid], fid, mg.hm, mg.cf));
+            Row3d pB = conversion_2d_3d(mg.hm.faces[fid], uv, get_face_uv(mg.mnodes[sg.to_nid], fid, mg.hm, mg.cf));
             Row3d p0 = is_outgoing ? pA : pB;
             Row3d p1 = is_outgoing ? pB : pA;
             Row3d pt = p0 * 0.85 + p1 * 0.15;

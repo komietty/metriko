@@ -9,7 +9,7 @@
 #include "../common/utilities.h"
 #include "../hmesh/hmesh.h"
 
-namespace metriko::mc {
+namespace metriko {
 // case 1
 inline std::optional<Half> try_get_opposite_half_from_half(
     const Half h0,   // half came in

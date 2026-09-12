@@ -25,7 +25,7 @@ inline FieldType parse_field_type(const std::string& s) {
 struct TmeshPipeline {
     std::optional<Hmesh>     hm;
     VecXc                    uv2;
-    std::optional<mc::Mgrph> mg;
+    std::optional<Mgrph> mg;
     std::optional<Tmesh>     tm;
     VecXd                    X;
     std::optional<TmeshMut>  tmm;

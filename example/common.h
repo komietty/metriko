@@ -11,7 +11,7 @@ using namespace metriko;
 namespace metriko::visualizer {
 inline void visualize_tedge(
     const Tmesh& tm,
-    const mc::Mgrph& mg,
+    const Mgrph& mg,
     const VecXc& uv,
     const VecXd* X = nullptr,
     const std::vector<int> &selector = std::vector<int>(),
@@ -50,9 +50,9 @@ inline void visualize_tedge(
 
         if (!selector.empty() && rg::find(selector, i) == selector.end()) continue;
 
-        for (const mc::Msgmt &ts: te.segs) {
-            complex uvFr = mc::get_face_uv(mg.mnodes[ts.fr_nid], ts.face_id, mg.hm, mg.cf);
-            complex uvTo = mc::get_face_uv(mg.mnodes[ts.to_nid], ts.face_id, mg.hm, mg.cf);
+        for (const Msgmt &ts: te.segs) {
+            complex uvFr = get_face_uv(mg.mnodes[ts.fr_nid], ts.face_id, mg.hm, mg.cf);
+            complex uvTo = get_face_uv(mg.mnodes[ts.to_nid], ts.face_id, mg.hm, mg.cf);
             Row3d p1 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvFr);
             Row3d p2 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvTo);
 
@@ -103,7 +103,7 @@ inline void visualize_tedge(
 
 inline void debug_tquad_sides(
     const Tmesh& tm,
-    const mc::Mgrph& mg,
+    const Mgrph& mg,
     const VecXc& uv,
     const std::string& prefix = "",
     const bool show = true
@@ -155,9 +155,9 @@ inline void debug_tquad_sides(
             const auto& th = tm.thalfs[thid];
             const auto& te = th.edge();
 
-            for (const mc::Msgmt &ts: te.segs) {
-                complex uvFr = mc::get_face_uv(mg.mnodes[ts.fr_nid], ts.face_id, mg.hm, mg.cf);
-                complex uvTo = mc::get_face_uv(mg.mnodes[ts.to_nid], ts.face_id, mg.hm, mg.cf);
+            for (const Msgmt &ts: te.segs) {
+                complex uvFr = get_face_uv(mg.mnodes[ts.fr_nid], ts.face_id, mg.hm, mg.cf);
+                complex uvTo = get_face_uv(mg.mnodes[ts.to_nid], ts.face_id, mg.hm, mg.cf);
 
                 Row3d p1 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvFr);
                 Row3d p2 = conversion_2d_3d(mg.hm.faces[ts.face_id], uv, uvTo);

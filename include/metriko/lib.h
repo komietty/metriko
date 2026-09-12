@@ -23,7 +23,7 @@ struct RemeshResult {
     std::unique_ptr<Tmesh>         tmesh;
     std::unique_ptr<TmeshMut>      emesh;
     std::unique_ptr<FaceRosyField> cmbf;
-    std::unique_ptr<mc::Mgrph>     mgrph;
+    std::unique_ptr<Mgrph>     mgrph;
     vec<bool>                      seam;
     MatXd                          cfn_d;
     VecXc                          cfn_c;
@@ -61,7 +61,7 @@ inline RemeshResult compute_remesh(
         cfn_c(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
     }
 
-    auto mg = std::make_unique<mc::Mgrph>(*hm, cfn_c, cmbf->matching, cmbf->singular);
+    auto mg = std::make_unique<Mgrph>(*hm, cfn_c, cmbf->matching, cmbf->singular);
     auto tm = std::make_unique<Tmesh>(*mg);
     auto X  = compute_quantization(*tm, *mg);
     validate_quantization(*tm, X);

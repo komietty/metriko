@@ -17,7 +17,7 @@ struct Tedge {
     bool isBgn;
     bool isEnd;
     double len = 0;
-    vec<mc::Msgmt> segs;
+    vec<Msgmt> segs;
 };
 
 struct Thalf {
@@ -65,24 +65,24 @@ struct Tmesh {
     size_t nTE;
     size_t nTH;
 
-    explicit Tmesh(const mc::Mgrph& mg) {
+    explicit Tmesh(const Mgrph& mg) {
         //===== 1. Extract Thalfs and Tedges =====
         for (const auto& mc: mg.mcurvs) {
-            vec<mc::Msgmt> sgs;
+            vec<Msgmt> sgs;
             int bgn_nid = mc.sgmts.front().fr_nid;
 
             for (auto& sg: mc.sgmts) {
                 sgs.push_back(sg);
 
-                if (mg.mnodes[sg.to_nid].jt != mc::JunctionType::None) {
+                if (mg.mnodes[sg.to_nid].jt != JunctionType::None) {
                     int teid = tedges.size();
                     int thid = thalfs.size();
                     int end_nid = sg.to_nid;
 
                     double len = 0;
                     for (const auto& s: sgs) {
-                        auto fr = mc::get_face_uv(mg.mnodes[s.fr_nid], s.face_id, mg.hm, mg.cf);
-                        auto to = mc::get_face_uv(mg.mnodes[s.to_nid], s.face_id, mg.hm, mg.cf);
+                        auto fr = get_face_uv(mg.mnodes[s.fr_nid], s.face_id, mg.hm, mg.cf);
+                        auto to = get_face_uv(mg.mnodes[s.to_nid], s.face_id, mg.hm, mg.cf);
                         len += std::abs(to - fr);
                     }
 
@@ -93,8 +93,8 @@ struct Tmesh {
                         .fr_nid = bgn_nid,
                         .to_nid = end_nid,
                         .crv_id = mc.id,
-                        .isBgn  = mg.mnodes[bgn_nid].jt == mc::JunctionType::F,
-                        .isEnd  = mg.mnodes[end_nid].jt == mc::JunctionType::T,
+                        .isBgn  = mg.mnodes[bgn_nid].jt == JunctionType::F,
+                        .isEnd  = mg.mnodes[end_nid].jt == JunctionType::T,
                         .len    = len,
                         .segs   = std::move(sgs)
                     });
@@ -108,7 +108,7 @@ struct Tmesh {
         // ===== 2. Determine Thalfs adjacency =====
         for (int nid = 0; nid < mg.mnodes.size(); ++nid) {
             const auto& mn = mg.mnodes[nid];
-            if (mn.jt == mc::JunctionType::None) continue;
+            if (mn.jt == JunctionType::None) continue;
 
             vec<Thalf*> outgoing;
             for (auto& th: thalfs) if (th.nid_fr() == nid) outgoing.push_back(&th);

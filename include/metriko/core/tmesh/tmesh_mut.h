@@ -79,7 +79,7 @@ struct TmeshMut {
     explicit TmeshMut(const Hmesh& hm): hm(hm) {}   // empty shell for deserialization
 
     explicit TmeshMut(
-        const mc::Mgrph& mg,
+        const Mgrph& mg,
         const Tmesh& tm,
         const VecXd& X
     ): hm(mg.hm) {
@@ -89,7 +89,7 @@ struct TmeshMut {
         thalfs.reserve(tm.thalfs.size());
         tquads.reserve(tm.tquads.size());
 
-        for (const mc::Mnode& mn : mg.mnodes) {
+        for (const Mnode& mn : mg.mnodes) {
             tnodes.push_back(std::visit(overloaded{
                 [&](const auto&     _) -> HmLoc { throw std::runtime_error("no impl"); },
                 [&](const HmLocOnV& v) -> HmLoc { return HmLocOnV{v.id}; },
@@ -103,7 +103,7 @@ struct TmeshMut {
             tem.id = te.id;
             tem.nids.reserve(te.segs.size() + 1);
             tem.nids.push_back(te.segs.front().fr_nid);
-            for (const mc::Msgmt& sg : te.segs) tem.nids.push_back(sg.to_nid);
+            for (const Msgmt& sg : te.segs) tem.nids.push_back(sg.to_nid);
             tedges.push_back(std::move(tem));
         }
 

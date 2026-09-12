@@ -9,7 +9,7 @@
 
 namespace metriko {
 inline bool compute_validation(
-    const mc::Mgrph &mg,
+    const Mgrph &mg,
     const Tmesh &tm,
     const VecXd &X
 ) {
@@ -25,7 +25,7 @@ inline bool compute_validation(
     std::vector visited(mg.mnodes.size(), false);
 
     for (int i = 0; i < mg.mnodes.size(); ++i) {
-        if (mg.mnodes[i].jt != mc::JunctionType::F || visited[i]) continue;
+        if (mg.mnodes[i].jt != JunctionType::F || visited[i]) continue;
 
         int start_nid = i;
         std::queue<int> q;
@@ -36,7 +36,7 @@ inline bool compute_validation(
             int curr_nid = q.front();
             q.pop();
 
-            if (curr_nid != start_nid && mg.mnodes[curr_nid].jt == mc::JunctionType::F) return false;
+            if (curr_nid != start_nid && mg.mnodes[curr_nid].jt == JunctionType::F) return false;
 
             for (int next_nid : adjs[curr_nid])
                 if (!visited[next_nid]) {
