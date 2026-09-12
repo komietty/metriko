@@ -124,9 +124,9 @@ inline vec<int> sequential_mapping(
     const Hmesh& hm,
     const SprsD& uv_in,
     const Half half_in,
-    const vec<bool>& boundary, // flag if a halfedge is the boundary of the tquad
-    const vec<bool>& seam,     // need to be altered for new cut hmesh
-          vec<bool>& flag,     // the flag to check a face is already marked
+    const vec<bool>& boun, // flag if a halfedge is the boundary of the tquad
+    const vec<bool>& seam, // need to be altered for new cut hmesh
+          vec<bool>& flag, // the flag to check a face is already marked
     MatXd& uv_all
 ) {
     vec<int> nextH; // the halfedges to the other tquad
@@ -147,14 +147,10 @@ inline vec<int> sequential_mapping(
 
         for (Half h: f.adjHalfs()) {
             Edge e = h.edge();
-            // 1: if hit the seam, just stops
-            if (seam[e.id]) continue;
-            // 2: if hit the visited edge, just stops
-            if (visit[e.id]) continue;
-            // 3: if hit boundary, puts it as a bridge to the next tquad
-            if (boundary[h.id]) { nextH.emplace_back(h.twin().id); continue; }
-            // 4: inside tquad. add it to the queue
-            visit[e.id] = true;
+            if (seam[e.id])  continue;                                     // 1: if hit the seam, just stops
+            if (visit[e.id]) continue;                                     // 2: if hit the visited edge, just stops
+            if (boun[h.id]) { nextH.emplace_back(h.twin().id); continue; } // 3: if hit boundary, puts it as a bridge to the next tquad
+            visit[e.id] = true;                                            // 4: inside tquad. add it to the queue
             Q.push(h.twin());
         }
     }
@@ -232,21 +228,18 @@ inline bool compute_tutte_parameterization(
         for (auto nh: sequential_mapping(hm, uv_tq[i], h, b, seam, flag, uv)) stack.emplace(nh);
     }
 
-    int count = 0;
     // 2: other tquads
-    while (rg::any_of(flag, [&](auto f) { return !f; })) {
-        count++;
+    while (!stack.empty()) {
         auto h = hm.halfs[stack.top()];
-
         stack.pop();
         if (flag[h.face().id]) continue;
 
         auto it = data_by_half.find(h);
         if (it == data_by_half.end()) { return false; }
 
-        auto curr = it->second;
-        SprsD& uv_curr = uv_tq[curr->tqid];
-        bool res = apply_transition(h, uv, uv_curr);
+        auto  curr = it->second;
+        auto& uv_curr = uv_tq[curr->tqid];
+        bool  res = apply_transition(h, uv, uv_curr);
         success &= res;
 
         vec b(hm.nH, false);

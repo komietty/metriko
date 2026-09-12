@@ -37,6 +37,10 @@ using MatXc = Eigen::Matrix <std::complex<double>, Eigen::Dynamic, Eigen::Dynami
 using TripI = Eigen::Triplet<int>;
 using TripD = Eigen::Triplet<double>;
 using TripC = Eigen::Triplet <std::complex<double>>;
+
+using MatX3d = Eigen::Matrix<double, Eigen::Dynamic, 3, Eigen::RowMajor>;
+using MatX3i = Eigen::Matrix<int,    Eigen::Dynamic, 3, Eigen::RowMajor>;
+
 namespace rg = std::ranges;
 namespace vw = std::views;
 template <class T> using vec = std::vector<T>;

@@ -64,14 +64,10 @@ inline void face_cutting(
         halfs.emplace_back(s.x(), s.y());
         halfs.emplace_back(s.y(), s.x());
     }
+
     for (Half h: f.adjHalfs()) {
-        const auto& sp = splits[h.id];
-        if (sp.empty()) { halfs.emplace_back(h.tail().id, h.head().id); continue; }
-        halfs.emplace_back(sp.begin()->second, h.head().id);
-        auto prev = sp.begin();
-        auto curr = std::next(sp.begin());
-        for (; curr != sp.end(); ++curr, ++prev) { halfs.emplace_back(curr->second, prev->second); }
-        halfs.emplace_back(h.tail().id, sp.rbegin()->second);
+        auto ch = chain_of(splits, h);
+        for (size_t k = 0; k + 1 < ch.size(); ++k) halfs.emplace_back(ch[k], ch[k + 1]);
     }
 
     auto pos2 = [&](int vid) { return f.to_local(vpos[vid]); };
@@ -349,23 +345,16 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
 
     vec<Row3i> tris;
     for (Face f: hm.faces) {
-        auto h0 = f.half();
-        auto h1 = f.half().next();
-        auto h2 = f.half().prev();
-        if (cuts[f.id].empty()  &&
-            auxs[h0.id].empty() &&
-            auxs[h1.id].empty() &&
-            auxs[h2.id].empty()
-        ) { tris.emplace_back(h0.tail().id, h1.tail().id, h2.tail().id); }
-        else { face_cutting(f, cuts[f.id], auxs, sides, vpos, tris); }
+        bool f1 = cuts[f.id].empty();
+        bool f2 = rg::all_of(f.halfs(), [&](Half h) { return auxs[h.id].empty(); });
+        if (f1 && f2) { auto [a, b, c] = f.verts(); tris.emplace_back(a.id, b.id, c.id); }
+        else face_cutting(f, cuts[f.id], auxs, sides, vpos, tris);
     }
 
     split_degenerate_faces(hm, seam0, sgms, auxs, sides, vpos, tris);
 
-    MatXi face_info(tris.size(), 3);
-    MatXd vert_info(vpos.size(), 3);
-    for (int i = 0; i < vpos.size(); i++) { vert_info.row(i) = vpos[i]; }
-    for (int i = 0; i < tris.size(); i++) { face_info.row(i) << tris[i][0], tris[i][1], tris[i][2]; }
+    MatXd vert_info = Eigen::Map<MatX3d>(vpos[0].data(), vpos.size(), 3);
+    MatXi face_info = Eigen::Map<MatX3i>(tris[0].data(), tris.size(), 3);
 
     auto hm_cut = std::make_unique<Hmesh>(vert_info, face_info);
     seam1     = vec(hm_cut->nE, false);
@@ -391,17 +380,9 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     data.clear();
     for (auto& [i0, i1, d0, d1]: sgms) {
         auto it = half_by_verts.find({i0, i1});
-        if (it == half_by_verts.end())
-            throw std::runtime_error(std::format(
-                "No half_by_verts: i0 {} ({:.6f} {:.6f} {:.6f}), i1 {} ({:.6f} {:.6f} {:.6f}), thid {}, tqid {}, order {}",
-                i0, vpos[i0].x(), vpos[i0].y(), vpos[i0].z(),
-                i1, vpos[i1].x(), vpos[i1].y(), vpos[i1].z(),
-                d0.thid, d0.tqid, d0.order));
-
+        if (it == half_by_verts.end()) throw std::runtime_error(std::format("No half_by_verts: i0 {} ({:.6f} {:.6f} {:.6f}), i1 {} ({:.6f} {:.6f} {:.6f}), thid {}, tqid {}, order {}", i0, vpos[i0].x(), vpos[i0].y(), vpos[i0].z(), i1, vpos[i1].x(), vpos[i1].y(), vpos[i1].z(), d0.thid, d0.tqid, d0.order));
         d0.half = it->second;
         d1.half = it->second.twin();
-        d0.twin = data.size() + 1;
-        d1.twin = data.size();
         data.push_back(d0);
         data.push_back(d1);
     }

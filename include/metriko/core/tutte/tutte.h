@@ -14,7 +14,6 @@ struct HalfData {
     double v1;          // parameter value of head
     int thid = -1;      //
     int tqid = -1;      //
-    int twin = -1;      //
     int order = -1;     // order inside thalf
 
     bool operator<(const HalfData& rhs) const noexcept { return std::tie(tqid, thid, order) < std::tie(rhs.tqid, rhs.thid, rhs.order); }
