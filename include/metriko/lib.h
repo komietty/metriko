@@ -20,10 +20,10 @@ namespace metriko {
 
 struct RemeshResult {
     std::unique_ptr<Hmesh>         hmesh;
+    std::unique_ptr<Mgrph>         mgrph;
     std::unique_ptr<Tmesh>         tmesh;
     std::unique_ptr<TmeshMut>      emesh;
     std::unique_ptr<FaceRosyField> cmbf;
-    std::unique_ptr<Mgrph>     mgrph;
     vec<bool>                      seam;
     MatXd                          cfn_d;
     VecXc                          cfn_c;

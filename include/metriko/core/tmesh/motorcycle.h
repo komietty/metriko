@@ -7,7 +7,6 @@
 #include "../common/utilities.h"
 #include "../common/predicates.h"
 #include "../hmesh/hmesh.h"
-#include "./common.h"
 #include "metriko/core/hmesh/hmloc.h"
 #include "metriko/core/hmesh/utilities.h"
 
@@ -123,21 +122,6 @@ inline void update_to_oppo(const Hmesh& hm, const VecXc& cf, Mbuff& buff) {
     }
     throw std::runtime_error("Not implemented yet");
 }
-
-inline complex get_face_uv(const Mnode& mn, int fid, const Hmesh& hm, const VecXc& cf) {
-    return std::visit(overloaded {
-        [&](const HmLocOnP& f) -> complex { return f.uv; },
-        [&](const HmLocOnV& v) -> complex { return cf[try_get_crnr(hm, v.id, fid).value().id]; },
-        [&](const HmLocOnE& e) -> complex {
-            auto h  = try_get_half(hm, e.id, fid).value();
-            auto p0 = cf[h.next().crnr().id];
-            auto p1 = cf[h.prev().crnr().id];
-            return lerp(p0, p1, h.isCanonical() ? e.r : 1 - e.r);
-        },
-        [&](const auto& _) -> complex { throw std::runtime_error("invalid arguments"); },
-    }, mn.loc);
-}
-
 
 struct  Mgrph {
     const Hmesh &hm;

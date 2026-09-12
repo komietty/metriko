@@ -81,8 +81,8 @@ struct Tmesh {
 
                     double len = 0;
                     for (const auto& s: sgs) {
-                        auto fr = get_face_uv(mg.mnodes[s.fr_nid], s.face_id, mg.hm, mg.cf);
-                        auto to = get_face_uv(mg.mnodes[s.to_nid], s.face_id, mg.hm, mg.cf);
+                        auto fr = get_face_uv(mg.mnodes[s.fr_nid].loc, s.face_id, mg.hm, mg.cf);
+                        auto to = get_face_uv(mg.mnodes[s.to_nid].loc, s.face_id, mg.hm, mg.cf);
                         len += std::abs(to - fr);
                     }
 

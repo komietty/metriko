@@ -35,8 +35,8 @@ inline void visualize_motorcycle_graph(
         auto iTo = s.to_nid;
         auto nFr = mg.mnodes[iFr];
         auto nTo = mg.mnodes[iTo];
-        auto uv1 = get_face_uv(nFr, s.face_id, mg.hm, mg.cf);
-        auto uv2 = get_face_uv(nTo, s.face_id, mg.hm, mg.cf);
+        auto uv1 = get_face_uv(nFr.loc, s.face_id, mg.hm, mg.cf);
+        auto uv2 = get_face_uv(nTo.loc, s.face_id, mg.hm, mg.cf);
         Row3d p1 = conversion_2d_3d(mg.hm.faces[s.face_id], uv, uv1);
         Row3d p2 = conversion_2d_3d(mg.hm.faces[s.face_id], uv, uv2);
         if (abs(uv1 - uv2) < EPS) { l0.emplace_back(p1.x(), p1.y(), p1.z()); }

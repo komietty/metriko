@@ -67,8 +67,8 @@ void Mgrph::sort_node_adjacency() {
         auto get_dir = [&](const Row2i& ad) {
             auto& s  = mcurvs[ad.x()].sgmts[ad.y()];
             auto fr  = s.fr_nid == nid;
-            auto uvA = get_face_uv(mnodes[s.fr_nid], s.face_id, hm, cf);
-            auto uvB = get_face_uv(mnodes[s.to_nid], s.face_id, hm, cf);
+            auto uvA = get_face_uv(mnodes[s.fr_nid].loc, s.face_id, hm, cf);
+            auto uvB = get_face_uv(mnodes[s.to_nid].loc, s.face_id, hm, cf);
             assert(abs(uvA - uvB) > 1e-8);
             return fr ? uvB - uvA : uvA - uvB;
         };
@@ -140,8 +140,8 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     for (auto &s: sgs) {
         auto ab  = 0.;
         auto cd  = 0.;
-        auto uvA = get_face_uv(mg->mnodes[s.fr_nid], fid, hm, cf);
-        auto uvB = get_face_uv(mg->mnodes[s.to_nid], fid, hm, cf);
+        auto uvA = get_face_uv(mg->mnodes[s.fr_nid].loc, fid, hm, cf);
+        auto uvB = get_face_uv(mg->mnodes[s.to_nid].loc, fid, hm, cf);
         auto f1  = find_extended_intersection(uv0, uv3, uvA, uvB, ab, cd);
         auto f2  = ab >= 0. && cd >= 0. && ab <= 1. && cd <= 1.;
         if (f1 && f2) candidates.emplace_back(ab, cd, s);
@@ -211,9 +211,9 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
             for (const auto& c: mg->mcurvs) {
             for (const auto& s: c.sgmts) {
                 if (s.to_nid == nid && s.face_id == fid) {
-                    auto o  = get_face_uv(mg->mnodes[nid], fid, hm, cf);
-                    auto d0 = get_face_uv(mg->mnodes[s.fr_nid] , fid, hm, cf) - o;
-                    auto d1 = get_face_uv(mg->mnodes[sg.fr_nid], fid, hm, cf) - o;
+                    auto o  = get_face_uv(mg->mnodes[nid].loc, fid, hm, cf);
+                    auto d0 = get_face_uv(mg->mnodes[s.fr_nid].loc , fid, hm, cf) - o;
+                    auto d1 = get_face_uv(mg->mnodes[sg.fr_nid].loc, fid, hm, cf) - o;
                     auto l0 = abs(d0);
                     auto l1 = abs(d1);
                     if (l0 < EPS || l1 < EPS || dot(d0 / l0 , d1 / l1) > EPS) return false;

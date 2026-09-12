@@ -130,5 +130,19 @@ inline bool find_strict_intersection(
            ratio_c2d >= 0 + eps &&
            ratio_c2d <= 1 - eps;
 }
+
+inline Row3d conversion_2d_3d(
+    const complex o2, // origin of 2d
+    const complex a2, //
+    const complex b2, //
+    const Row3d &o3,  // origin of 3d
+    const Row3d &a3,  //
+    const Row3d &b3,  //
+    const complex uv  // target uv value
+) {
+    const complex c = calc_coefficient(o2, a2, b2, uv);
+    return o3 + (a3 - o3) * c.real() + (b3 - o3) * c.imag();
+}
+
 }
 #endif
