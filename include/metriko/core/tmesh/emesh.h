@@ -71,12 +71,15 @@ struct Equad {
 
 struct Emesh {
     const Hmesh& hm;
-    vec<HmLoc>    tnodes = {};
+    vec<HmLoc> tnodes = {};
     vec<Eedge> tedges = {};
     vec<Ehalf> thalfs = {};
     vec<Equad> tquads = {};
 
-    explicit Emesh(const Hmesh& hm): hm(hm) {}   // empty shell for deserialization
+    Emesh(const Emesh&) = delete;
+    Emesh(Emesh&&)      = delete;
+
+    explicit Emesh(const Hmesh& hm): hm(hm) {}
 
     explicit Emesh(
         const Mgrph& mg,
@@ -148,12 +151,8 @@ struct Emesh {
     auto live_tquads() const { return tquads | vw::filter([](const Equad& tq) { return tq.id != -1; }); }
     auto live_tquads()       { return tquads | vw::filter([](      Equad& tq) { return tq.id != -1; }); }
 
-    bool collapse_valid_snap_0(Vert v);
-
     void collapse_tedge_snap(bool flag);
-    void collapse_tedge_snap_inter(int teid, int nid, Vert v);
     void collapse_tedge_snap_dedup(int teid);
-    bool collapse_tedge_snap_joint(int teid, Vert v);
     bool reroute_tedge(int teid);
 
     void collapse_thalf(int thid);

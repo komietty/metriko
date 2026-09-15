@@ -4,9 +4,6 @@
 namespace metriko {
 
 vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
-    auto lpos = [&](int nid) -> Row3d { return get_ptloc_pos(hm, tnodes[nid]); };
-    auto edir = [&](int eid) -> Row3d { return hm.edges[eid].half().vec(); };
-
     umap<int, double> lo, hi;
     vec v_stop(hm.nV, false);
 
@@ -15,25 +12,18 @@ vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>&
         const auto& te = tedges[th.teid];
         int n = te.nids.size();
         for (int i = 0; i < n - 1; ++i) {
-            int j   = th.cano ? i : n - 1 - i;
-            int nid = te.nids[j];
-            const HmLoc& loc = tnodes[nid];
-            if (auto* v = std::get_if<HmLocOnV>(&loc)) { v_stop[v->id] = true; continue; }
-            int eid;
-            double r;
-            if      (auto* e = std::get_if<HmLocOnE>(&loc)) { eid = e->id; r = e->r; }
-            else if (auto* h = std::get_if<HmLocOnH>(&loc)) {
-                Half hf = hm.halfs[h->id];
-                eid = hf.edge().id;
-                r   = hf.isCanonical() ? h->r : 1. - h->r;
-            } else continue;
+            auto  j  = th.cano ? i : n - 1 - i;
+            auto  k  = th.cano ? j + 1 : j - 1;
+            auto& lj = tnodes[te.nids[j]];
+            if (auto* v = std::get_if<HmLocOnV>(&lj)) { v_stop[v->id] = true; continue; }
+            auto er = try_get_edge_ratio(hm, lj); if (!er) continue;
+            auto [e, r] = *er;
 
-            if (!lo.contains(eid)) { lo[eid] = 0.; hi[eid] = 1.; }
-            int jn = th.cano ? j + 1 : j - 1;
-            Row3d dir = lpos(te.nids[jn]) - lpos(nid);
-            Row3d nrm = get_ptloc_nml(hm, loc);
-            if (nrm.dot(dir.cross(edir(eid))) > 0) lo[eid] = std::max(lo[eid], r);  // 内側 ⊂ [r,1]
-            else                                   hi[eid] = std::min(hi[eid], r);  // 内側 ⊂ [0,r]
+            if (!lo.contains(e.id)) { lo[e.id] = 0.; hi[e.id] = 1.; }
+            auto dir = get_ptloc_pos(hm, tnodes[te.nids[k]]) - get_ptloc_pos(hm, lj);
+            auto nrm = get_ptloc_nml(hm, lj);
+            if (nrm.dot(dir.cross(e.vec())) > 0) lo[e.id] = std::max(lo[e.id], r);  // 内側 ⊂ [r,1]
+            else                                 hi[e.id] = std::min(hi[e.id], r);  // 内側 ⊂ [0,r]
         }
     }
 
@@ -79,7 +69,6 @@ vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>&
 
 vec<std::tuple<int, double, double>> Emesh::allowed_range_tquads(const vec<int>& tqids) const {
     vec<int> thids;
-
     for (int tqid: tqids)
     for (auto& [thid, _]: tquads[tqid].data)
         thids.push_back(thid);

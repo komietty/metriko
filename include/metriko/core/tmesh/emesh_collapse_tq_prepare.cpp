@@ -58,12 +58,12 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     // 1: push intermidiate pts
     auto oft = 0;
     for (size_t i = 1; i < chain.thids_z.size(); ++i) {
-        const auto& th_l   = thalfs[thalfs[chain.thids_z[i - 1]].twid];
-        const auto& th_r   = thalfs[chain.thids_z[i]];
-        const auto& th_twn = thalfs[th_r.twid];
-        const auto& tq_    = tquads[th_r.tqid];
-        auto a0 = count_adj_tquads(th_twn.id); // top
-        auto a1 = count_adj_tquads(th_r.id);   // btm
+        const auto& th_l = thalfs[thalfs[chain.thids_z[i - 1]].twid];
+        const auto& th_r = thalfs[chain.thids_z[i]];
+        const auto& th_t = thalfs[th_r.twid];
+        const auto& tq_  = tquads[th_r.tqid];
+        auto a0 = count_adj_tquads(th_t.id); // top
+        auto a1 = count_adj_tquads(th_r.id); // btm
         auto n0 = th_r.nid_to();
         auto n1 = th_r.nid_fr();
         auto sr = tq_.side_of(th_r);
@@ -93,10 +93,10 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
 
         // push ladder thalf points
         if (i == chain.thids_z.size() - 1) break;
-        if      (th_r.bgn)   chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
-        else if (th_twn.bgn) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
-        else if (th_r.end)   chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
-        else if (th_twn.end) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
+        if      (th_r.bgn) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
+        else if (th_t.bgn) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
+        else if (th_r.end) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
+        else if (th_t.end) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
     }
 
     // 2: push the edge pts

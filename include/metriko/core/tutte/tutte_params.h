@@ -101,7 +101,7 @@ inline SprsD embedding_tutte_for_tquad(
         F(i, j) = idcs_table[F(i, j)];
 
     Eigen::SparseLU<SprsD> lu;
-    lu.compute(boundary_snap_laplacian(Hmesh(V, F)));
+    lu.compute(boundary_snap_laplacian(Hmesh(V, F, true)));
     MatXd uv = lu.solve(UV);
 
     SprsD uv_all(hm.nC, 2);

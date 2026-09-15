@@ -461,6 +461,17 @@ inline Hmesh::Hmesh(
         }
     }
 
+    // set up a filter to check whether a vertex is on boundary or not
+    isBV.assign(nV, false);
+    for (Edge e: edges) {
+        if (e.isBoundary()) {
+            isBV[e.half().tail().id] = true;
+            isBV[e.half().head().id] = true;
+        }
+    }
+
+    if (only_topology) return;
+
     vertNormal.setZero(nV, 3);
     vertBasisX.setZero(nV, 3);
     vertBasisY.setZero(nV, 3);
@@ -566,15 +577,6 @@ inline Hmesh::Hmesh(
         }
         baryDualArea[v.id] = a1 / 3.;
         circDualArea[v.id] = a2 * 0.125;
-    }
-
-    // set up a filter to check whether a vertex is on boundary or not
-    isBV.assign(nV, false);
-    for (Edge e: edges) {
-        if (e.isBoundary()) {
-            isBV[e.half().tail().id] = true;
-            isBV[e.half().head().id] = true;
-        }
     }
 
     // set up halfedge angle on vertex coordinate, and angle defect on vertex

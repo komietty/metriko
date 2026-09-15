@@ -55,15 +55,9 @@ inline vec<TeContact> find_tedge_contacts(const Emesh& tm) {
             if (s.teid == t.teid) continue;
             bool shared = s.n0 == t.n0 || s.n0 == t.n1 || s.n1 == t.n0 || s.n1 == t.n1;
 
-            double rab, rcd;
-            if (!shared && find_strict_intersection(pos2(s.n0), pos2(s.n1), pos2(t.n0), pos2(t.n1), rab, rcd)) {
-                report(fid, s.teid, t.teid, true);
-                continue;
-            }
-            if ((t.n0 != s.n0 && t.n0 != s.n1 && on_seg(pos2(t.n0), pos2(s.n0), pos2(s.n1))) ||
-                (t.n1 != s.n0 && t.n1 != s.n1 && on_seg(pos2(t.n1), pos2(s.n0), pos2(s.n1)))) { report(fid, s.teid, t.teid, false); continue; }
-            if ((s.n0 != t.n0 && s.n0 != t.n1 && on_seg(pos2(s.n0), pos2(t.n0), pos2(t.n1))) ||
-                (s.n1 != t.n0 && s.n1 != t.n1 && on_seg(pos2(s.n1), pos2(t.n0), pos2(t.n1)))) { report(fid, t.teid, s.teid, false); }
+            if (!shared && find_strict_intersection(pos2(s.n0), pos2(s.n1), pos2(t.n0), pos2(t.n1))) { report(fid, s.teid, t.teid, true); continue; }
+            if ((t.n0 != s.n0 && t.n0 != s.n1 && on_seg(pos2(t.n0), pos2(s.n0), pos2(s.n1))) || (t.n1 != s.n0 && t.n1 != s.n1 && on_seg(pos2(t.n1), pos2(s.n0), pos2(s.n1)))) { report(fid, s.teid, t.teid, false); continue; }
+            if ((s.n0 != t.n0 && s.n0 != t.n1 && on_seg(pos2(s.n0), pos2(t.n0), pos2(t.n1))) || (s.n1 != t.n0 && s.n1 != t.n1 && on_seg(pos2(s.n1), pos2(t.n0), pos2(t.n1)))) { report(fid, t.teid, s.teid, false); }
         }
     }
     return res;

@@ -29,9 +29,11 @@ inline vec<HmLoc> approx_shortest_path(
     struct Node { HmLoc loc; Row3d pos; };
     vec<Node> nodes;
     umap<int, vec<int>> e2n;  // eid -> node
+    std::unordered_set<int> corridor;
 
     for (auto& [eid, r0, r1] : allowed) {
         Half h = hm.edges[eid].half(); // h is canonical half
+        for (int fid: get_ptloc_faces(hm, HmLocOnE{.id = eid, .r = 0.})) corridor.insert(fid);
         int cnt = std::max(1, (int)std::lround(n_div * (r1 - r0)));
         for (int k = 0; k < cnt; ++k) {
             double r = r0 + (r1 - r0) * (k + 1.) / (cnt + 1.);
@@ -53,7 +55,8 @@ inline vec<HmLoc> approx_shortest_path(
     };
 
     // 同じ面に乗る「異なるエッジ」のノード同士のみ接続（同一エッジ接続は除外）
-    for (Face f : hm.faces) {
+    for (int fid : corridor) {
+        Face f = hm.faces[fid];
         const vec<int>* lists[3] = { nullptr, nullptr, nullptr };
         int nl = 0;
         for (Half h : f.adjHalfs()) {

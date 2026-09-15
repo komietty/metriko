@@ -61,16 +61,22 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         } else {
             auto path = approx_shortest_path(30, hm, tnodes[n0], tnodes[n1], regions[tqid]);
 
-            // an empty path would silently create a tedge with empty nids, whose
-            // loc_fr/loc_to dereference past a null buffer later — fail loudly here
-            if (path.size() < 2) throw std::runtime_error(std::format( "[collapse tq] approx_shortest_path failed: tqid {}, {} -> {} (path size {}, allowed {})", tqid, loc_str(tnodes[n0]), loc_str(tnodes[n1]), path.size(), regions[tqid].size()));
+            if (path.size() < 2) {
+                // TEMP debug: corridor edges and the edge shared by the two end faces
+                for (auto& [eid, r0, r1]: regions[tqid]) std::println("[debug] allowed eid {} [{:.3f}, {:.3f}] faces {} {}", eid, r0, r1, hm.edges[eid].face0().id, hm.edges[eid].face1().id);
+                for (int f0: get_ptloc_faces(hm, tnodes[n0]))
+                for (int f1: get_ptloc_faces(hm, tnodes[n1]))
+                for (Half h: hm.faces[f0].halfs())
+                    if (h.twin().face().id == f1) std::println("[debug] shared edge {} between faces {} {}", h.edge().id, f0, f1);
+                throw std::runtime_error(std::format( "approx_shortest_path failed: tqid {}, {} -> {} (path size {}, allowed {})", tqid, loc_str(tnodes[n0]), loc_str(tnodes[n1]), path.size(), regions[tqid].size()));
+            }
 
             auto nids = add_new_path(path, n0, n1);
             int teid  = tedges.size();
             int thid0 = thalfs.size();
             int thid1 = thalfs.size() + 1;
             double x  = std::abs(v1 - v0);
-            double r = path_length(nids);
+            double r  = path_length(nids);
 
             tedges.push_back({ .id = teid, .nids = nids });
             thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x, .r = r });
@@ -164,6 +170,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     };
 
     auto on_chain = [&](int nid) { return rg::any_of(chain.pts, [&](const auto& c) { return c.nid == nid; }); };
+    auto op = [&](int n0, int n1) { return thids_from_remainning_side(n0, n1) | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>(); };
     const auto& th_l = thalfs[chain.thid_l];
     const auto& th_r = thalfs[chain.thid_r];
     bool cfr_r = count_adj_tquads(th_r.id) == 4   && !on_chain(th_r.nid_fr());
@@ -180,8 +187,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         extend(th_r, ahd_r, cfr_r || cto_r);
         int n0 = ahd_l ? th_l.nid_to() : th_l.nid_fr();
         int n1 = ahd_r ? th_r.nid_to() : th_r.nid_fr();
-        auto op = thids_from_remainning_side(n0, n1) | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>();
-        replace(op, thids_bgn);
+        replace(op(n0, n1), thids_bgn);
     } else {
         { // leftmost
             bool ahd = th_l.nid_fr() == nid_bgn;
@@ -190,8 +196,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
             auto na = thalfs[thids_bgn.back()].nid_to();
             auto nb = thalfs[thids_bgn.front()].nid_fr();
             auto n1 = na == th_l.nid_fr() || na == th_l.nid_to() ? nb : na;
-            auto op = thids_from_remainning_side(n0, n1) | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>();
-            replace(op, thids_bgn);
+            replace(op(n0, n1), thids_bgn);
         }
         { // rightmost
             bool ahd = th_r.nid_fr() == nid_end;
@@ -200,16 +205,14 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
             auto na = thalfs[thids_end.back()].nid_to();
             auto nb = thalfs[thids_end.front()].nid_fr();
             auto n1 = na == th_r.nid_fr() || na == th_r.nid_to() ? nb : na;
-            auto op = thids_from_remainning_side(n0, n1) | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>();
-            replace(op, thids_end);
+            replace(op(n0, n1), thids_end);
         }
         // in middle
         for (auto& c: chains) {
             assert(c.size() >= 2);
             auto n0 = thalfs[c.front()].nid_fr();
             auto n1 = thalfs[c.back()].nid_to();
-            auto op = thids_from_remainning_side(n0, n1) | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>();
-            replace(op, c);
+            replace(op(n0, n1), c);
         }
     }
 

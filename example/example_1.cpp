@@ -73,6 +73,7 @@ int main(int argc, char** argv) {
 
         // collapse tquad
         for (const auto& [tqid, data] : em.live_tquads()) {
+            //if (tqid == 114) goto EXIT_MULTI_LOOP;
             Tqchain chain;
             if (em.collapse_tquad_chain_prepare(tqid, chain)) {
                 std::cout << "tq collapse: " << tqid << std::endl;
@@ -109,13 +110,16 @@ int main(int argc, char** argv) {
                                      t == chain.thid_l ? "thid_l" : "thid_r",
                                      t, loc_str(th.loc_fr()), loc_str(th.loc_to()));
                     }
-                    throw;
+                    goto EXIT_MULTI_LOOP;
                 }
                 validate_emesh(em);
             }
         }
     }
 
+    EXIT_MULTI_LOOP:
+
+    /*
     em.collapse_tedge_snap(false);
     em.collapse_tedge_snap(true);
     for (const auto& [teid, _] : em.live_tedges()) { em.collapse_tedge_snap_dedup(teid); }
@@ -172,6 +176,7 @@ int main(int argc, char** argv) {
 
     save_emesh(std::format("{}.{}.em", argv[1], argv[2]), em);
     std::println("saved em cache");
+    */
 
     visualizer::visualize_mesh(hm.pos, hm.idx);
     visualizer::visualize_non_snapped_tnodes(hm, em, false);

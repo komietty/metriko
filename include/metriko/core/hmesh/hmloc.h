@@ -87,29 +87,36 @@ inline std::optional<Edge> try_get_edge(const Hmesh& hm, const HmLoc& a, const H
     return std::nullopt;
 }
 
-inline std::optional<std::pair<Half, double>> try_get_ratio(const Hmesh& hm, const HmLoc& l) {
+inline std::optional<std::pair<Half, double>> try_get_half_ratio(const Hmesh& hm, const HmLoc& loc) {
+    using R = std::optional<std::pair<Half, double>>;
     return std::visit(overloaded{
-        [&](const HmLocOnE& l) -> std::optional<std::pair<Half, double>> {
-            auto e = hm.edges[l.id];
-            auto h = e.half();
-            auto t = h.tail() == e.vert0() ? l.r : 1. - l.r;
-            return std::pair(h, 1. - t);
-        },
-        [&](const HmLocOnH& l) -> std::optional<std::pair<Half, double>> {
-            return std::pair(hm.halfs[l.id], 1. - l.r); // todo: seeems the ratio is flipped...
-        },
-        [&](const auto&) -> std::optional<std::pair<Half, double>> { return std::nullopt; },
-    }, l);
+        [&](const HmLocOnE& l) -> R { auto e = hm.edges[l.id]; auto h = e.half(); return std::pair(h, 1. - (h.isCanonical() ? l.r : 1. - l.r)); },
+        [&](const HmLocOnH& l) -> R { return std::pair(hm.halfs[l.id], 1. - l.r); },
+        [&](const auto&)       -> R { return std::nullopt; },
+    }, loc);
 }
 
-inline bool is_in_face(Face face, const HmLoc& l) {
+inline std::optional<std::pair<Edge, double>> try_get_edge_ratio(const Hmesh& hm, const HmLoc& loc) {
+    using R = std::optional<std::pair<Edge, double>>;
     return std::visit(overloaded{
-        [&](const HmLocOnV& v) { for (Half h_: face.adjHalfs()) { if (h_.tail().id == v.id) return true; } return false; },
-        [&](const HmLocOnE& e) { for (Half h_: face.adjHalfs()) { if (h_.edge().id == e.id) return true; } return false; },
-        [&](const HmLocOnH& h) { for (Half h_: face.adjHalfs()) { if (h_.id == h.id)        return true; } return false; },
-        [&](const HmLocOnF& f) { return f.id == face.id; },
+        [&](const HmLocOnE& l) -> R { return std::pair{hm.edges[l.id], l.r}; },
+        [&](const HmLocOnH& l) -> R { Half h = hm.halfs[l.id]; return std::pair{h.edge(), h.isCanonical() ? l.r : 1. - l.r}; },
+        [&](const auto&)       -> R { return std::nullopt; },
+    }, loc);
+}
+
+inline bool is_in_face(Face f, const HmLoc& loc) {
+    return std::visit(overloaded{
+        [&](const HmLocOnV& l) { for (Half h: f.adjHalfs()) { if (h.tail().id == l.id) return true; } return false; },
+        [&](const HmLocOnE& l) { for (Half h: f.adjHalfs()) { if (h.edge().id == l.id) return true; } return false; },
+        [&](const HmLocOnH& l) { for (Half h: f.adjHalfs()) { if (h.id == l.id)        return true; } return false; },
+        [&](const HmLocOnF& l) { return l.id == f.id; },
         [&](const auto&) -> bool { throw std::runtime_error("not implemented"); },
-    }, l);
+    }, loc);
+};
+
+inline bool is_in_ring(Vert v, const HmLoc& loc) {
+    return rg::any_of(v.adjHalfs(), [&](Half h) { return is_in_face(h.face(), loc); });
 };
 
 inline auto loc_str(const HmLoc& l) {

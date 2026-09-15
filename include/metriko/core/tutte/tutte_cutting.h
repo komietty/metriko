@@ -288,7 +288,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
                 [&](const auto& l) {
                     vpos.emplace_back(get_ptloc_pos(hm, l));
                     int i = vpos.size() - 1;
-                    if (auto hr = try_get_ratio(hm, l)) {
+                    if (auto hr = try_get_half_ratio(hm, l)) {
                         auto [h0, r] = hr.value();
                         auxs[h0.id].emplace(r, i);
                         auxs[h0.twin().id].emplace(1 - r, i);
