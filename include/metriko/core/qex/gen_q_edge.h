@@ -98,10 +98,12 @@ namespace metriko::qex {
                     }
                 }
 
-                // edge-qport case
+                // edge-qport case. the partner may lie on the start port's own edge: an edge running
+                // along an isoline carries several grid points. only ports of the same qvert are excluded
                 for (Half h: f.adjHalfs()) {
                     auto it = rg::find_if(eqports, [&](const Qport &p) {
-                        if (p.isConnected || p.eid == pfr.eid || p.eid != h.edge().id) return false;
+                        if (p.isConnected || p.eid != h.edge().id) return false;
+                        if (p.eid == pfr.eid && abs(p.uv - pfr.uv) < EPS) return false;   // same qvert
                         return predict_extrinsic_collinear(mesh, cfn, ori, dir, f, p);
                     });
                     if (it != eqports.end()) {
