@@ -14,6 +14,7 @@
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
 #include "metriko/core/tmesh/emesh.h"
+#include "metriko/core/tmesh/emesh_validate.h"
 #include "metriko/core/tutte/tutte_cutting.h"
 #include "metriko/core/tutte/tutte_params.h"
 #include "metriko/core/qex/sanitization.h"
@@ -57,7 +58,7 @@ int main(int argc, char** argv) {
     Hmesh hm(V, F);
 
     ///--- stage 0: vectorfield + rosy parameterization ---///
-    FaceRosyField rawf(hm, N, FieldType::Smoothest);
+    FaceRosyField rawf(hm, N, FieldType::CurvatureAligned);
     rawf.computeMatching(MatchingType::Principal);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(hm, seam);
@@ -131,6 +132,16 @@ int main(int argc, char** argv) {
 
     save_emesh(std::format("{}.{}.em", argv[1], argv[2]), em);
     std::println("saved em cache");
+
+    // TEMP debug: crossings left after snapping, with the full node chains involved
+    if (validate_no_crossing(em, "after snap") > 0) {
+        for (auto& c: find_tedge_contacts(em))
+        for (int t: {c.te_seg, c.te_ndp}) {
+            std::print("[debug] teid {}:", t);
+            for (int nid: em.tedges[t].nids) std::print(" {}", loc_str(em.tnodes[nid]));
+            std::println("");
+        }
+    }
 
     ///--- stage 2: cut along the collapsed t-mesh ---///
     // validate tedge nid chains: duplicated / backtracking nodes break the cut

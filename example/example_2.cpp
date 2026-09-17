@@ -119,10 +119,19 @@ int main(int argc, char** argv) {
     visualizer::visualize_face_collinear_error(hm, em, true);
 
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
-    MatXd uv;
-    if (compute_tutte_parameterization(*hm_emb, em, seam1, hdata, uv)) {
+    MatXd uv =compute_tutte_parameterization(*hm_emb, em, seam1, hdata);
+    {
         embd->addParameterizationQuantity("tutte uv", uv);
         igl::SLIMData sData;
+
+        auto uv_at = [&](Crnr c) { return complex(uv(c.id, 0), uv(c.id, 1)); };
+        int bad = 0;
+        for (Face f: hm_emb->faces) {
+            auto [a, b, c] = f.crnrs();
+            if (orientation(uv_at(a), uv_at(b), uv_at(c)) > 0) continue;
+            if (bad++ < 20) std::println("[tutte] face {} degenerate/inverted, center ({:.4f}, {:.4f}, {:.4f})", f.id, f.center().x(), f.center().y(), f.center().z());
+        }
+        std::println("[tutte] {} degenerate/inverted faces", bad);
 
         {
             MatXd uv_init(hm_cut->nV, 2);
@@ -167,6 +176,20 @@ int main(int argc, char** argv) {
 
             qex::sanitization(*hm_emb, matching1, singular1, 4, cfn);
 
+            // TEMP debug: corner uv around the two failing singular vertices and along the offending edges
+            for (int vid: {1091, 2228}) {
+                std::println("[qex] singular V{}:", vid);
+                for (Half h: hm_emb->verts[vid].adjHalfs()) {
+                    Crnr c = h.next().crnr();   // corner at the tail vertex
+                    std::println("[qex]   face {} corner uv ({:.4f}, {:.4f})  matching {}", h.face().id, cfn(c.id).real(), cfn(c.id).imag(), matching1(h.edge().id));
+                }
+            }
+            for (int eid: {5162, 7608, 394}) {
+                Half h = hm_emb->edges[eid].half();
+                auto a = cfn(h.next().crnr().id), b = cfn(h.prev().crnr().id);
+                std::println("[qex] edge {} uv ({:.4f}, {:.4f}) -> ({:.4f}, {:.4f})  |uv| {:.3f}  |3d| {:.4f}", eid, a.real(), a.imag(), b.real(), b.imag(), std::abs(b - a), h.vec().norm());
+            }
+
             vec<qex::Qport> q_ports;
             vec<qex::Qvert> vqvs, eqvs, fqvs;
             qex::generate_q_vert(*hm_emb, cfn, vqvs, eqvs, fqvs);
@@ -186,7 +209,7 @@ int main(int argc, char** argv) {
             visualizer::visualize_qfaces(hm, qfaces, true);
             visualizer::visualize_quad_patch(hm, em, singular, qfaces);
         }
-    } else std::println("[tutte] compute_tutte_parameterization failed");
+    }
 
     polyscope::show(); return 0;
 }

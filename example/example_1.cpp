@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
 
     Emesh em(mg, tm, X);
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 20; ++i) {
         // collapse thalf
         for (Ehalf th0 : em.thalfs) {
             if (th0.id == -1) continue;
@@ -110,6 +110,7 @@ int main(int argc, char** argv) {
                                      t == chain.thid_l ? "thid_l" : "thid_r",
                                      t, loc_str(th.loc_fr()), loc_str(th.loc_to()));
                     }
+                    visualizer::visualize_allowed_range(hm, em.allowed_range_tquads({tqid}), std::format("allowed tq{}", tqid));
                     goto EXIT_MULTI_LOOP;
                 }
                 validate_emesh(em);
@@ -119,15 +120,46 @@ int main(int argc, char** argv) {
 
     EXIT_MULTI_LOOP:
 
-    /*
+    // TEMP debug: tquads surviving the collapse with a zero-length side (they map onto a segment in
+    // tutte), and tquads whose opposite sides disagree in quantized length
+    for (auto& tq: em.live_tquads()) {
+        auto sum = [&](int s) { double x = 0; for (int t: tq.thids(s)) x += em.thalfs[t].x; return x; };
+        double x0 = sum(0), x1 = sum(1), x2 = sum(2), x3 = sum(3);
+        bool zero     = x0 == 0 || x1 == 0;
+        bool mismatch = x0 != x2 || x1 != x3;
+        if (!zero && !mismatch) continue;
+        std::print("[tq check] tqid {}: {}{} side x = {} {} {} {} |", tq.id, zero ? "zero side " : "", mismatch ? "opposite sides differ " : "", x0, x1, x2, x3);
+        for (int s = 0; s < 4; ++s) {
+            std::print(" [");
+            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, em.thalfs[t].x, em.count_adj_tquads(t), em.count_adj_tquads(em.thalfs[t].twid));
+            std::print(" ]");
+        }
+        std::println("");
+    }
+
+
     em.collapse_tedge_snap(false);
     em.collapse_tedge_snap(true);
     for (const auto& [teid, _] : em.live_tedges()) { em.collapse_tedge_snap_dedup(teid); }
 
+    for (auto& tq: em.live_tquads()) {
+        auto sum = [&](int s) { double x = 0; for (int t: tq.thids(s)) x += em.thalfs[t].x; return x; };
+        assert(sum(0) == sum(2) && sum(1) == sum(3));
+        if (sum(0) > 0 && sum(1) > 0) continue;
+        std::print("[zero tq] tqid {}: side x = {} {} {} {} |", tq.id, sum(0), sum(1), sum(2), sum(3));
+        for (int s = 0; s < 4; ++s) {
+            std::print(" [");
+            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, em.thalfs[t].x, em.count_adj_tquads(t), em.count_adj_tquads(em.thalfs[t].twid));
+            std::print(" ]");
+        }
+        std::println("");
+    }
+
+
     // snapping can bring two tedges into contact: re-trace the offenders and
     // refuse to emit a t-mesh that still has contacts
     repair_crossing_tedges(em);
-    //if (validate_no_crossing(em, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
+    if (validate_no_crossing(em, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
 
     if (validate_no_crossing(em, "after repair") > 0) {
         // TODO TEMP: show the surviving contacts before aborting
@@ -176,7 +208,17 @@ int main(int argc, char** argv) {
 
     save_emesh(std::format("{}.{}.em", argv[1], argv[2]), em);
     std::println("saved em cache");
-    */
+
+    // TEMP debug: crossings left by the collapse phase, with the full node chains involved
+    if (validate_no_crossing(em, "after collapse") > 0) {
+        for (auto& c: find_tedge_contacts(em))
+        for (int t: {c.te_seg, c.te_ndp}) {
+            std::print("[debug] teid {}:", t);
+            for (int nid: em.tedges[t].nids) std::print(" {}", loc_str(em.tnodes[nid]));
+            std::println("");
+        }
+    }
+    /**/
 
     visualizer::visualize_mesh(hm.pos, hm.idx);
     visualizer::visualize_non_snapped_tnodes(hm, em, false);

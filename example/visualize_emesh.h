@@ -4,6 +4,36 @@
 #include "metriko/core/tmesh/emesh.h"
 
 namespace metriko::visualizer {
+// allowed corridor of a shortest-path query: the admissible sub-segment [r0, r1] of every edge
+inline void visualize_allowed_range(
+    const Hmesh& hm,
+    const vec<std::tuple<int, double, double>>& allowed,
+    const std::string& name = "allowed range",
+    const bool show = true,
+    const double scale = 0.0015
+) {
+    vec<glm::vec3> ns;
+    vec<std::array<size_t, 2>> es;
+    vec<double> ids, spans;
+    for (auto& [eid, r0, r1]: allowed) {
+        Edge  e = hm.edges[eid];
+        Row3d a = e.lerp(r0);
+        Row3d b = e.lerp(r1);
+        es.push_back({ns.size(), ns.size() + 1});
+        ns.emplace_back(a.x(), a.y(), a.z());
+        ns.emplace_back(b.x(), b.y(), b.z());
+        ids.push_back(eid);
+        spans.push_back(r1 - r0);
+    }
+    auto* cn = polyscope::registerCurveNetwork(name, ns, es);
+    cn->setMaterial("flat");
+    cn->setEnabled(show);
+    cn->setRadius(scale);
+    cn->addEdgeScalarQuantity("eid", ids)->setEnabled(true);
+    cn->addEdgeScalarQuantity("span", spans);
+    cn->resetTransform();
+}
+
 inline void visualize_tedge_mut_collapsed(
     const Hmesh& hm,
     const Emesh& tm,
@@ -39,9 +69,13 @@ inline void visualize_tedge_mut_snapped(
     const bool show = true,
     const double scale = 0.001
 ) {
+    // quantized length per tedge (both thalfs of a tedge carry the same x)
+    umap<int, double> x_of;
+    for (const auto& th: tm.thalfs) if (th.id != -1) x_of[th.teid] = th.x;
+
     std::vector<glm::vec3> ns;
     std::vector<std::array<size_t, 2>> es;
-    std::vector<double> ids;
+    std::vector<double> ids, xs;
     size_t c = 0;
     for (const auto& [id, nids]: tm.live_tedges()) {
         for (size_t k = 0; k + 1 < nids.size(); ++k) {
@@ -52,12 +86,14 @@ inline void visualize_tedge_mut_snapped(
             es.push_back({c, c + 1});
             c += 2;
             ids.push_back(id);
+            xs.push_back(x_of.contains(id) ? x_of.at(id) : -1);
         }
     }
     auto* cn = polyscope::registerCurveNetwork("tedges_snapped", ns, es);
     cn->setMaterial("flat");
     cn->setEnabled(show);
     cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
+    cn->addEdgeScalarQuantity("x", xs);
     cn->setRadius(scale);
     cn->resetTransform();
 }
@@ -159,6 +195,15 @@ inline void visualize_face_collinear_error(
             for (auto& [fid, c]: count) if (c >= 3) bad.insert(fid);
         }}
     std::println("[collinear] {} faces violate snap_1", bad.size());
+    // TEMP debug: which tedge / position each vertex of a violating face belongs to
+    for (int fid: bad) {
+        std::print("[collinear] face {}:", fid);
+        for (Vert v: hm.faces[fid].verts())
+            for (auto& [teid, nids]: tm.live_tedges())
+                for (int k = 0; k < nids.size(); ++k)
+                    if (auto* l = std::get_if<HmLocOnV>(&tm.tnodes[nids[k]]); l && l->id == v.id) std::print(" V{}=te{}[{}/{}]", v.id, teid, k, nids.size() - 1);
+        std::println("");
+    }
 
     std::vector<glm::vec3> ns;
     std::vector<std::array<size_t, 2>> es;
@@ -180,6 +225,28 @@ inline void visualize_face_collinear_error(
         cn->setColor({1., 0.2, 0.1});
         cn->setRadius(0.0015);
         cn->resetTransform();
+    }
+
+    // TEMP debug: vertices of the violating faces, marked whether they are junctions
+    {
+        std::vector<glm::vec3> ps; std::vector<double> vids, junction;
+        for (int fid: bad)
+        for (Vert v: hm.faces[fid].verts()) {
+            int hits = 0;
+            for (auto& [teid, nids]: tm.live_tedges())
+                for (int k = 0; k < nids.size(); ++k)
+                    if (auto* l = std::get_if<HmLocOnV>(&tm.tnodes[nids[k]]); l && l->id == v.id && (k == 0 || k + 1 == nids.size())) ++hits;
+            ps.emplace_back(v.pos().x(), v.pos().y(), v.pos().z());
+            vids.push_back(v.id);
+            junction.push_back(hits >= 2);   // endpoint of two or more tedges
+        }
+        if (!ps.empty()) {
+            auto* pc = polyscope::registerPointCloud("collinear face vertices", ps);
+            pc->addScalarQuantity("vid", vids);
+            pc->addScalarQuantity("junction", junction)->setEnabled(true);
+            pc->setPointRadius(0.002);
+            pc->setEnabled(show);
+        }
     }
 }
 }

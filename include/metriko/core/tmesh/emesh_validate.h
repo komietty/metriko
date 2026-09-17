@@ -16,48 +16,40 @@ struct TeContact {
 
 // tedges must not touch each other except at shared junction nodes
 inline vec<TeContact> find_tedge_contacts(const Emesh& tm) {
-    const Hmesh& hm = tm.hm;
+    struct S { int teid; int n0; int n1; };
+    umap<int, vec<S>> per_face;
 
-    struct Seg { int teid; int n0; int n1; };
-    umap<int, vec<Seg>> per_face;
     for (const auto& [teid, nids]: tm.live_tedges()) {
-        for (size_t k = 0; k + 1 < nids.size(); ++k) {
-            auto fids = get_ptloc_faces(hm, tm.tnodes[nids[k]]);
-            for (int fid: fids)
-                if (fid != -1 && is_in_face(hm.faces[fid], tm.tnodes[nids[k + 1]]))
-                    per_face[fid].push_back({teid, nids[k], nids[k + 1]});
-        }
-    }
+    for (int k = 0; k + 1 < nids.size(); ++k) {
+    for (int i: get_ptloc_faces(tm.hm, tm.tnodes[nids[k]])) {
+        if (is_in_face(tm.hm.faces[i], tm.tnodes[nids[k + 1]]))
+            per_face[i].push_back({.teid = teid, .n0 = nids[k], .n1 = nids[k + 1]});
+    }}}
 
     vec<TeContact> res;
     std::set<std::pair<int, int>> seen;
     auto report = [&](int fid, int te_seg, int te_ndp, bool cross) {
         if (seen.insert(std::minmax(te_seg, te_ndp)).second)
-            res.push_back({fid, te_seg, te_ndp, cross});
+            res.push_back({.fid=fid, .te_seg=te_seg, .te_ndp=te_ndp, .cross=cross});
     };
 
     for (auto& [fid, segs]: per_face) {
-        Face f = hm.faces[fid];
-        auto pos2 = [&](int nid) { return f.to_local(get_ptloc_pos(hm, tm.tnodes[nid])); };
-
-        // p strictly inside segment a-b (2d)
-        auto on_seg = [&](const complex p, const complex a, const complex b) {
-            complex ab = b - a, ap = p - a;
-            if (std::norm(ab) < EPS * EPS) return false;
-            double t = (std::conj(ab) * ap).real() / std::norm(ab);
-            return std::abs((std::conj(ab) * ap).imag()) / std::abs(ab) < EPS && t > EPS && t < 1 - EPS;
-        };
-
+        auto f = tm.hm.faces[fid];
         for (size_t i = 0; i < segs.size(); ++i)
         for (size_t j = i + 1; j < segs.size(); ++j) {
             auto& s = segs[i];
             auto& t = segs[j];
             if (s.teid == t.teid) continue;
-            bool shared = s.n0 == t.n0 || s.n0 == t.n1 || s.n1 == t.n0 || s.n1 == t.n1;
 
-            if (!shared && find_strict_intersection(pos2(s.n0), pos2(s.n1), pos2(t.n0), pos2(t.n1))) { report(fid, s.teid, t.teid, true); continue; }
-            if ((t.n0 != s.n0 && t.n0 != s.n1 && on_seg(pos2(t.n0), pos2(s.n0), pos2(s.n1))) || (t.n1 != s.n0 && t.n1 != s.n1 && on_seg(pos2(t.n1), pos2(s.n0), pos2(s.n1)))) { report(fid, s.teid, t.teid, false); continue; }
-            if ((s.n0 != t.n0 && s.n0 != t.n1 && on_seg(pos2(s.n0), pos2(t.n0), pos2(t.n1))) || (s.n1 != t.n0 && s.n1 != t.n1 && on_seg(pos2(s.n1), pos2(t.n0), pos2(t.n1)))) { report(fid, t.teid, s.teid, false); }
+            auto a0 = f.to_local(get_ptloc_pos(tm.hm, tm.tnodes[s.n0])),
+                 a1 = f.to_local(get_ptloc_pos(tm.hm, tm.tnodes[s.n1])),
+                 b0 = f.to_local(get_ptloc_pos(tm.hm, tm.tnodes[t.n0])),
+                 b1 = f.to_local(get_ptloc_pos(tm.hm, tm.tnodes[t.n1]));
+
+            bool shared = s.n0 == t.n0 || s.n0 == t.n1 || s.n1 == t.n0 || s.n1 == t.n1;
+            if (!shared && find_strict_intersection(a0, a1, b0, b1)) { report(fid, s.teid, t.teid, true); continue; }
+            if (is_inside_segment(a0, a1, b0) || is_inside_segment(a0, a1, b1)) { report(fid, s.teid, t.teid, false); continue; } // t's endpoint on s
+            if (is_inside_segment(b0, b1, a0) || is_inside_segment(b0, b1, a1)) { report(fid, t.teid, s.teid, false); }           // s's endpoint on t
         }
     }
     return res;

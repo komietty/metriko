@@ -17,17 +17,11 @@ void Emesh::collapse_tedge_snap(bool flag) {
         auto  nid = tedges[teid].nids.back();
         auto* loc = std::get_if<HmLocOnF>(&tnodes[nid]);
         if (!loc || !snap_valid(v)) return;
-        // moving the joint from p to v must not cross another tedge inside its face
         auto f = hm.faces[loc->id];
-        auto a = f.to_local(get_ptloc_pos(hm, *loc));
-        auto b = f.to_local(v.pos());
         for (auto& [id, nids]: live_tedges()) {
         for (int k = 0; k + 1 < nids.size(); ++k) {
             if (nids[k] == nid || nids[k + 1] == nid) continue;
-            if (!is_in_face(f, tnodes[nids[k]]) || !is_in_face(f, tnodes[nids[k + 1]])) continue;
-            auto c = f.to_local(get_ptloc_pos(hm, tnodes[nids[k]]));
-            auto d = f.to_local(get_ptloc_pos(hm, tnodes[nids[k + 1]]));
-            if (find_strict_intersection(a, b, c, d)) return;
+            if (find_strict_intersection(f, *loc, HmLocOnV{v.id}, tnodes[nids[k]], tnodes[nids[k+1]])) return;
         }}
 
         //for (auto& [id, nids]: live_tedges()) {
@@ -52,15 +46,27 @@ void Emesh::collapse_tedge_snap(bool flag) {
         tnodes[nid] = HmLocOnV{.id = v.id};
     };
 
-    auto snap_inter = [&](int teid, int nid, Vert v) {
+    auto snap_inter = [&](int teid, int nid, Vert v) -> bool {
         auto& nids = tedges[teid].nids;
-        auto it = rg::find(nids, nid); if (it == nids.end()) return;
+        auto it = rg::find(nids, nid); if (it == nids.end()) return false;
         int i = it - nids.begin(), lo = i, hi = i;
         while (lo > 0               && is_in_ring(v, tnodes[nids[lo - 1]])) --lo;
         while (hi < nids.size() - 1 && is_in_ring(v, tnodes[nids[hi + 1]])) ++hi;
+        int L = lo < i ? lo : i - 1;   // neighbours after the trim: the two new legs are L -> v -> R
+        int R = hi > i ? hi : i + 1;
+
+        for (auto& l: {tnodes[nids[L]], tnodes[nids[R]]}) {
+        for (auto f: v.adjHalfs() | vw::transform(&Half::face) | vw::filter( [&](auto f) { return is_in_face(f, l); })) {
+        for (auto& [id, ns]: live_tedges()) {
+        for (int k = 0; k + 1 < ns.size(); ++k) {
+            if (id == teid && k >= L && k < R) continue;
+            if (find_strict_intersection(f, l, HmLocOnV{v.id}, tnodes[ns[k]], tnodes[ns[k + 1]])) return false;
+        }}}}
+
         if (hi - i >= 2) nids.erase(nids.begin() + i + 1, nids.begin() + hi);
         if (i - lo >= 2) nids.erase(nids.begin() + lo + 1, nids.begin() + i);
         tnodes[nid] = HmLocOnV{.id = v.id};
+        return true;
     };
 
 
@@ -107,13 +113,13 @@ void Emesh::collapse_tedge_snap(bool flag) {
     if (flag) {
         for (auto& c: candidates) {
         for (auto& [nid, eid, vrt, _]: c) {
-            if (snap_valid(vrt)) { snap_inter(eid, nid, vrt); break; }
+            if (snap_valid(vrt) && snap_inter(eid, nid, vrt)) break;
         }}
     } else {
         for (auto& c: candidates) {
             if (c.size() == 0) continue;
             auto& [nid, eid, vrt, _] = c.front();
-            if (snap_valid(vrt)) { snap_inter(eid, nid, vrt); }
+            if (snap_valid(vrt)) snap_inter(eid, nid, vrt);
         }
     }
 }

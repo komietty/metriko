@@ -61,15 +61,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         } else {
             auto path = approx_shortest_path(30, hm, tnodes[n0], tnodes[n1], regions[tqid]);
 
-            if (path.size() < 2) {
-                // TEMP debug: corridor edges and the edge shared by the two end faces
-                for (auto& [eid, r0, r1]: regions[tqid]) std::println("[debug] allowed eid {} [{:.3f}, {:.3f}] faces {} {}", eid, r0, r1, hm.edges[eid].face0().id, hm.edges[eid].face1().id);
-                for (int f0: get_ptloc_faces(hm, tnodes[n0]))
-                for (int f1: get_ptloc_faces(hm, tnodes[n1]))
-                for (Half h: hm.faces[f0].halfs())
-                    if (h.twin().face().id == f1) std::println("[debug] shared edge {} between faces {} {}", h.edge().id, f0, f1);
-                throw std::runtime_error(std::format( "approx_shortest_path failed: tqid {}, {} -> {} (path size {}, allowed {})", tqid, loc_str(tnodes[n0]), loc_str(tnodes[n1]), path.size(), regions[tqid].size()));
-            }
+            if (path.size() < 2) throw std::runtime_error(std::format( "approx_shortest_path failed: tqid {}, {} -> {} (path size {}, allowed {})", tqid, loc_str(tnodes[n0]), loc_str(tnodes[n1]), path.size(), regions[tqid].size()));
 
             auto nids = add_new_path(path, n0, n1);
             int teid  = tedges.size();

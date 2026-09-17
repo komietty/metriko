@@ -113,11 +113,27 @@ inline bool is_in_face(Face f, const HmLoc& loc) {
         [&](const HmLocOnF& l) { return l.id == f.id; },
         [&](const auto&) -> bool { throw std::runtime_error("not implemented"); },
     }, loc);
-};
+}
+
+inline bool find_strict_intersection(
+    const Face f,
+    const HmLoc& la,
+    const HmLoc& lb,
+    const HmLoc& lc,
+    const HmLoc& ld
+) {
+    if (!is_in_face(f, la) || !is_in_face(f, lb) || !is_in_face(f, lc) || !is_in_face(f, ld)) return false;
+    return find_strict_intersection(
+        f.to_local(get_ptloc_pos(*f.m, la)),
+        f.to_local(get_ptloc_pos(*f.m, lb)),
+        f.to_local(get_ptloc_pos(*f.m, lc)),
+        f.to_local(get_ptloc_pos(*f.m, ld))
+    );
+}
 
 inline bool is_in_ring(Vert v, const HmLoc& loc) {
     return rg::any_of(v.adjHalfs(), [&](Half h) { return is_in_face(h.face(), loc); });
-};
+}
 
 inline auto loc_str(const HmLoc& l) {
     return std::visit(overloaded{
