@@ -40,6 +40,7 @@ struct Face : Elem {
     [[nodiscard]] AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true) const;
     [[nodiscard]] std::array<Half, 3> halfs() const; // curr, next, prev
     [[nodiscard]] std::array<Vert, 3> verts() const; // tails of halfs above
+    [[nodiscard]] std::array<Edge, 3> edges() const; // edges of halfs above
     [[nodiscard]] std::array<Crnr, 3> crnrs() const; // crnrs of halfs above
 };
 
@@ -260,6 +261,7 @@ inline complex Face::to_local(const Row3d& v) const { Row3d d = v - half().tail(
 
 inline std::array<Half, 3> Face::halfs() const { Half h = half(); return {h, h.next(), h.prev()}; }
 inline std::array<Vert, 3> Face::verts() const { auto [h0, h1, h2] = halfs(); return {h0.tail(), h1.tail(), h2.tail()}; }
+inline std::array<Edge, 3> Face::edges() const { auto [h0, h1, h2] = halfs(); return {h0.edge(), h1.edge(), h2.edge()}; }
 inline std::array<Crnr, 3> Face::crnrs() const { auto [h0, h1, h2] = halfs(); return {h0.crnr(), h1.crnr(), h2.crnr()}; }
 
 inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) const { return {m, m->vert2half[id], ccw}; }

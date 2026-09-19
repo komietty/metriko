@@ -98,15 +98,16 @@ namespace metriko::qex {
                     }
                 }
 
-                // edge-qport case. the partner may lie on the start port's own edge: an edge running
-                // along an isoline carries several grid points. only ports of the same qvert are excluded
-                for (Half h: f.adjHalfs()) {
-                    auto it = rg::find_if(eqports, [&](const Qport &p) {
-                        if (p.isConnected || p.eid != h.edge().id) return false;
-                        if (p.eid == pfr.eid && abs(p.uv - pfr.uv) < EPS) return false;   // same qvert
-                        return predict_extrinsic_collinear(mesh, cfn, ori, dir, f, p);
-                    });
-                    if (it != eqports.end()) {
+                // edge-qport case.
+                for (Edge e: f.edges()) {
+                    Qport* it = nullptr;
+                    auto   d0 = std::numeric_limits<double>::infinity();
+                    auto   p0 = conversion_2d_3d(f, cfn, ori);
+                    for (Qport& p: eqports) {
+                        if (p.isConnected || p.eid != e.id || (p.eid == pfr.eid && abs(p.uv - pfr.uv) < EPS) || !predict_extrinsic_collinear(mesh, cfn, ori, dir, f, p)) continue;
+                        if (auto d = (p.pos - p0).norm(); d < d0) { d0 = d; it = &p; }
+                    }
+                    if (it) {
                         pfr.isConnected = true;
                         it->isConnected = true;
                         qedges.emplace_back(pfr, *it);
@@ -115,9 +116,9 @@ namespace metriko::qex {
                 }
 
                 // vert-qport case
-                for (Half h: f.adjHalfs()) {
+                for (Vert v: f.verts()) {
                     auto it = rg::find_if(vqports, [&](const Qport &p) {
-                        if (p.isConnected || p.vid == pfr.vid || p.vid != h.tail().id) return false;
+                        if (p.isConnected || p.vid == pfr.vid || p.vid != v.id) return false;
                         return predict_extrinsic_collinear(mesh, cfn, ori, dir, f, p);
                     });
                     if (it != vqports.end()) {
@@ -131,7 +132,7 @@ namespace metriko::qex {
                 // cannot find the pair. move to the next face
                 for (auto& [nh, hit]: pick_next_half(cfn, ori, dir, f, in)) {
                     if (nh.twin().isBoundary()) throw std::runtime_error("not implemented yet");
-                    if (!pushed.insert(nh.id).second) continue;   // already explored this crossing
+                    if (!pushed.insert(nh.id).second) continue; // already explored this crossing
                     complex r = heR(nh.id);
                     complex t = heT(nh.id);
                     complex o2 = r * hit + t;
