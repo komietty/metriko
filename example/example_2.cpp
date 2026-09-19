@@ -116,7 +116,6 @@ int main(int argc, char** argv) {
     visualizer::visualize_seam(*hm_emb, seam1, VecXi(), "cut seam", false);
     visualizer::visualize_non_snapped_tnodes(hm, em, false);
     visualizer::visualize_tedge_mut_collapsed(hm, em, false);
-    visualizer::visualize_face_collinear_error(hm, em, true);
 
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
     MatXd uv =compute_tutte_parameterization(*hm_emb, em, seam1, hdata);
@@ -175,20 +174,6 @@ int main(int argc, char** argv) {
             }}
 
             qex::sanitization(*hm_emb, matching1, singular1, 4, cfn);
-
-            // TEMP debug: corner uv around the two failing singular vertices and along the offending edges
-            for (int vid: {1091, 2228}) {
-                std::println("[qex] singular V{}:", vid);
-                for (Half h: hm_emb->verts[vid].adjHalfs()) {
-                    Crnr c = h.next().crnr();   // corner at the tail vertex
-                    std::println("[qex]   face {} corner uv ({:.4f}, {:.4f})  matching {}", h.face().id, cfn(c.id).real(), cfn(c.id).imag(), matching1(h.edge().id));
-                }
-            }
-            for (int eid: {5162, 7608, 394}) {
-                Half h = hm_emb->edges[eid].half();
-                auto a = cfn(h.next().crnr().id), b = cfn(h.prev().crnr().id);
-                std::println("[qex] edge {} uv ({:.4f}, {:.4f}) -> ({:.4f}, {:.4f})  |uv| {:.3f}  |3d| {:.4f}", eid, a.real(), a.imag(), b.real(), b.imag(), std::abs(b - a), h.vec().norm());
-            }
 
             vec<qex::Qport> q_ports;
             vec<qex::Qvert> vqvs, eqvs, fqvs;

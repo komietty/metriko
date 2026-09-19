@@ -51,6 +51,14 @@
       "bunny",
       "spot"
     ]
+  },
+  {
+    "gridscale": "0.01",
+    "expected": "expected_allowed.json",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "spot"
+    ]
   }
 ]
 }

@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     Hmesh hm(V, F);
 
     ///--- stage 0: vectorfield + rosy parameterization ---///
-    FaceRosyField rawf(hm, N, FieldType::CurvatureAligned);
+    FaceRosyField rawf(hm, N, FieldType::Smoothest);
     rawf.computeMatching(MatchingType::Principal);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(hm, seam);
