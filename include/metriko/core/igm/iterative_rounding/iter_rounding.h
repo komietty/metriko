@@ -4,6 +4,7 @@
 
 #ifndef METRIKO_ITER_ROUNDING_H
 #define METRIKO_ITER_ROUNDING_H
+#include <algorithm>
 #include "metriko/core/solver/levenberg_marquardt.h"
 #include "iter_rounding_common.h"
 #include "injective_barrier.h"
@@ -12,11 +13,31 @@
 
 namespace metriko {
     class CholeskyWrapper {
+        // compute() redoes the symbolic analysis every time, but inside one LM run only the
+        // values of J'J change, never its sparsity. remember the pattern that was analysed
+        // last and reuse that analysis while it still matches
+        vec<int> outer;
+        vec<int> inner;
+
+        bool same_pattern(const SprsD &A) const {
+            return A.isCompressed()
+                && std::ssize(outer) == A.outerSize() + 1
+                && std::ssize(inner) == A.nonZeros()
+                && std::equal(outer.begin(), outer.end(), A.outerIndexPtr())
+                && std::equal(inner.begin(), inner.end(), A.innerIndexPtr());
+        }
+
     public:
         Eigen::SimplicialLLT<SprsD> llt;
 
         bool factorize(const SprsD &A) {
-            llt.compute(A);
+            if (!same_pattern(A)) {
+                llt.analyzePattern(A);
+                if (llt.info() != Eigen::Success) { outer.clear(); inner.clear(); return false; }
+                outer.assign(A.outerIndexPtr(), A.outerIndexPtr() + A.outerSize() + 1);
+                inner.assign(A.innerIndexPtr(), A.innerIndexPtr() + A.nonZeros());
+            }
+            llt.factorize(A);
             return llt.info() == Eigen::Success;
         }
 

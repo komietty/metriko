@@ -74,6 +74,13 @@ namespace metriko {
                 E.resize(fInteg.size() + fClose.size() + fConst.size() + fBarrier.size());
                 E << fInteg * wInteg, fClose * wClose, fConst * wConst, fBarrier * wBarrier;
                 if (updateJ) {
+                    // the naive branch scales the barrier by wInteg here while the residual above uses
+                    // wBarrier, so this J is not the exact derivative of E. it is load-bearing: the barrier
+                    // then reaches the normal equations with weight wInteg * wBarrier = 1 in the gradient
+                    // but wInteg^2 = 1e8 in the gauss-newton hessian, acting as curvature rather than as a
+                    // driving force. using wBarrier here instead leaves it 1e8 times weaker and nefertiti
+                    // at gridscale 0.02 hits the iteration cap with 10 inverted faces. the only consistent
+                    // variant that still converges raises wBarrier to wInteg, at 24 instead of 13 iterations
                     gBarrier = loop?
                         gBarrier * barrier->gen_image_filed(field) * X2F * wBarrier :
                         gBarrier * barrier->gen_image_filed(field) * gClose * wInteg; // maybe wBarrier??

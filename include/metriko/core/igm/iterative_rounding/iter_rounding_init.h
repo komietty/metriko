@@ -138,9 +138,11 @@ namespace metriko {
             std::vector<TripD> urT;
             for (int i = 0; i < nonPartIndices.size(); i++) urT.emplace_back(i, i, 1.);
 
-            for (int i = 0; i < USmall.rows(); i++)
-            for (int j = 0; j < USmall.cols(); j++)
-                urT.emplace_back(nonPartIndices.size() + i, nonPartIndices.size() + j, USmall(i, j));
+            for (int i = 0; i < USmall.rows(); i++) {
+            for (int j = 0; j < USmall.cols(); j++) {
+                const double v = USmall(i, j);
+                if (v != 0) urT.emplace_back(nonPartIndices.size() + i, nonPartIndices.size() + j, v);
+            }}
 
             URaw.setFromTriplets(urT.begin(), urT.end());
 
