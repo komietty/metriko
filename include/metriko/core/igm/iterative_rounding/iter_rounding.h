@@ -15,8 +15,15 @@ namespace metriko {
     public:
         Eigen::SimplicialLLT<SprsD> llt;
 
-        bool factorize(const SprsD &A) { llt.compute(A); return llt.info() == Eigen::Success; }
-        bool solve(const VecXd &rhs, VecXd &x) const { x = llt.solve(rhs); return true; }
+        bool factorize(const SprsD &A) {
+            llt.compute(A);
+            return llt.info() == Eigen::Success;
+        }
+
+        bool solve(const VecXd &rhs, VecXd &x) const {
+            x = llt.solve(rhs);
+            return true;
+        }
 
         // non-const lvalue reference to type 'SprsD' (aka 'SparseMatrix<double>') cannot bind to a temporary of type
         //std::unique_ptr<solver::PositiveDefiniteSolver<double>> llt;
@@ -75,10 +82,11 @@ namespace metriko {
         );
 
         //----- Naive Solution -----//
-        if (!seamless && !localInjectivity) {
-            fullx = ni.x0;
-            return true;
+        if (!seamless) {
+            // Either it doesn't need loc_inj or it is already loc_inj (because post_iteration has loc_inj check)
+            if (!localInjectivity || ni.post_iteration(ni.XF_Small)) { fullx = ni.x0; return true; }
         }
+
         isLM.init(&llt_ni, &ni, &dd_ni);
         isLM.solve(verbose);
 

@@ -56,7 +56,7 @@ namespace metriko {
                 Row2d c = nfn_.block(h.prev().tail().id, 0, 1, 2);
                 Row2d d1 = b - a;
                 Row2d d2 = c - a;
-                if (d1.x() * d2.y() - d1.y() * d2.x() < 0) return false;
+                if (d1.x() * d2.y() - d1.y() * d2.x() <= 0) return false;
             }
             if (verbose) std::cout << "now the map is locally injective" << std::endl;
             return true;

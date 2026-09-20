@@ -14,14 +14,17 @@ namespace metriko {
         Eigen::SparseQR<SprsD, Eigen::COLAMDOrdering<int>> qr;
         qr.compute(mat.transpose());
         int rank = qr.rank();
-        const VecXi &idcs = qr.colsPermutation().indices();
+        const VecXi &idcs = qr.colsPermutation().indices(); // the remaining row idcs of original mtx
+
+        VecXi rid_map = VecXi::Constant(mat.rows(), -1);
+        for (int j = 0; j < rank; ++j) rid_map(idcs(j)) = j; // original mat row idx -> QR decomped mat row idx
 
         std::vector<TripD> T;
+        T.reserve(mat.nonZeros());
         for (int k = 0; k < mat.outerSize(); ++k) {
         for (SprsD::InnerIterator it(mat, k); it; ++it) {
-        for (int j = 0; j < rank; j++) {
-            if (it.row() == idcs(j)) T.emplace_back(j, it.col(), it.value());
-        }}}
+            if (int rid = rid_map(it.row()); rid != -1) T.emplace_back(rid, it.col(), it.value());
+        }}
 
         mat.resize(rank, mat.cols());
         mat.setFromTriplets(T.begin(), T.end());
