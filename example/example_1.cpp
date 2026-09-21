@@ -1,6 +1,8 @@
 #include <igl/readOBJ.h>
 #include <igl/slim.h>
 #include <igl/upsample.h>
+
+#include "cleanup.h"
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
@@ -39,6 +41,7 @@ static void validate_emesh(const Emesh& tm) {
 
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
+    //cleanup::decimate_and_clean(V, F,  30000);
     Hmesh hm(V, F);
     if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam))
         throw std::runtime_error("the cache does not exist");
@@ -52,6 +55,12 @@ int main(int argc, char** argv) {
 
     visualizer::visualize_init();
     visualizer::visualize_tedge(tm, mg, uv2, &X);
+    visualizer::visualize_pinched_tquads(tm, mg, uv2);
+
+    //{ // TEMP
+    //    visualizer::visualize_mesh(hm.pos, hm.idx);
+    //    polyscope::show(); return 0;
+    //}
 
     Emesh em(mg, tm, X);
 
@@ -225,7 +234,6 @@ int main(int argc, char** argv) {
     visualizer::visualize_tedge_mut_snapped(hm, em, true);
     visualizer::visualize_tedge_mut_collapsed(hm, em, false);
     visualizer::visualize_tquad_mut_collapsed(hm, em, false);
-    visualizer::visualize_face_collinear_error(hm, em, true);
 
     polyscope::show(); return 0;
 }

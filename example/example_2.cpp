@@ -27,6 +27,7 @@
 #include "visualize_qex.h"
 #include "visualize_emesh.h"
 #include "visualize_quad_patch.h"
+#include "cleanup.h"
 
 using namespace metriko;
 static MatXd V;
@@ -38,6 +39,7 @@ static vec<bool> seam;
 
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
+    //cleanup::decimate_and_clean(V, F,  30000);
     Hmesh hm(V, F);
     if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam)) throw std::runtime_error("the cache does not exist");
 
@@ -124,13 +126,37 @@ int main(int argc, char** argv) {
         igl::SLIMData sData;
 
         auto uv_at = [&](Crnr c) { return complex(uv(c.id, 0), uv(c.id, 1)); };
+        vec<double> flag(hm_emb->nF, 0.);    // 0 ok, 1 inverted, 2 exactly degenerate
+        vec<double> sarea(hm_emb->nF, 0.);   // signed uv area: how close a face is to folding
         int bad = 0;
         for (Face f: hm_emb->faces) {
             auto [a, b, c] = f.crnrs();
-            if (orientation(uv_at(a), uv_at(b), uv_at(c)) > 0) continue;
-            if (bad++ < 20) std::println("[tutte] face {} degenerate/inverted, center ({:.4f}, {:.4f}, {:.4f})", f.id, f.center().x(), f.center().y(), f.center().z());
+            double o = orientation(uv_at(a), uv_at(b), uv_at(c));
+            sarea[f.id] = o / 2.;
+            if (o > 0) continue;
+            flag[f.id] = o < 0 ? 1. : 2.;
+            bad++;
         }
         std::println("[tutte] {} degenerate/inverted faces", bad);
+
+        // where they sit on the surface
+        embd->addFaceScalarQuantity("tutte flip (1:inv 2:degen)", flag)->setEnabled(true);
+        embd->addFaceScalarQuantity("tutte signed uv area", sarea);
+
+        // the layout itself, as a triangle soup of the per-corner uv, so the folds are visible as
+        // folds rather than inferred from a sign
+        MatXd uvp(hm_emb->nF * 3, 3);
+        MatXi uvf(hm_emb->nF, 3);
+        for (Face f: hm_emb->faces) {
+            auto cs = f.crnrs();
+            for (int j = 0; j < 3; ++j) {
+                uvp.row(f.id * 3 + j) << uv(cs[j].id, 0), uv(cs[j].id, 1), 0.;
+                uvf(f.id, j) = f.id * 3 + j;
+            }
+        }
+        //auto* uvm = visualizer::visualize_mesh(uvp, uvf, false, "tutte uv layout");
+        //uvm->setEdgeWidth(0.4);
+        //uvm->addFaceScalarQuantity("flip (1:inv 2:degen)", flag)->setEnabled(true);
 
         {
             MatXd uv_init(hm_cut->nV, 2);
@@ -163,7 +189,7 @@ int main(int argc, char** argv) {
         }
 
         // ------ qex on the slim result ------
-        {
+        if (false) {
             // per-corner uv from the per-vertex slim result: hm_cut and hm2
             // share the face matrix, so corner (i, j) <-> vertex hm2->idx(i, j)
             VecXc cfn(hm_emb->nF * 3);

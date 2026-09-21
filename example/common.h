@@ -101,6 +101,71 @@ inline void visualize_tedge(
     c->setMaterial("flat");
 }
 
+// tquads whose boundary walk returns to a corner node it already passed. the patch is then not a
+// disk, which the per-tquad tutte embedding downstream assumes it is. it happens around
+// high-valence singularities: the patch leaves along one separatrix and comes back along another
+inline void visualize_pinched_tquads(
+    const Tmesh& tm,
+    const Mgrph& mg,
+    const VecXc& uv,
+    const bool show = true,
+    const double scale = 0.002
+) {
+    vec<glm::vec3> ns, ps;
+    vec<std::array<size_t, 2>> es;
+    vec<double> eq, esd, pq, pn, pv;
+    size_t c = 0;
+
+    for (const auto& tq: tm.tquads) {
+        if (tq.id == -1 || tq.data.empty()) continue;
+        std::map<int, int> visits;
+        for (const auto& d: tq.data) visits[tm.thalfs[d.thid].nid_fr()]++;
+        if (rg::none_of(visits, [](const auto& p) { return p.second > 1; })) continue;
+
+        std::print("[pinched] tquad {}: corner nodes", tq.id);
+        for (const auto& d: tq.data) std::print(" {}", tm.thalfs[d.thid].nid_fr());
+        std::println("");
+
+        std::set<int> done;
+        for (const auto& [thid, side]: tq.data) {
+        for (const Msgmt& sg: tm.tedges[tm.thalfs[thid].teid].segs) {
+            complex a = get_face_uv(mg.mnodes[sg.fr_nid].loc, sg.face_id, mg.hm, mg.cf);
+            complex b = get_face_uv(mg.mnodes[sg.to_nid].loc, sg.face_id, mg.hm, mg.cf);
+            Row3d p = conversion_2d_3d(mg.hm.faces[sg.face_id], uv, a);
+            Row3d q = conversion_2d_3d(mg.hm.faces[sg.face_id], uv, b);
+            ns.emplace_back(p.x(), p.y(), p.z());
+            ns.emplace_back(q.x(), q.y(), q.z());
+            es.emplace_back(std::array{c, c + 1});
+            c += 2;
+            eq.emplace_back(tq.id);
+            esd.emplace_back(side);
+            if (auto it = visits.find(sg.fr_nid);
+                it != visits.end() && it->second > 1 && done.insert(sg.fr_nid).second) {
+                ps.emplace_back(p.x(), p.y(), p.z());
+                pq.emplace_back(tq.id);
+                pn.emplace_back(sg.fr_nid);
+                pv.emplace_back(it->second);
+            }
+        }}
+    }
+    std::println("[pinched] {} pinch nodes over {} tquads", ps.size(), tm.nTQ);
+
+    auto* cn = polyscope::registerCurveNetwork("pinched tquad boundary", ns, es);
+    cn->setMaterial("flat");
+    cn->setEnabled(show);
+    cn->setRadius(scale);
+    cn->addEdgeScalarQuantity("side", esd)->setEnabled(true);
+    cn->addEdgeScalarQuantity("tqid", eq);
+    cn->resetTransform();
+
+    auto* pc = polyscope::registerPointCloud("pinch node", ps);
+    pc->setEnabled(show);
+    pc->setPointRadius(scale * 2.5);
+    pc->addScalarQuantity("nid", pn)->setEnabled(true);
+    pc->addScalarQuantity("tqid", pq);
+    pc->addScalarQuantity("visits", pv);
+}
+
 inline void debug_tquad_sides(
     const Tmesh& tm,
     const Mgrph& mg,

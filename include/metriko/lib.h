@@ -25,8 +25,8 @@ struct RemeshResult {
     std::unique_ptr<Emesh>         emesh;
     std::unique_ptr<FaceRosyField> cmbf;
     vec<bool>                      seam;
+    std::unique_ptr<VecXc>         cfn_c;
     MatXd                          cfn_d;
-    VecXc                          cfn_c;
     MatXd                          qnt_x;
     vec<qex::Qport>                q_ports;
     vec<qex::Qedge>                q_edges;
@@ -54,7 +54,9 @@ inline RemeshResult compute_remesh(
     rp.setup();
     rp.integ();
 
-    VecXc cfn_c(hm->nF * 3);
+    // built inside the result: Mgrph keeps a reference to it, so its address must stay put
+    res.cfn_c = std::make_unique<VecXc>(hm->nF * 3);
+    VecXc& cfn_c = *res.cfn_c;
     for (const Face f: hm->faces) {
         cfn_c(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
         cfn_c(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
@@ -161,7 +163,6 @@ inline RemeshResult compute_remesh(
     res.seam  = seam;
     res.qnt_x = X;
     res.cfn_d = std::move(rp.cfn);
-    res.cfn_c = std::move(cfn_c);
     res.q_ports = std::move(q_ports);
     res.q_edges = std::move(q_edges);
     res.q_faces = std::move(q_faces);

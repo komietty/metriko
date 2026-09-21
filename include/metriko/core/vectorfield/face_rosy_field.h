@@ -14,12 +14,47 @@ namespace metriko {
     class FaceRosyField : public BaseVectorField {
     public:
         FaceRosyField(const Hmesh &m, const int nRosy): BaseVectorField(m, nRosy) { }
-        FaceRosyField(const Hmesh &m, const int nRosy, FieldType type): BaseVectorField(m, nRosy) {
+        // guidanceSmooth: how far the per-face curvature estimate is diffused before it is used as
+        // alignment guidance, in mean face areas (the radius is roughly its square root in mean
+        // edge lengths). 0 keeps the raw per-face estimate
+        FaceRosyField(const Hmesh &m, const int nRosy, FieldType type, double guidanceSmooth = 4.)
+            : BaseVectorField(m, nRosy) {
             SprsC L = connectionLaplacian();
             SprsC M = galerkinMassMatrix();
             switch (type) {
                 case FieldType::Smoothest: {
                     compressed = solveSmallestEig(L, M);
+                    //int unitSmoothIter = 32
+                    // the eigenproblem minimises the dirichlet energy relative to the L2 norm, so
+                    // |psi| is free and sags to zero over whole regions; the field that is actually
+                    // used throws |psi| away and is therefore not a critical point of the energy it
+                    // is meant to minimise. the constrained problem, min psi* L psi with |psi_f| = 1,
+                    // is the harmonic cross field of viertel and osting 2019, and its diffusion
+                    // generated form is just diffuse, renormalise, repeat. sweeping the diffusion
+                    // time from coarse to fine plays the role of their ginzburg-landau annealing and
+                    // lets close singularity pairs annihilate on the way down. measured: dirichlet
+                    // -23..-38%, curl -28..-43%, nefertiti 126 -> 108 singularities, and its poisson
+                    // solution becomes locally injective so the whole LM stage drops out
+                    //if (unitSmoothIter > 0) {
+                    //    double a = 0.;
+                    //    for (Face f: mesh.faces) a += f.area();
+                    //    const double ah = a / mesh.nF;
+                    //    auto unitize = [](VecXc &v) {
+                    //            for (int i = 0; i < v.size(); i++) if (std::abs(v(i)) > 0.) v(i) /= std::abs(v(i));
+                    //        };
+                    //    VecXc x = compressed;
+                    //    unitize(x);
+                    //    for (double t: {64., 16., 4., 1.}) {
+                    //            SprsC A = M + (t * ah) * L;
+                    //            Eigen::SimplicialLLT<SprsC> llt;
+                    //            llt.compute(A);
+                    //            for (int k = 0; k < unitSmoothIter; k++) {
+                    //                    x = llt.solve((VecXc) (M * x));
+                    //                    unitize(x);
+                    //                }
+                    //        }
+                    //    compressed = x;
+                    //}
                     break;
                 }
                 case FieldType::CurvatureAligned: {
@@ -27,6 +62,18 @@ namespace metriko {
                     constexpr double lambda = 0;
                     VecXc D = principalCurvatureDir();
                     if (rosyN == 4) D = D.array().square();
+                    // the estimate above only sees one face's three dihedral angles, so on an
+                    // irregular triangulation it is dominated by meshing noise. diffusing it first
+                    // amounts to estimating the curvature over a neighbourhood: on nefertiti it
+                    // takes the field from 205 to 138 singularities and cuts the curl by 21% for a
+                    // 3% loss of alignment, and leaves fandisk and spot essentially unchanged
+                    if (guidanceSmooth > 0.) {
+                        double a = 0.;
+                        for (Face f: mesh.faces) a += f.area();
+                        SprsC lhs_ = M + (guidanceSmooth * a / mesh.nF) * L;
+                        VecXc rhs_ = M * D;
+                        D = solveSquare(lhs_, rhs_);
+                    }
                     VecXc rhs = M * D / sqrt(abs((D.adjoint() * M * D)[0]));
                     SprsC lhs = L - lambda * M;
                     compressed = solveSquare(lhs, rhs);

@@ -13,6 +13,7 @@
 #include "common.h"
 #include "visualize_hmesh.h"
 #include "visualize_vectorfield.h"
+#include "cleanup.h"
 
 using namespace metriko;
 static int N = 4;
@@ -22,9 +23,11 @@ static MatXi F;
 
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
+    //cleanup::decimate_and_clean(V, F,  100000);
+
     Hmesh hm(V, F);
 
-    FaceRosyField rawf(hm, N, FieldType::CurvatureAligned);
+    FaceRosyField rawf(hm, N, FieldType::Smoothest);
     rawf.computeMatching(MatchingType::Principal);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(hm, seam);
@@ -36,6 +39,8 @@ int main(int argc, char** argv) {
         complex c = cmbf->field(f.id, k);
         ext.block(f.id, 3 * k, 1, 3) = (c.real() * f.basisX() + c.imag() * f.basisY()).normalized();
     }}
+
+    std::cout << "start params" << std::endl;
 
     RosyParameterization rp(hm, *cutm, ext, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
     rp.seamless = false;
@@ -54,9 +59,11 @@ int main(int argc, char** argv) {
     const std::string cache = std::format("{}.{}.cache", argv[1], argv[2]);
     save_cache(cache, uv2, cmbf->matching, cmbf->singular, seam);
     std::println("saved cache: {}", cache);
+    /* */
 
     visualizer::visualize_init();
     auto surf = visualizer::visualize_mesh_with_uv(hm.pos, hm.idx, uv2);
+    //auto surf = visualizer::visualize_mesh(hm.pos, hm.idx);
     visualizer::visualize_frosy_field(surf, hm, rawf, *cmbf);
     visualizer::visualize_seam(hm, seam);
 
