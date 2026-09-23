@@ -34,6 +34,28 @@ inline void visualize_allowed_range(
     cn->resetTransform();
 }
 
+// a chain of locations on the mesh, as a polyline
+inline void visualize_path(
+    const Hmesh& hm,
+    const vec<HmLoc>& path,
+    const std::string& name,
+    const bool show = true,
+    const double scale = 0.0025
+) {
+    vec<glm::vec3> ps;
+    vec<std::array<size_t, 2>> es;
+    for (size_t k = 0; k < path.size(); ++k) {
+        Row3d p = get_ptloc_pos(hm, path[k]);
+        ps.emplace_back(p.x(), p.y(), p.z());
+        if (k + 1 < path.size()) es.push_back({k, k + 1});
+    }
+    auto* cn = polyscope::registerCurveNetwork(name, ps, es);
+    cn->setMaterial("flat");
+    cn->setEnabled(show);
+    cn->setRadius(scale);
+    cn->resetTransform();
+}
+
 inline void visualize_tedge_mut_collapsed(
     const Hmesh& hm,
     const Emesh& tm,
@@ -42,9 +64,21 @@ inline void visualize_tedge_mut_collapsed(
 ) {
     vec<glm::vec3> ns;
     vec<std::array<size_t, 2>> es;
-    vec<double> ids;
+    vec<double> teids;
+    vec<double> tqids0;
+    vec<double> tqids1;
     size_t c = 0;
     for (const auto& [id, nids]: tm.live_tedges()) {
+        int tqid0 = -1;
+        int tqid1 = -1;
+        for (const Ehalf& th : tm.thalfs) {
+            if (th.id != -1 && th.teid == id) {
+                tqid0 = th.tqid;
+                tqid1 = tm.thalfs[th.twid].tqid;
+                break;
+            }
+        }
+
         for (size_t k = 0; k + 1 < nids.size(); ++k) {
             Row3d a = get_ptloc_pos(hm, tm.tnodes[nids[k]]);
             Row3d b = get_ptloc_pos(hm, tm.tnodes[nids[k + 1]]);
@@ -52,13 +86,17 @@ inline void visualize_tedge_mut_collapsed(
             ns.emplace_back(b.x(), b.y(), b.z());
             es.push_back({c, c + 1});
             c += 2;
-            ids.push_back(id);
+            teids.push_back(id);
+            tqids0.push_back(tqid0);
+            tqids1.push_back(tqid1);
         }
     }
     auto* cn = polyscope::registerCurveNetwork("tedges_collapsed", ns, es);
     cn->setMaterial("flat");
     cn->setEnabled(show);
-    cn->addEdgeScalarQuantity("teid", ids)->setEnabled(true);
+    cn->addEdgeScalarQuantity("teid", teids)->setEnabled(true);
+    cn->addEdgeScalarQuantity("tqid0", tqids0)->setEnabled(false);
+    cn->addEdgeScalarQuantity("tqid1", tqids1)->setEnabled(false);
     cn->setRadius(scale);
     cn->resetTransform();
 }
@@ -102,7 +140,8 @@ inline void visualize_tquad_mut_collapsed(
     const Hmesh& hm,
     const Emesh& tm,
     const bool show = true,
-    const double scale = 0.001
+    const double scale = 0.001,
+    const std::string& append = ""
 ) {
 
     for (const auto& [id, data] : tm.live_tquads()) {
@@ -127,7 +166,7 @@ inline void visualize_tquad_mut_collapsed(
             }
         }
         if (ns.empty()) continue;
-        auto* cn = polyscope::registerCurveNetwork(std::format("tq {:03}", id), ns, es);
+        auto* cn = polyscope::registerCurveNetwork(std::format("tq {} {:03}", append, id), ns, es);
         cn->addEdgeScalarQuantity("side", eside);
         auto cx = cn->addEdgeScalarQuantity("x", ex);
         auto cy = cn->addEdgeScalarQuantity("y", ey);

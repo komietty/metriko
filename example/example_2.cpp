@@ -5,6 +5,7 @@
 // t-mesh (emesh_cutting) and display the resulting cut mesh with its patch
 // boundaries.
 #include <fstream>
+#include <limits>
 #include <igl/readOBJ.h>
 #include <igl/slim.h>
 #include <polyscope/surface_mesh.h>
@@ -39,7 +40,7 @@ static vec<bool> seam;
 
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
-    //cleanup::decimate_and_clean(V, F,  30000);
+    //cleanup::decimate_and_clean(V, F,  100000);
     Hmesh hm(V, F);
     if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam)) throw std::runtime_error("the cache does not exist");
 
@@ -143,21 +144,6 @@ int main(int argc, char** argv) {
         embd->addFaceScalarQuantity("tutte flip (1:inv 2:degen)", flag)->setEnabled(true);
         embd->addFaceScalarQuantity("tutte signed uv area", sarea);
 
-        // the layout itself, as a triangle soup of the per-corner uv, so the folds are visible as
-        // folds rather than inferred from a sign
-        MatXd uvp(hm_emb->nF * 3, 3);
-        MatXi uvf(hm_emb->nF, 3);
-        for (Face f: hm_emb->faces) {
-            auto cs = f.crnrs();
-            for (int j = 0; j < 3; ++j) {
-                uvp.row(f.id * 3 + j) << uv(cs[j].id, 0), uv(cs[j].id, 1), 0.;
-                uvf(f.id, j) = f.id * 3 + j;
-            }
-        }
-        //auto* uvm = visualizer::visualize_mesh(uvp, uvf, false, "tutte uv layout");
-        //uvm->setEdgeWidth(0.4);
-        //uvm->addFaceScalarQuantity("flip (1:inv 2:degen)", flag)->setEnabled(true);
-
         {
             MatXd uv_init(hm_cut->nV, 2);
             for (auto v: hm_cut->verts) uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
@@ -176,7 +162,15 @@ int main(int argc, char** argv) {
 
             sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
             slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-            slim_solve(sData, 50);
+            constexpr int    slim_max_iter = 50;
+            constexpr double slim_rel_tol  = 1e-4;
+            double prev = std::numeric_limits<double>::infinity();
+            for (int i = 0; i < slim_max_iter; ++i) {
+                slim_solve(sData, 1);
+                if (std::abs(prev - sData.energy) < slim_rel_tol * std::abs(sData.energy)) break;
+                std::println("[slim] iter {} energy {}", i, sData.energy);
+                prev = sData.energy;
+            }
 
             std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
             auto* surf = polyscope::registerSurfaceMesh("slim result", hm_cut->pos, hm_cut->idx);
@@ -189,7 +183,7 @@ int main(int argc, char** argv) {
         }
 
         // ------ qex on the slim result ------
-        if (false) {
+        {
             // per-corner uv from the per-vertex slim result: hm_cut and hm2
             // share the face matrix, so corner (i, j) <-> vertex hm2->idx(i, j)
             VecXc cfn(hm_emb->nF * 3);

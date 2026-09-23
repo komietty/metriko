@@ -24,7 +24,6 @@ static MatXi F;
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     //cleanup::decimate_and_clean(V, F,  100000);
-
     Hmesh hm(V, F);
 
     FaceRosyField rawf(hm, N, FieldType::Smoothest);

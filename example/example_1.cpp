@@ -8,6 +8,7 @@
 #include "metriko/core/quantization/quantization.h"
 #include "metriko/core/tmesh/emesh.h"
 #include "metriko/core/tmesh/emesh_validate.h"
+#include "metriko/core/hmesh/hpath.h"
 #include "common.h"
 #include "visualize_hmesh.h"
 #include "visualize_emesh.h"
@@ -41,7 +42,7 @@ static void validate_emesh(const Emesh& tm) {
 
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
-    //cleanup::decimate_and_clean(V, F,  30000);
+    //cleanup::decimate_and_clean(V, F,  100000);
     Hmesh hm(V, F);
     if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam))
         throw std::runtime_error("the cache does not exist");
@@ -56,11 +57,6 @@ int main(int argc, char** argv) {
     visualizer::visualize_init();
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     visualizer::visualize_pinched_tquads(tm, mg, uv2);
-
-    //{ // TEMP
-    //    visualizer::visualize_mesh(hm.pos, hm.idx);
-    //    polyscope::show(); return 0;
-    //}
 
     Emesh em(mg, tm, X);
 
@@ -82,7 +78,6 @@ int main(int argc, char** argv) {
 
         // collapse tquad
         for (const auto& [tqid, data] : em.live_tquads()) {
-            //if (tqid == 114) goto EXIT_MULTI_LOOP;
             Tqchain chain;
             if (em.collapse_tquad_chain_prepare(tqid, chain)) {
                 std::cout << "tq collapse: " << tqid << std::endl;
@@ -99,15 +94,12 @@ int main(int argc, char** argv) {
                     std::println("");
                     for (size_t k = 0; k < chain.pts.size(); ++k) {
                         const auto& p = chain.pts[k];
-                        std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} adj {} top {}",
-                                     k, loc_str(em.tnodes[p.nid]), p.val, p.ord, p.adj, p.top);
+                        std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} adj {} top {}", k, loc_str(em.tnodes[p.nid]), p.val, p.ord, p.adj, p.top);
                     }
                     auto dump_side = [&](const char* name, const vec<int>& thids) {
                         for (int t: thids) {
                             const auto& th = em.thalfs[t];
-                            std::println("[debug] {} thid {} (teid {}, tqid {}, cano {}, x {}): {} -> {}",
-                                         name, t, th.teid, th.tqid, th.cano, th.x,
-                                         loc_str(th.loc_fr()), loc_str(th.loc_to()));
+                            std::println("[debug] {} thid {} (teid {}, tqid {}, cano {}, x {}): {} -> {}", name, t, th.teid, th.tqid, th.cano, th.x, loc_str(th.loc_fr()), loc_str(th.loc_to()));
                         }
                     };
                     dump_side("thids_t", chain.thids_t);
@@ -115,9 +107,7 @@ int main(int argc, char** argv) {
                     dump_side("thids_z", chain.thids_z);
                     for (int t: {chain.thid_l, chain.thid_r}) {
                         const auto& th = em.thalfs[t];
-                        std::println("[debug] {} thid {}: {} -> {}",
-                                     t == chain.thid_l ? "thid_l" : "thid_r",
-                                     t, loc_str(th.loc_fr()), loc_str(th.loc_to()));
+                        std::println("[debug] {} thid {}: {} -> {}", t == chain.thid_l ? "thid_l" : "thid_r", t, loc_str(th.loc_fr()), loc_str(th.loc_to()));
                     }
                     visualizer::visualize_allowed_range(hm, em.allowed_range_tquads({tqid}), std::format("allowed tq{}", tqid));
                     goto EXIT_MULTI_LOOP;
@@ -126,7 +116,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-
     EXIT_MULTI_LOOP:
 
     // TEMP debug: tquads surviving the collapse with a zero-length side (they map onto a segment in
@@ -145,7 +134,6 @@ int main(int argc, char** argv) {
         }
         std::println("");
     }
-
 
     em.collapse_tedge_snap(false);
     em.collapse_tedge_snap(true);
@@ -227,7 +215,6 @@ int main(int argc, char** argv) {
             std::println("");
         }
     }
-    /**/
 
     visualizer::visualize_mesh(hm.pos, hm.idx);
     visualizer::visualize_non_snapped_tnodes(hm, em, false);

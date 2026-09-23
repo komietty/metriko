@@ -5,6 +5,8 @@
 #ifndef METRIKO_TUTTE_PARAMS_H
 #define METRIKO_TUTTE_PARAMS_H
 
+#include <numeric>
+#include <unordered_set>
 #include "tutte.h"
 #include "metriko/core/tmesh/emesh.h"
 
@@ -36,15 +38,17 @@ inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
 inline SprsD embedding_tutte_for_tquad(
     const int tqid,
     const vec<HalfData>& data,
-    const Hmesh& hm,   // the cut mesh
-    const Emesh& tm // the tmesh of original hmesh
+    const Hmesh& hm, // the sub hm
+    const Emesh& tm  // the org tm
 ) {
     auto tq_rg = rg::equal_range(data, tqid, {}, &HalfData::tqid);
+
+    std::unordered_set<int> rim;  // the tquad's own boundary, as halfedge ids
+    for (auto& it: tq_rg) rim.insert(it.half.id);
 
     // find all faces
     std::queue<int> queue;
     auto visit = vec(hm.nF, false);
-    auto verts = vec(hm.nV, false);
 
     for (auto& it: tq_rg){
         int fid = it.half.face().id;
@@ -57,28 +61,48 @@ inline SprsD embedding_tutte_for_tquad(
         queue.pop();
         for (Half h0: f0.adjHalfs()) {
             Face f1 = h0.twin().face();
-            if (visit[f1.id] || rg::contains(tq_rg, h0, &HalfData::half)) continue;
+            if (visit[f1.id] || rim.contains(h0.id)) continue;
             queue.emplace(f1.id);
             visit[f1.id] = true;
         }
     }
 
+    // a map from sum hm cid -> rep cid, bacause in latter use reps is mutable, fan is for temp container
+    vec<int> fan(hm.nC);
+    std::iota(fan.begin(), fan.end(), 0);
+    auto fan_of = [&](int c) { while (fan[c] != c) c = fan[c]; return c; };
+
     for (Face f: hm.faces) {
         if (!visit[f.id]) continue;
-        for (Vert v: f.verts()) verts[v.id] = true;
+        for (Half h: f.adjHalfs()) {
+            if (h.twin().isBoundary() || !visit[h.twin().face().id]) continue;
+            if (rim.contains(h.id) || rim.contains(h.twin().id)) continue;
+            fan[fan_of(h.next().crnr().id)] = fan_of(h.twin().prev().crnr().id);  // corners at h.tail()
+            fan[fan_of(h.prev().crnr().id)] = fan_of(h.twin().next().crnr().id);  // corners at h.head()
+        }
     }
 
-    std::unordered_map<int, int> idcs_table;
-    int nF_sub = rg::count(visit, true);
-    int nV_sub = rg::count(verts, true);
-    vec<int> gids; gids.reserve(nV_sub);
-    vec<int> fids; fids.reserve(nF_sub);
-    for (Vert v : hm.verts) if (verts[v.id]) { idcs_table[v.id] = gids.size(); gids.push_back(v.id); }
-    for (Face f : hm.faces) if (visit[f.id]) fids.push_back(f.id);
+    vec<int> fids;
+    for (Face f: hm.faces)
+        if (visit[f.id]) fids.push_back(f.id);
+
+    // number the fans, then let every corner point straight at its number
+    vec<int> reps(hm.nC, -1); // sub hm cid -> sub hm vid
+    vec<int> gids;            // sub hm vid -> org hm vid
+    for (int fid: fids) {
+    for (int j = 0; j < 3; ++j) {
+        int cid = fan_of(fid * 3 + j);
+        if (reps[cid] < 0) { reps[cid] = gids.size(); gids.push_back(hm.idx(fid, j)); }
+        reps[fid * 3 + j] = reps[cid];
+    }}
 
     MatXd V  = hm.pos(gids, Eigen::all);
-    MatXi F  = hm.idx(fids, Eigen::all);
-    MatXd UV = MatXd::Zero(nV_sub, 2);
+    MatXi F  = MatXi(fids.size(), 3);
+    MatXd UV = MatXd::Zero(gids.size(), 2);
+    for (int i = 0; i < F.rows(); ++i) {
+    for (int j = 0; j < 3; ++j) {
+        F(i, j) = reps[fids[i] * 3 + j];
+    }}
 
     auto dir = complex(1, 0);
     auto sum = complex(0, 0);
@@ -87,18 +111,14 @@ inline SprsD embedding_tutte_for_tquad(
             auto x = tm.thalfs[thid].x;
             for (auto& it: rg::equal_range(tq_rg, thid, {}, &HalfData::thid)) {
                 auto val = x * it.v0;
-                auto row = idcs_table.at(it.half.tail().id);
-                UV(row, 0) += val * dir.real() + sum.real();
-                UV(row, 1) += val * dir.imag() + sum.imag();
+                auto row = reps[it.half.next().crnr().id];
+                UV(row, 0) = val * dir.real() + sum.real();
+                UV(row, 1) = val * dir.imag() + sum.imag();
             }
             sum += x * dir;
         }
         dir *= complex(0, 1);
     }
-
-    for (int i = 0; i < F.rows(); i++)
-    for (int j = 0; j < 3; j++)
-        F(i, j) = idcs_table[F(i, j)];
 
     Eigen::SparseLU<SprsD> lu;
     lu.compute(boundary_snap_laplacian(Hmesh(V, F, true)));
@@ -109,7 +129,7 @@ inline SprsD embedding_tutte_for_tquad(
     for (Face f: hm.faces) {
         if (!visit[f.id]) continue;
         for (Half h: f.adjHalfs()) {
-            Row2d r = uv.row(idcs_table.at(h.next().head().id));
+            Row2d r = uv.row(reps[h.crnr().id]);
             T.emplace_back(h.crnr().id, 0, r.x());
             T.emplace_back(h.crnr().id, 1, r.y());
         }
@@ -192,7 +212,7 @@ inline void apply_transition(
 
 inline MatXd compute_tutte_parameterization(
     const Hmesh& hm,          // hmesh after tutte cutting
-    const Emesh& tm,       // tmesh original
+    const Emesh& tm,          // tmesh original
     const vec<bool>& seam,    // seam adapted to tutte cutting
     const vec<HalfData>& data //
 ) {

@@ -39,6 +39,30 @@ void Emesh::collapse_thalf(int thid) {
         auto path   = approx_shortest_path(30, hm, tnodes[n_fr], tnodes[n_to], region);
         auto nids   = add_new_path(path, n_fr, n_to);
 
+        { // Count duplication of verts for checking loc-inj
+            vec<HmLoc> locs;
+            for (const auto& [id, side]: tq_crr.data) {
+                auto ns = tedges[thalfs[id].teid].nids;
+                if (!thalfs[id].cano) rg::reverse(ns);
+                for (size_t k = 0; k + 1 < ns.size(); ++k) locs.push_back(tnodes[ns[k]]);
+            }
+
+            int dups = 0;
+            for (size_t i = 0; i < locs.size(); ++i)
+            for (size_t j = 0; j < i; ++j)
+                if (locs[i] == locs[j]) { dups++; break; }
+
+            // todo: corner case! not loc-inj from tqad to hm verts
+            // if dups >= 2, tquad is self intersected by one of its thalfs
+            // if dups == 1, tquad is self intersected by one of its singular (now tempolary skip, and hope aother tquad is loc-inj)
+            if (dups >= 2) throw std::runtime_error("collapse thalf error");
+            if (dups == 1) {
+                auto  r = 0.5;
+                auto& te_tgt = collapse_to_prev ? te_prv : te_nxt;
+                if (path_length(nids) < r * (path_length(te_crr.nids) + path_length(te_tgt.nids))) return;
+            }
+        }
+
         auto  it_twn_adj = collapse_to_prev ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
         auto& th_twn_adj = thalfs[it_twn_adj->thid];
         auto& te_twn_adj = tedges[th_twn_adj.teid];

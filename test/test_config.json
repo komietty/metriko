@@ -59,6 +59,14 @@
     "meshes": [
       "spot"
     ]
+  },
+  {
+    "gridscale": "0.005",
+    "expected": "expected_allowed.json",
+    "vectorfield": "smoothest",
+    "meshes": [
+      "dancer_25k"
+    ]
   }
 ]
 }

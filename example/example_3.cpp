@@ -5,6 +5,7 @@
 //   stage 2 (example_2): cutting + tutte + slim + qex
 // usage: example_3 <mesh.obj> <scale>
 #include <fstream>
+#include <limits>
 #include <igl/readOBJ.h>
 #include <igl/slim.h>
 #include <polyscope/surface_mesh.h>
@@ -223,7 +224,15 @@ int main(int argc, char** argv) {
 
         sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
         slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
-        slim_solve(sData, 10);
+        constexpr int    slim_max_iter = 50;
+        constexpr double slim_rel_tol  = 1e-4;
+        double prev = std::numeric_limits<double>::infinity();
+        for (int i = 0; i < slim_max_iter; ++i) {
+            slim_solve(sData, 1);
+            if (std::abs(prev - sData.energy) < slim_rel_tol * std::abs(sData.energy)) break;
+            std::println("[slim] iter {} energy {}", i, sData.energy);
+            prev = sData.energy;
+        }
 
         std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
         auto* surf = polyscope::registerSurfaceMesh("slim result", hm_cut->pos, hm_cut->idx);
@@ -258,52 +267,6 @@ int main(int argc, char** argv) {
         qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
         qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
         qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
-
-        { // TODO TEMP: validate port cycles per qvert
-            int i = 0;
-            while (i < (int)q_ports.size()) {
-                int j = i;
-                while (j < (int)q_ports.size() && (q_ports[j].pos - q_ports[i].pos).norm() < 1e-12) ++j;
-                const int s = j - i;
-
-                int cur = q_ports[i].idx, cnt = 0;
-                do { cur = q_ports[cur].next_id; ++cnt; } while (cur != q_ports[i].idx && cnt <= s);
-                if (cnt != s) {
-                    std::println("[qport] broken cycle: group at port {} (size {}, vid {}, eid {}, fid {})",
-                                 q_ports[i].idx, s, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid);
-                    visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
-                }
-
-                // angular order: the cycle must be a rotation of the
-                // angle-sorted order. counting descents tolerates a gap
-                // wider than pi, which is legitimate for small groups
-                // (e.g. 3 ports at a valence-3 singularity)
-                vec<Row3d> dirs;
-                for (int k = i; k < j; ++k) {
-                    auto& p = q_ports[k];
-                    Row3d d = (conversion_2d_3d(hm_emb->faces[p.fid], cfn, p.uv + p.dir)
-                             - conversion_2d_3d(hm_emb->faces[p.fid], cfn, p.uv)).normalized();
-                    dirs.push_back(d);
-                }
-                Row3d n = Row3d::Zero();
-                for (int k = 0; k < s; ++k) n += dirs[k].cross(dirs[(k + 1) % s]);
-                n.normalize();
-                Row3d bx = (dirs[0] - n * n.dot(dirs[0])).normalized();
-                Row3d by = n.cross(bx);
-                int descents = 0;
-                for (int k = 0; k < s; ++k) {
-                    double t0 = std::atan2(dirs[k].dot(by), dirs[k].dot(bx));
-                    double t1 = std::atan2(dirs[(k + 1) % s].dot(by), dirs[(k + 1) % s].dot(bx));
-                    if (t1 < t0) ++descents;
-                }
-                if (descents != 1) {
-                    std::println("[qport] non-CCW cycle: group at port {} (vid {}, eid {}, fid {}, descents {})",
-                                 q_ports[i].idx, q_ports[i].vid, q_ports[i].eid, q_ports[i].fid, descents);
-                    visualizer::visualize_qport_group(*hm_emb, cfn, q_ports, q_ports[i].idx);
-                }
-                i = j;
-            }
-        }
 
         auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
         auto qfaces = qex::generate_q_faces(q_ports, qedges);
