@@ -65,7 +65,8 @@
     "expected": "expected_allowed.json",
     "vectorfield": "smoothest",
     "meshes": [
-      "dancer_25k"
+      "dancer_25k",
+      "bimba_100k"
     ]
   }
 ]

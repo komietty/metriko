@@ -141,10 +141,12 @@ inline void visualize_tquad_mut_collapsed(
     const Emesh& tm,
     const bool show = true,
     const double scale = 0.001,
-    const std::string& append = ""
+    const std::string& append = "",
+    const vec<int>& only = {}   // when given, draw just these tquads
 ) {
 
     for (const auto& [id, data] : tm.live_tquads()) {
+        if (!only.empty() && !rg::contains(only, id)) continue;
         std::vector<glm::vec3> ns;
         std::vector<std::array<size_t, 2>> es;
         std::vector<double> eside, ex, ey, er, ethid;   // per-edge (thalf) params

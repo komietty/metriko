@@ -71,7 +71,7 @@ inline RemeshResult compute_remesh(
 
     auto em = std::make_unique<Emesh>(*mg, *tm, X);
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 100; ++i) {
         // collapse thalf
         for (Ehalf th0 : em->thalfs) {
             if (th0.id == -1 || th0.x != 0) continue;
@@ -84,10 +84,12 @@ inline RemeshResult compute_remesh(
         }
 
         // collapse tquad
-        for (const auto& [tqid, data] : em->live_tquads()) {
-            Tqchain chain;
-            if (em->collapse_tquad_chain_prepare(tqid, chain)) em->collapse_tquad_chain_execute(chain);
-        }
+        for (const auto& [tqid, _] : em->live_tquads())
+            if (Tqchain c; em->collapse_tquad_chain_prepare(tqid, c))
+                em->collapse_tquad_chain_execute(c);
+
+        // if there is no zero-x tedge, break
+        if (rg::none_of(em->thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; })) break;
     }
 
     em->collapse_tedge_snap(false);

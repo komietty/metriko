@@ -16,7 +16,13 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
             auto thids_1 = tq_curr.thids((s0 + 1) % 4);
             auto thids_2 = tq_curr.thids((s0 + 2) % 4);
             auto thids_3 = tq_curr.thids((s0 + 3) % 4);
-            if (thids_2.size() > 1 || thids_0.size() > 1) return true;
+
+            if (thids_2.size() > 1 || thids_0.size() > 1) {
+                // todo: if multiple thalfs exist on collapse side, need to push all of them to seq and chose appropriate thalf when extend the side
+                if (thids_0.size() > 1 && rg::all_of(thids_0, zero)) throw std::runtime_error(std::format("multiple zero-thalfs on collapse side"));
+                if (thids_2.size() > 1 && rg::all_of(thids_2, zero)) throw std::runtime_error(std::format("multiple zero-thalfs on collapse side"));
+                return true;
+            }
             if (count_adj_tquads(th_curr.id)   == 4) return true;
             if (count_adj_tquads(th_curr.twid) == 4) return true;
 
@@ -35,8 +41,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     for (int thid : tq.thids(side == 0 ? 3 : 0)) if (zero(thid)) return false;
     for (int thid : tq.thids(side == 0 ? 1 : 2)) if (zero(thid)) return false;
 
-    vec seq_l = {tq.thids(side == 0 ? 2 : 3)[0]};
-    vec seq_r = {tq.thids(side == 0 ? 0 : 1)[0]};
+    vec seq_l = {tq.thids(side == 0 ? 2 : 3)[0]}; // todo: multiple thalf issue here too
+    vec seq_r = {tq.thids(side == 0 ? 0 : 1)[0]}; // todo: multiple thalf issue here too
     if (!find_simple_chain(seq_l)) return false;
     if (!find_simple_chain(seq_r)) return false;
 
