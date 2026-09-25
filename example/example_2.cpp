@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
 
             visualizer::visualize_qedges(qedges);
             auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true);
-            visualizer::visualize_quad_patch(hm, em, singular, qfaces, qv, qidx);
+            visualizer::visualize_quad_patch(em, singular, qfaces, qv, qidx);
         }
     }
 
