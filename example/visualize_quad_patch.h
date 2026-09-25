@@ -17,9 +17,10 @@ namespace metriko::visualizer {
 // singular vertices are q-vertices, so their quad vertex is exact. around a node the tedges are chained CCW by
 // the tquad boundary order: rotating CCW from an outgoing tedge sweeps through the tquad on its left and reaches
 // that tquad's previous boundary thalf; the slot advances by one quad edge, or two when the node lies inside a
-// side. every tedge walks exactly x quad edges, and its landing vertex IS its far node. the only unknown is the
-// rotation of the chain at a singular: the first singular is anchored through a tedge to another singular (only
-// one rotation lands there), every other node is anchored by the first track arriving at it.
+// side. every tedge walks exactly x quad edges, and its landing vertex IS its far node, which anchors the tedges
+// there. the only unknown is the rotation of the chain at the first singular of each component: every rotation
+// is propagated and the one without contradictions (early irregular vertex, landing on a singular or an
+// anchored node elsewhere, label conflict) is kept.
 inline void visualize_quad_patch(
     const Emesh& tm,
     const VecXi& singular,
@@ -79,26 +80,9 @@ inline void visualize_quad_patch(
         return ch;
     };
 
-    vec<double> tqid_of_quad(l, -1);
-    std::set<std::pair<int, int>> track;
-    vec<bool> done(tm.tedges.size(), false);
-    umap<int, int> node_qv;   // node -> quad vertex
-    struct Job { int teid; bool fwd; int s; int b; };
-    std::queue<Job> jobs;
-
     auto sing_qv = [&](int nid) {   // quad vertex of a singular node, -1 otherwise
         auto* lv = std::get_if<HmLocOnV>(&tm.tnodes[nid]);
         return lv && singular(lv->id) && qv_of_vid.contains(lv->id) ? qv_of_vid.at(lv->id) : -1;
-    };
-    auto land = [&](int s, int b, int steps) {   // straight walk of `steps` edges from s through b: landing vertex or -1
-        int a = s;
-        for (int k = 0; k + 1 < steps; ++k) {
-            if ((int)out[b].size() != 4) return -1;
-            int c = straight(a, b);
-            a = b;
-            b = c;
-        }
-        return b;
     };
     auto ring_at = [&](int s, int first) {   // quad edge heads around s, CCW from `first`
         vec<int> ring = {first};
@@ -106,61 +90,76 @@ inline void visualize_quad_patch(
         return ring;
     };
 
-    int by_pair = 0, by_arrival = 0, failed = 0, sing_wrong = 0;
-    // anchor a singular through a tedge to another singular: the rotation whose walk lands on it
-    auto seed_by_pair = [&](int nid) {
-        const int s = sing_qv(nid);
-        auto ring = ring_at(s, out[s].front());
-        const int n = (int)ring.size();
-        auto ch = chain_at(nid, node_te[nid][0].first, node_te[nid][0].second);
-        for (auto [te, fwd, off]: ch) {
-            const auto& nids = tm.tedges[te].nids;
-            int far = fwd ? nids.back() : nids.front();
-            int t = sing_qv(far);
-            if (t < 0 || far == nid) continue;
-            vec<int> good;
-            for (int r = 0; r < n; ++r) if (land(s, ring[(off + r) % n], xs.at(te)) == t) good.push_back(r);
-            if (good.size() != 1) continue;
-            node_qv[nid] = s;
-            ++by_pair;
-            for (auto [te2, fwd2, off2]: ch) jobs.push({te2, fwd2, s, ring[(off2 + good[0]) % n]});
-            return true;
-        }
-        return false;
+    struct Job { int teid; bool fwd; int s; int b; };
+    struct State {
+        vec<double> tqid_of_quad;
+        std::set<std::pair<int, int>> track;
+        vec<bool> done;
+        umap<int, int> node_qv;   // node -> quad vertex
+        std::queue<Job> jobs;
+        bool ok = true;
     };
-    auto run = [&] {
-        while (!jobs.empty()) {
-            Job jb = jobs.front(); jobs.pop();
-            if (done[jb.teid]) continue;
-            done[jb.teid] = true;
+    // propagate until the queue is empty; ok = false at the first contradiction
+    auto run = [&](State& st) {
+        while (!st.jobs.empty() && st.ok) {
+            Job jb = st.jobs.front(); st.jobs.pop();
+            if (st.done[jb.teid]) continue;
+            st.done[jb.teid] = true;
             auto [lq, rq] = sides.at(jb.teid);
             if (!jb.fwd) std::swap(lq, rq);
             int a = jb.s, b = jb.b;
-            bool ok = true;
             for (int k = 0, steps = xs.at(jb.teid); k < steps; ++k) {
-                tqid_of_quad[de.at({a, b}).first] = lq;
-                tqid_of_quad[de.at({b, a}).first] = rq;
-                track.insert(std::minmax(a, b));
+                int ql = de.at({a, b}).first, qr = de.at({b, a}).first;
+                if ((st.tqid_of_quad[ql] >= 0 && st.tqid_of_quad[ql] != lq) || (st.tqid_of_quad[qr] >= 0 && st.tqid_of_quad[qr] != rq)) { st.ok = false; return; }
+                st.tqid_of_quad[ql] = lq;
+                st.tqid_of_quad[qr] = rq;
+                st.track.insert(std::minmax(a, b));
                 if (k + 1 == steps) break;
-                if ((int)out[b].size() != 4) { ok = false; break; }   // hit an irregular vertex early
+                if ((int)out[b].size() != 4) { st.ok = false; return; }   // irregular vertex before the far node
                 int c = straight(a, b);
                 a = b;
                 b = c;
             }
-            if (!ok) { ++failed; continue; }
             const auto& nids = tm.tedges[jb.teid].nids;
             int nid = jb.fwd ? nids.back() : nids.front();
-            if (int t = sing_qv(nid); t >= 0 && t != b) { ++sing_wrong; continue; }   // landed on a singular: must agree
-            if (node_qv.contains(nid)) continue;
-            node_qv[nid] = b;
-            if (sing_qv(nid) >= 0) ++by_arrival;
+            if (int t = sing_qv(nid); t >= 0 && t != b) { st.ok = false; return; }               // singular far node must agree
+            if (auto it = st.node_qv.find(nid); it != st.node_qv.end()) {                       // node already anchored must agree
+                if (it->second != b) { st.ok = false; return; }
+                continue;
+            }
+            st.node_qv[nid] = b;
             auto ring = ring_at(b, a);   // slots CCW from the reverse of arrival
-            for (auto [te, fwd, off]: chain_at(nid, jb.teid, !jb.fwd)) if (!done[te]) jobs.push({te, fwd, b, ring[off % ring.size()]});
+            for (auto [te, fwd, off]: chain_at(nid, jb.teid, !jb.fwd)) if (!st.done[te]) st.jobs.push({te, fwd, b, ring[off % ring.size()]});
         }
     };
-    for (auto& [nid, ports]: node_te) if (sing_qv(nid) >= 0 && !node_qv.contains(nid)) { seed_by_pair(nid); run(); }
-    int unanchored = 0;
-    for (auto& [nid, ports]: node_te) if (sing_qv(nid) >= 0 && !node_qv.contains(nid)) ++unanchored;
+
+    State st;
+    st.tqid_of_quad.assign(l, -1);
+    st.done.assign(tm.tedges.size(), false);
+    int anchors = 0, no_rotation = 0, several = 0;
+    for (auto& [nid, ports]: node_te) {
+        int s = sing_qv(nid);
+        if (s < 0 || st.node_qv.contains(nid)) continue;
+        auto ring = ring_at(s, out[s].front());
+        const int n = (int)ring.size();
+        auto ch = chain_at(nid, ports[0].first, ports[0].second);
+        vec<State> good;
+        for (int r = 0; r < n; ++r) {
+            State t = st;
+            t.node_qv[nid] = s;
+            for (auto [te, fwd, off]: ch) t.jobs.push({te, fwd, s, ring[(off + r) % n]});
+            run(t);
+            if (t.ok) good.push_back(std::move(t));
+        }
+        if (good.empty()) { ++no_rotation; continue; }
+        if (good.size() > 1) ++several;
+        st = std::move(good.front());
+        ++anchors;
+    }
+    auto& tqid_of_quad = st.tqid_of_quad;
+    auto& track        = st.track;
+    auto& node_qv      = st.node_qv;
+    auto& done         = st.done;
     int unreached = 0;
     for (auto& [teid, nids]: tm.live_tedges()) if (xs[teid] > 0 && !done[teid]) ++unreached;
 
@@ -252,8 +251,8 @@ inline void visualize_quad_patch(
     patch->addFaceScalarQuantity("tqid", tqid_of_quad);
     patch->addFaceScalarQuantity("patch colour", colour)->setEnabled(true);
 
-    std::println("[quad patch] singulars anchored by a pair {} | by arrival {} | unanchored {} | walks failed {} | unreached tedges {} | wrong landing on a singular {} | junction vertices {} | track edges {} | unlabeled quads {}",
-                 by_pair, by_arrival, unanchored, failed, unreached, sing_wrong, (int)pe.size(), (int)track.size(), unlabeled);
+    std::println("[quad patch] anchors {} | singulars with no consistent rotation {} | with several consistent rotations {} | unreached tedges {} | junction vertices {} | track edges {} | unlabeled quads {}",
+                 anchors, no_rotation, several, unreached, (int)pe.size(), (int)track.size(), unlabeled);
 }
 
 }
