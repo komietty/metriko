@@ -211,8 +211,8 @@ int main(int argc, char** argv) {
             auto qfaces = qex::generate_q_faces(q_ports, qedges);
 
             visualizer::visualize_qedges(qedges);
-            visualizer::visualize_qfaces(hm, qfaces, true);
-            visualizer::visualize_quad_patch(hm, em, singular, qfaces);
+            auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true);
+            visualizer::visualize_quad_patch(hm, em, singular, qfaces, qv, qidx);
         }
     }
 

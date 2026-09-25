@@ -169,7 +169,8 @@ inline void visualize_qedges(
     q_edge_curv->addEdgeScalarQuantity("p2 idx", p2);
 }
 
-inline void visualize_qfaces(
+// returns the displayed (welded, optionally refined) quad mesh
+inline std::pair<MatXd, MatXi> visualize_qfaces(
     const Hmesh& hm,
     const vec<qex::Qface>& qfaces,
     const bool refine = true
@@ -189,12 +190,16 @@ inline void visualize_qfaces(
     if (refine) {
         qex::refinement_hmesh(pos, idx, hm.pos, hm.idx, pos_refined, idx_refined);
     } else {
-        pos_refined = pos;
-        idx_refined = idx;
+        VecXi SVI, SVJ;
+        const double eps = 1e-7 * (pos.colwise().maxCoeff() - pos.colwise().minCoeff()).norm();
+        igl::remove_duplicate_vertices(pos, eps, pos_refined, SVI, SVJ);
+        idx_refined.resize(idx.rows(), idx.cols());
+        for (int i = 0; i < idx.rows(); ++i) for (int j = 0; j < idx.cols(); ++j) idx_refined(i, j) = SVJ(idx(i, j));
     }
     auto* surf = polyscope::registerSurfaceMesh("quad mesh", pos_refined, idx_refined);
     surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
     surf->setEdgeWidth(1.);
+    return {pos_refined, idx_refined};
 }
 
 }
