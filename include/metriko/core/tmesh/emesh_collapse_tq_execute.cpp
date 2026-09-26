@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <set>
 #include "./emesh.h"
 using namespace metriko;
 
@@ -51,6 +53,46 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         throw std::runtime_error("could not find thids from remainning side");
     };
 
+    // the merged tedge between the two chain points of a zero-width band, taken from the band itself: along n0's
+    // side to its far end, then the zero side over to n1. a band that closes into a loop (around a tube) has both
+    // points at the seam, and a shortest path between them would jump the seam instead of going around. empty when
+    // n0 is not at the end of its side (an inner merge) or the walk does not reach n1
+    auto along_band = [&](int n0, int n1) -> vec<HmLoc> {
+        const auto& tz  = thalfs[rg::contains(std::array{thalfs[chain.thid_l].nid_fr(), thalfs[chain.thid_l].nid_to()}, n1) ? chain.thid_l : chain.thid_r];
+        const int   end = tz.nid_fr() == n1 ? tz.nid_to() : tz.nid_fr();
+        vec<int> thids;
+        try { thids = thids_from_remainning_side(n0, end); } catch (const std::runtime_error&) { return {}; }
+        thids.push_back(tz.id);
+        vec<int> nids = { n0 };
+        for (int t: thids) {
+            auto ns = tedges[thalfs[t].teid].nids;
+            if (ns.back() == nids.back()) rg::reverse(ns);
+            if (ns.front() != nids.back()) return {};
+            nids.insert(nids.end(), ns.begin() + 1, ns.end());
+        }
+        if (nids.back() != n1) return {};
+        vec<HmLoc> path;
+        for (int n: nids) path.push_back(tnodes[n]);
+        return path;
+    };
+
+    // euler characteristic of the faces a region touches: 1 for a disk, 0 for an annulus (a band around a tube)
+    auto euler = [&](const vec<std::tuple<int, double, double>>& region) {
+        std::set<int> fs, vs, es;
+
+        for (auto& [eid, r0, r1]: region)
+        for (int fid: get_ptloc_faces(hm, HmLocOnE{ eid, 0.5 }))
+            fs.insert(fid);
+
+        for (int fid: fs)
+        for (Half h: hm.faces[fid].adjHalfs()) {
+            vs.insert(h.tail().id);
+            es.insert(h.edge().id);
+        }
+
+        return (int)vs.size() - (int)es.size() + (int)fs.size();
+    };
+
     for (int i = 0; i < chain.pts.size() - 1; ++i) {
         auto& [n0, v0, ord0, adj0, s0] = chain.pts[i];
         auto& [n1, v1, ord1, adj1, s1] = chain.pts[i + 1];
@@ -59,7 +101,9 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         if (s0 == s1) {
             candidates.push_back({ .tqid = tqid, .thid = thid_of(n0, n1).value(), .t_fr = s0, .t_to = s1, .v_fr = v0, .v_to = v1 });
         } else {
-            auto path = approx_shortest_path(30, hm, tnodes[n0], tnodes[n1], regions[tqid]);
+            const int chi = euler(regions[tqid]);
+            auto path = chi == 0 ? along_band(n0, n1) : vec<HmLoc>{};   // a band around a tube: follow the band, never a shortest path
+            if (path.empty()) path = approx_shortest_path(30, hm, tnodes[n0], tnodes[n1], regions[tqid]);
 
             if (path.size() < 2) throw std::runtime_error(std::format( "approx_shortest_path failed: tqid {}, {} -> {} (path size {}, allowed {})", tqid, loc_str(tnodes[n0]), loc_str(tnodes[n1]), path.size(), regions[tqid].size()));
 
@@ -153,6 +197,18 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
             auto& th2_twn = thalfs[th2.twid];
             std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
             tedges[th2.teid].insert_locs(nids);
+
+            // the zero thalf closed th2 into a loop (a band around a tube): both attachments were valid, so make
+            // sure the loop's endpoint is the node where the other tedges meet, not the node being absorbed
+            if (auto& loop = tedges[th2.teid].nids; loop.front() == loop.back()) {
+                auto deg = [&](int n) { int c = 0; for (const auto& [id, ns]: live_tedges()) if (id != th2.teid && (ns.front() == n || ns.back() == n)) ++c; return c; };
+                const int crnr = deg(nids.front()) >= deg(nids.back()) ? nids.front() : nids.back();
+                if (loop.front() != crnr) {
+                    loop.pop_back();
+                    rg::rotate(loop, rg::find(loop, crnr));
+                    loop.push_back(crnr);
+                }
+            }
 
             if      (th.bgn)     { (th2.nid_fr() == th.nid_fr()     ? th2 : th2_twn).bgn = true; }
             else if (th_twn.bgn) { (th2.nid_fr() == th_twn.nid_fr() ? th2 : th2_twn).bgn = true; }
