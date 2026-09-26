@@ -11,6 +11,9 @@
 #include <igl/dijkstra.h>
 #include <igl/adjacency_list.h>
 #include <igl/cut_mesh_from_singularities.h>
+#include <igl/triangle_triangle_adjacency.h>
+#include <igl/vertex_triangle_adjacency.h>
+#include <set>
 #include "base_field.h"
 #include "../solver/sparse_linear_solver.h"
 

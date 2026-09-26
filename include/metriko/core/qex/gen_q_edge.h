@@ -7,6 +7,8 @@
 //
 #ifndef METRIKO_QEX_GEN_Q_EDGE_H
 #define METRIKO_QEX_GEN_Q_EDGE_H
+#include <map>
+#include <print>
 #include "common.h"
 #include "metriko/core/hmesh/utilities.h"
 

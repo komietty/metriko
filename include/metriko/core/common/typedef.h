@@ -9,9 +9,24 @@
 #define METRIKO_TYPEDEF_H
 #include <Eigen/Geometry>
 #include <Eigen/Sparse>
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <complex>
+#include <functional>
+#include <iterator>
+#include <limits>
+#include <memory>
+#include <optional>
 #include <queue>
-#include <stack>
 #include <ranges>
+#include <stack>
+#include <stdexcept>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace metriko {
 constexpr double PI = M_PI;

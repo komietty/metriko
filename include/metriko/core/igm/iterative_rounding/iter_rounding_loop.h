@@ -7,6 +7,7 @@
 //
 #ifndef METRIKO_ITER_ROUNDING_LOOP_H
 #define METRIKO_ITER_ROUNDING_LOOP_H
+#include <igl/speye.h>
 #include "iter_rounding_common.h"
 
 namespace metriko {

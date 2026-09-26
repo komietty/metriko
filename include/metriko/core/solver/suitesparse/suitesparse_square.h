@@ -7,6 +7,7 @@
 //
 #ifndef SUITESPARSETEST_SUITESPARSE_SQUARE_H
 #define SUITESPARSETEST_SUITESPARSE_SQUARE_H
+#include <memory>
 #include "suitesparse_utilities.h"
 #include "suitesparse_umfpack.h"
 

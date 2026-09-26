@@ -9,7 +9,6 @@
 #define METRIKO_ITER_ROUNDING_INIT_H
 #include <set>
 #include <stdexcept>
-#include <string>
 #include <igl/local_basis.h>
 #include <igl/unique.h>
 #include <igl/setdiff.h>

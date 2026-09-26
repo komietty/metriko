@@ -7,6 +7,7 @@
 //
 #ifndef METRIKO_HMLOC_H
 #define METRIKO_HMLOC_H
+#include <format>
 #include "metriko/core/common/utilities.h"
 #include "metriko/core/hmesh/hmesh.h"
 

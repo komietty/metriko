@@ -7,6 +7,8 @@
 //
 #ifndef SUITESPARSETEST_SUITESPARSE_PDEFINITE_H
 #define SUITESPARSETEST_SUITESPARSE_PDEFINITE_H
+#include <memory>
+#include <stdexcept>
 #include "suitesparse_utilities.h"
 
 namespace metriko::suitesparse {

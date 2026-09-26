@@ -7,6 +7,7 @@
 //
 #ifndef SUITESPARSETEST_SUITESPARSE_UMFPACK_H
 #define SUITESPARSETEST_SUITESPARSE_UMFPACK_H
+#include <complex>
 #include "suitesparse_utilities.h"
 
 namespace metriko::suitesparse {

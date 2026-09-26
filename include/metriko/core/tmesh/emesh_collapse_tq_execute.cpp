@@ -7,6 +7,8 @@
 //
 #include <algorithm>
 #include <set>
+#include <format>
+#include <map>
 #include "./emesh.h"
 using namespace metriko;
 

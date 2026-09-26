@@ -8,6 +8,7 @@
 #ifndef METRIKO_QUANTIZATION_EVALUATION_H
 #define METRIKO_QUANTIZATION_EVALUATION_H
 #include "quantization_basisloop.h"
+#include "metriko/core/solver/matrix_ops.h"
 
 namespace metriko {
     /*

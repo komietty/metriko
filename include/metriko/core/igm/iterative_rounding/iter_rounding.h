@@ -9,8 +9,6 @@
 #define METRIKO_ITER_ROUNDING_H
 #include <algorithm>
 #include <Eigen/CholmodSupport>
-#include <functional>
-#include <iterator>
 #include "metriko/core/solver/levenberg_marquardt.h"
 #include "iter_rounding_common.h"
 #include "injective_barrier.h"
