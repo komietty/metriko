@@ -66,7 +66,9 @@
     "vectorfield": "smoothest",
     "meshes": [
       "dancer_25k",
-      "bimba_100k"
+      "bimba_100k",
+      "elephant",
+      "soccerball"
     ]
   }
 ]
