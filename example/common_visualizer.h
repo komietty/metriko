@@ -293,16 +293,6 @@ inline void visualize_qedges(const vec<qex::Qedge>& qedges, const double scale =
     sg.show("q_edges", scale, show);
 }
 
-// returns the displayed (welded, optionally refined) quad mesh
-inline std::pair<MatXd, MatXi> visualize_qfaces(const Hmesh& hm, const vec<qex::Qface>& qfaces, const bool refine = true, const bool show = true) {
-    auto [pos, idx] = extract_quad_mesh(hm, qfaces, refine);
-    auto* surf = polyscope::registerSurfaceMesh("quad mesh", pos, idx);
-    surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
-    surf->setEdgeWidth(1.);
-    surf->setEnabled(show);
-    return {pos, idx};
-}
-
 // a labeled quad mesh: singular / junction nodes, tedge tracks, and the patches coloured by tquad
 inline void visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const QuadPatch& patch) {
     auto at = [&](int v) { return Row3d(qv.row(v)); };

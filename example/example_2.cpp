@@ -221,7 +221,7 @@ int main(int argc, char** argv) {
             std::println("[time] {:<22} {:8.3f} s", "total (before visualize)", std::chrono::duration<double>(std::chrono::steady_clock::now() - t_start).count());
 
             //visualizer::visualize_qedges(qedges);
-            auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true, false);
+            auto [qv, qidx] = extract_quad_mesh(hm, qfaces, true);
             lap("quad mesh refinement");
             visualizer::visualize_quad_patch(qv, qidx, label_quad_patches(em, singular, qfaces, qidx));
             lap("quad patch");

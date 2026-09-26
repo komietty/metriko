@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
     visualizer::visualize_init();
     visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
     visualizer::visualize_tedges(hm, em, "tedges snapped", false);
-    auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true, false);
+    auto [qv, qidx] = extract_quad_mesh(hm, qfaces, true);
     visualizer::visualize_quad_patch(qv, qidx, label_quad_patches(em, singular, qfaces, qidx));
     polyscope::show();
     return 0;
