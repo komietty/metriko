@@ -16,10 +16,10 @@ namespace metriko {
                 const int side = tq.data[ih].side;
                 const int teid = th.edge().id;
                 switch (side) {
-                    case 0: { M(iq * 2 + 0, teid) =  1; break; }
-                    case 2: { M(iq * 2 + 0, teid) = -1; break; }
-                    case 1: { M(iq * 2 + 1, teid) =  1; break; }
-                    case 3: { M(iq * 2 + 1, teid) = -1; break; }
+                    case 0: { M(iq * 2 + 0, teid) += 1; break; }
+                    case 2: { M(iq * 2 + 0, teid) -= 1; break; }
+                    case 1: { M(iq * 2 + 1, teid) += 1; break; }
+                    case 3: { M(iq * 2 + 1, teid) -= 1; break; }
                     default: throw std::invalid_argument("side has to be 0 ~ 3");
                 }
             }
