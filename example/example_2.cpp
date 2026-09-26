@@ -23,11 +23,8 @@
 #include "metriko/core/qex/gen_q_port.h"
 #include "metriko/core/qex/gen_q_edge.h"
 #include "metriko/core/qex/gen_q_face.h"
-#include "common.h"
-#include "visualize_hmesh.h"
-#include "visualize_qex.h"
-#include "visualize_emesh.h"
-#include "visualize_quad_patch.h"
+#include "common_io.h"
+#include "common_visualizer.h"
 #include "cleanup.h"
 
 using namespace metriko;
@@ -122,8 +119,8 @@ int main(int argc, char** argv) {
     auto* base = visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
     auto* embd = visualizer::visualize_mesh(hm_emb->pos, hm_emb->idx, false, "embd mesh");
     visualizer::visualize_seam(*hm_emb, seam1, VecXi(), "cut seam", false);
-    visualizer::visualize_non_snapped_tnodes(hm, em, false);
-    visualizer::visualize_tedge_mut_collapsed(hm, em, false);
+    visualizer::visualize_unsnapped_tnodes(hm, em, false);
+    visualizer::visualize_tedges(hm, em, "tedges collapsed", false);
 
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
     MatXd uv =compute_tutte_parameterization(*hm_emb, em, seam1, hdata);

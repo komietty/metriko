@@ -20,11 +20,8 @@
 #include "metriko/core/qex/gen_q_port.h"
 #include "metriko/core/qex/gen_q_edge.h"
 #include "metriko/core/qex/gen_q_face.h"
-#include "common.h"
-#include "visualize_hmesh.h"
-#include "visualize_emesh.h"
-#include "visualize_qex.h"
-#include "visualize_quad_patch.h"
+#include "common_io.h"
+#include "common_visualizer.h"
 
 using namespace metriko;
 static constexpr int N = 4;
@@ -154,7 +151,7 @@ int main(int argc, char** argv) {
     ///--- visualize ---///
     visualizer::visualize_init();
     visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
-    visualizer::visualize_tedge_mut_snapped(hm, em, false);
+    visualizer::visualize_tedges(hm, em, "tedges snapped", false);
     auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true, false);
     visualizer::visualize_quad_patch(qv, qidx, label_quad_patches(em, singular, qfaces, qidx));
     polyscope::show();

@@ -10,9 +10,8 @@
 #include "metriko/core/hmesh/hpath.h"
 #include "metriko/core/tmesh/emesh.h"
 #include "metriko/core/tutte/tutte.h"
-#include "common.h"
-#include "visualize_hmesh.h"
-#include "visualize_vectorfield.h"
+#include "common_io.h"
+#include "common_visualizer.h"
 #include "cleanup.h"
 
 using namespace metriko;
@@ -63,7 +62,7 @@ int main(int argc, char** argv) {
     visualizer::visualize_init();
     auto surf = visualizer::visualize_mesh_with_uv(hm.pos, hm.idx, uv2);
     //auto surf = visualizer::visualize_mesh(hm.pos, hm.idx);
-    visualizer::visualize_frosy_field(surf, hm, rawf, *cmbf);
+    visualizer::visualize_frosy_field(surf, rawf, *cmbf);
     visualizer::visualize_seam(hm, seam);
 
     polyscope::show();

@@ -9,9 +9,8 @@
 #include "metriko/core/tmesh/emesh.h"
 #include "metriko/core/tmesh/emesh_validate.h"
 #include "metriko/core/hmesh/hpath.h"
-#include "common.h"
-#include "visualize_hmesh.h"
-#include "visualize_emesh.h"
+#include "common_io.h"
+#include "common_visualizer.h"
 
 using namespace metriko;
 static MatXd V;
@@ -217,10 +216,10 @@ int main(int argc, char** argv) {
     }
 
     visualizer::visualize_mesh(hm.pos, hm.idx);
-    visualizer::visualize_non_snapped_tnodes(hm, em, false);
-    visualizer::visualize_tedge_mut_snapped(hm, em, true);
-    visualizer::visualize_tedge_mut_collapsed(hm, em, false);
-    visualizer::visualize_tquad_mut_collapsed(hm, em, false);
+    visualizer::visualize_unsnapped_tnodes(hm, em, false);
+    visualizer::visualize_tedges(hm, em, "tedges snapped", true);
+    visualizer::visualize_tedges(hm, em, "tedges collapsed", false);
+    visualizer::visualize_tquads(hm, em, false);
 
     polyscope::show(); return 0;
 }
