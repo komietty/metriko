@@ -1,5 +1,5 @@
 # metriko
-![elephant](docs/elephant.jpg)
+![elephant](example/docs/elephant.jpg)
 
 Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing over 100k vertices.
 
