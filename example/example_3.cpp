@@ -8,6 +8,8 @@
 #include <chrono>
 #include <igl/readOBJ.h>
 #include <igl/slim.h>
+
+#include "cleanup.h"
 #include "metriko/core/vectorfield/face_rosy_field.h"
 #include "metriko/core/igm/parameterization.h"
 #include "metriko/core/quantization/quantization.h"
@@ -35,6 +37,7 @@ int main(int argc, char** argv) {
     MatXd V;
     MatXi F;
     igl::readOBJ(argv[1], V, F);
+    cleanup::cleanup_mesh(V, F);
     Hmesh hm(V, F);
     lap("load");
 
@@ -45,6 +48,7 @@ int main(int argc, char** argv) {
     auto cutm = compute_cut_mesh(hm, seam);
     auto cmbf = compute_combbed_field(rawf, seam);
     auto extf = compute_extrinsic_field(*cmbf, N);
+    lap("field");
 
     RosyParameterization rp(hm, *cutm, extf, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
     rp.seamless = false;
@@ -52,7 +56,7 @@ int main(int argc, char** argv) {
     rp.verbose = false;
     rp.setup();
     rp.integ();
-    lap("field + parameterization");
+    lap("parameterization");
 
     VecXc uv2(hm.nF * 3);
     for (const Face f: hm.faces) {

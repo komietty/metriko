@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
     auto cmbf = compute_combbed_field(*rawf, seam);
-    MatXd extf = compute_extrinsic_field(*mesh, *cmbf, N);
+    MatXd extf = compute_extrinsic_field(*cmbf, N);
 
     RosyParameterization rp(*mesh, *cutm, extf, cmbf->singular, cmbf->matching, seam, N);
     rp.seamless = true;
