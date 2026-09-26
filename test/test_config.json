@@ -48,6 +48,7 @@
     "expected": "expected_allowed.json",
     "vectorfield": "curvature_aligned",
     "meshes": [
+      "rocker-arm",
       "spot"
     ]
   },
@@ -56,11 +57,13 @@
     "expected": "expected_allowed.json",
     "vectorfield": "smoothest",
     "meshes": [
+      "horsers",
       "gargoyle",
       "dancer_25k",
       "bimba_100k",
       "elephant",
-      "soccerball"
+      "soccerball",
+      "rolling_stage_100k"
     ]
   }
 ]
