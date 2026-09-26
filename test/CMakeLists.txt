@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 project(metriko_test)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_FLAGS_DEBUG "-O2 -g")
 
 # metriko を自分で取り込む独立プロジェクト（example/ と同じ形）
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/.. "metriko")
