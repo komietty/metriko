@@ -131,7 +131,7 @@ inline bool find_strict_intersection(
     );
 }
 
-inline bool is_in_ring(Vert v, const HmLoc& loc) {
+inline bool is_in_star(Vert v, const HmLoc& loc) {
     return rg::any_of(v.adjHalfs(), [&](Half h) { return is_in_face(h.face(), loc); });
 }
 

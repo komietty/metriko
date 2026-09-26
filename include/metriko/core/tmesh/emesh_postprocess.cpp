@@ -17,6 +17,7 @@ void Emesh::collapse_tedge_snap(bool flag) {
         auto  nid = tedges[teid].nids.back();
         auto* loc = std::get_if<HmLocOnF>(&tnodes[nid]);
         if (!loc || !snap_valid(v)) return;
+
         auto f = hm.faces[loc->id];
         for (auto& [id, nids]: live_tedges()) {
         for (int k = 0; k + 1 < nids.size(); ++k) {
@@ -24,23 +25,15 @@ void Emesh::collapse_tedge_snap(bool flag) {
             if (find_strict_intersection(f, *loc, HmLocOnV{v.id}, tnodes[nids[k]], tnodes[nids[k+1]])) return;
         }}
 
-        //for (auto& [id, nids]: live_tedges()) {
-        //    int n = nids.size();
-        //    if (nid == nids.front()) { int j = 0;  for (int k = 0; k < n; k++) if (in_ring(v, tnodes[nids[k]])) j = std::max(j, k); if (j >= 2)    nids.erase(nids.begin() + 1,     nids.begin() + j); }
-        //    if (nid == nids.back())  { int j = n;  for (int k = 0; k < n; k++) if (in_ring(v, tnodes[nids[k]])) j = std::min(j, k); if (j + 2 < n) nids.erase(nids.begin() + j + 1, nids.end() - 1);   }
-        //}
-
-        // trim the incident chains inside v's one-ring and move the joint
         vec<std::pair<int, int>> te_tails; // teid, the biggest  nid
         vec<std::pair<int, int>> te_heads; // teid, the smallest nid
         for (auto& [id, nids]: live_tedges()) {
-            if (nid == nids.front()) te_tails.emplace_back(id, 0);
-            if (nid == nids.back())  te_heads.emplace_back(id, nids.size());
+            if (nid == nids.front()) te_tails.emplace_back(id, 0);           // initial value
+            if (nid == nids.back())  te_heads.emplace_back(id, nids.size()); // initial value
         }
-        for (Face g: v.adjHalfs() | vw::transform(&Half::face)) {
-            for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(g, tnodes[nids[k]])) j = std::max(j, k); }}
-            for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; for (int k = 0; k < nids.size(); k++) { if (is_in_face(g, tnodes[nids[k]])) j = std::min(j, k); }}
-        }
+        // only the consecutive run of in-star nodes at the joint end is trimmed: not leave and come back case...
+        for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; j = 0;               while (j + 1 < nids.size() && is_in_star(v, tnodes[nids[j + 1]])) ++j; }
+        for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; j = nids.size() - 1; while (j > 0               && is_in_star(v, tnodes[nids[j - 1]])) --j; }
         for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; if (j >= 2)              nids.erase(nids.begin() + 1, nids.begin() + j);   }
         for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; if (j + 2 < nids.size()) nids.erase(nids.begin() + j + 1, nids.end() - 1); }
         tnodes[nid] = HmLocOnV{.id = v.id};
@@ -50,8 +43,8 @@ void Emesh::collapse_tedge_snap(bool flag) {
         auto& nids = tedges[teid].nids;
         auto it = rg::find(nids, nid); if (it == nids.end()) return false;
         int i = it - nids.begin(), lo = i, hi = i;
-        while (lo > 0               && is_in_ring(v, tnodes[nids[lo - 1]])) --lo;
-        while (hi < nids.size() - 1 && is_in_ring(v, tnodes[nids[hi + 1]])) ++hi;
+        while (lo > 0               && is_in_star(v, tnodes[nids[lo - 1]])) --lo;
+        while (hi < nids.size() - 1 && is_in_star(v, tnodes[nids[hi + 1]])) ++hi;
         int L = lo < i ? lo : i - 1;   // neighbours after the trim: the two new legs are L -> v -> R
         int R = hi > i ? hi : i + 1;
 
