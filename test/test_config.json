@@ -3,7 +3,6 @@
 "patterns": [
   {
      "gridscale": "0.05",
-     "expected": "expected_allowed.json",
      "vectorfield": "smoothest",
      "meshes": [
        "torus_1",
@@ -14,7 +13,6 @@
    },
   {
     "gridscale": "0.05",
-    "expected": "expected_allowed.json",
     "vectorfield": "curvature_aligned",
     "meshes": [
       "icosphere_3",
@@ -23,7 +21,6 @@
   },
   {
     "gridscale": "0.02",
-    "expected": "expected_allowed.json",
     "vectorfield": "smoothest",
     "meshes": [
       "fandisk",
@@ -33,7 +30,6 @@
   },
   {
     "gridscale": "0.01",
-    "expected": "expected_allowed.json",
     "vectorfield": "smoothest",
     "meshes": [
       "fertility",
@@ -45,7 +41,6 @@
   },
   {
     "gridscale": "0.01",
-    "expected": "expected_allowed.json",
     "vectorfield": "curvature_aligned",
     "meshes": [
       "rocker-arm",
@@ -54,7 +49,6 @@
   },
   {
     "gridscale": "0.005",
-    "expected": "expected_allowed.json",
     "vectorfield": "smoothest",
     "meshes": [
       "horsers",

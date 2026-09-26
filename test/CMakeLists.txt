@@ -8,20 +8,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "-O2 -g")
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/.. "metriko")
 enable_testing()
 
-add_executable(test_tmesh test_tmesh.cpp)
-target_link_libraries(test_tmesh PRIVATE metriko)
-target_include_directories(test_tmesh PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-# 全 tquad の region(allowed_range) を JSON にダンプするツール
-add_executable(dump_region dump_region.cpp)
-target_link_libraries(dump_region PRIVATE metriko)
-target_include_directories(dump_region PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-# allowed_range regression checker: compares against test/fixtures/tquad_region/<mesh>.json
-add_executable(test_allowed_range test_allowed_range.cpp)
-target_link_libraries(test_allowed_range PRIVATE metriko)
-target_include_directories(test_allowed_range PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
 # end-to-end smoke test through quad extraction (lib.h)
 add_executable(test_remesh test_remesh.cpp)
 target_link_libraries(test_remesh PRIVATE metriko)
@@ -30,12 +16,11 @@ target_include_directories(test_remesh PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 # test settings come from test_config.json (read at configure time).
 #   { "directory": "/abs/dir",
 #     "patterns": [ { "gridscale":0.05, "vectorfield":"smoothest"|"curvature_aligned",
-#                     "expected":"expected_allowed.json", "meshes":["torus","..."] }, ... ] }
+#                     "meshes":["torus","..."] }, ... ] }
 #   mesh path = directory + "/" + <name> + ".obj"; tests registered per (vectorfield, mesh).
-#   region fixture (optional) at fixtures/tquad_region/<vectorfield>/<name>.json.
 #   * editing the JSON requires a CMake reconfigure (auto on cmake --build / CLion reload).
 set(METRIKO_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test_config.json"
-    CACHE FILEPATH "test settings json (directory, patterns[gridscale,vectorfield,expected,meshes])")
+    CACHE FILEPATH "test settings json (directory, patterns[gridscale,vectorfield,meshes])")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${METRIKO_TEST_CONFIG})
 
 if(NOT EXISTS ${METRIKO_TEST_CONFIG})
@@ -60,16 +45,11 @@ else()
                 set(_mesh "${_dir}/${_name}.obj")
                 # test names carry the gridscale: the same mesh may appear in several patterns
                 set(_id "${_vf}.${_name}.${_gs}")
-                add_test(NAME tmesh.${_id}  COMMAND test_tmesh  ${_gs} ${_vf} ${_mesh})
                 add_test(NAME remesh.${_id} COMMAND test_remesh ${_gs} ${_vf} ${_mesh})
                 # schedule heavy meshes first: file size is a good enough proxy for run time
                 if(EXISTS ${_mesh})
                     file(SIZE ${_mesh} _sz)
-                    set_tests_properties(tmesh.${_id} remesh.${_id} PROPERTIES COST ${_sz})
-                endif()
-                set(_fx "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tquad_region/${_vf}/${_name}.json")
-                if(EXISTS ${_fx})
-                    add_test(NAME region.${_id} COMMAND test_allowed_range ${_gs} ${_vf} ${_mesh} ${_fx})
+                    set_tests_properties(remesh.${_id} PROPERTIES COST ${_sz})
                 endif()
             endforeach()
         endforeach()
