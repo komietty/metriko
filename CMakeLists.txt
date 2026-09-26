@@ -97,7 +97,7 @@ add_library(${PROJECT_NAME} STATIC
         include/metriko/core/quantization/quantization.h
 )
 
-target_compile_definitions(${PROJECT_NAME} PUBLIC NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
+#target_compile_definitions(${PROJECT_NAME} PUBLIC NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC igl::core)
 target_include_directories(${PROJECT_NAME} PUBLIC include)

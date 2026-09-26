@@ -87,6 +87,7 @@ namespace metriko {
         reduce_to_linearly_independent(G);
 
         #if METRIKO_DEBUG
+        std::cout << "The rank of the matrix is: " << G.rows() << std::endl;
         #endif
 
         return G.transpose();

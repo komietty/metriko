@@ -65,9 +65,9 @@ namespace metriko::qex {
             }
         }
 
-#if METRIKO_DEBUG
+        #if METRIKO_DEBUG
         std::cout << "Sanitization norm diff: " << (cfn - buk).norm() << std::endl;
-#endif
+        #endif
     }
 }
 #endif

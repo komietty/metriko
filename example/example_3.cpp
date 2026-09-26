@@ -32,7 +32,8 @@ static constexpr int N = 4;
 int main(int argc, char** argv) {
     const auto t_start = std::chrono::steady_clock::now();
     auto t_lap = t_start;
-    auto lap = [&](const char* name) { auto t = std::chrono::steady_clock::now(); std::println("[time] {:<22} {:8.3f} s", name, std::chrono::duration<double>(t - t_lap).count()); t_lap = t; };
+    auto print_time = [](const char* name, auto dur) { std::println("[time] {:<26} {:8.3f} s", name, std::chrono::duration<double>(dur).count()); };
+    auto lap = [&](const char* name) { auto t = std::chrono::steady_clock::now(); print_time(name, t - t_lap); t_lap = t; };
 
     MatXd V;
     MatXi F;
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
     lap("load");
 
     ///--- stage 0: vectorfield + rosy parameterization ---///
-    FaceRosyField rawf(hm, N, FieldType::Smoothest);
+    FaceRosyField rawf(hm, N, FieldType::CurvatureAligned);
     rawf.computeMatching(MatchingType::Principal);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(hm, seam);
@@ -148,7 +149,7 @@ int main(int argc, char** argv) {
     lap("qex q_edge");
     auto qfaces = qex::generate_q_faces(q_ports, qedges);
     lap("qex q_face");
-    std::println("[time] {:<22} {:8.3f} s", "total (before visualize)", std::chrono::duration<double>(std::chrono::steady_clock::now() - t_start).count());
+    print_time("total", std::chrono::steady_clock::now() - t_start);
 
     ///--- visualize ---///
     visualizer::visualize_init();

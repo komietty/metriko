@@ -257,8 +257,9 @@ inline void visualize_quad_patch(
     pcol->setColorMap("coolwarm");
     pcol->setEnabled(true);
 
-    std::println("[quad patch] anchors {} | singulars with no consistent rotation {} | with several consistent rotations {} | unreached tedges {} | junction vertices {} | track edges {} | unlabeled quads {}",
-                 anchors, no_rotation, several, unreached, (int)pe.size(), (int)track.size(), unlabeled);
+    if (no_rotation > 0 || several > 0 || unreached > 0 || unlabeled > 0)
+        std::println("[quad patch] anchors {} | singulars with no consistent rotation {} | with several consistent rotations {} | unreached tedges {} | junction vertices {} | track edges {} | unlabeled quads {}",
+                     anchors, no_rotation, several, unreached, (int)pe.size(), (int)track.size(), unlabeled);
 }
 
 }
