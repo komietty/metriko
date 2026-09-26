@@ -7,8 +7,8 @@
 //
 #ifndef METRIKO_EMESH_VALIDATE_H
 #define METRIKO_EMESH_VALIDATE_H
-#include <set>
 #include <print>
+#include <set>
 #include "emesh.h"
 
 namespace metriko {

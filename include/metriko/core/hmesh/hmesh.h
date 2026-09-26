@@ -8,7 +8,7 @@
 #ifndef METRIKO_HMESH_H
 #define METRIKO_HMESH_H
 #include <array>
-#include "igl/edge_topology.h"
+#include <igl/edge_topology.h>
 #include "metriko/core/common/typedef.h"
 
 namespace metriko {

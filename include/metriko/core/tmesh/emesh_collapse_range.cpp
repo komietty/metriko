@@ -5,8 +5,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-#include "emesh.h"
 #include <set>
+#include "emesh.h"
 
 namespace metriko {
 vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>& thids) const {

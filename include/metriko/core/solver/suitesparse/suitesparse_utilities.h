@@ -7,12 +7,12 @@
 //
 #ifndef SUITESPARSETEST_INCLUDE_H
 #define SUITESPARSETEST_INCLUDE_H
-#include "Eigen/Sparse"
-#include <SuiteSparseQR.hpp>
-#include <cholmod.h>
-#include <umfpack.h>
 #include <complex>
 #include <type_traits>
+#include <cholmod.h>
+#include <Eigen/Sparse>
+#include <SuiteSparseQR.hpp>
+#include <umfpack.h>
 
 namespace metriko::suitesparse {
 template<typename K> using VecX = Eigen::Matrix<K, Eigen::Dynamic, 1>;

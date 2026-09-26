@@ -7,8 +7,8 @@
 //
 #ifndef METRIKO_HPATH_H
 #define METRIKO_HPATH_H
-#include <unordered_set>
 #include <format>
+#include <unordered_set>
 #include "hmloc.h"
 
 namespace metriko {

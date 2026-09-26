@@ -10,7 +10,7 @@
 #include <set>
 #include <igl/AABB.h>
 #include <igl/remove_duplicate_vertices.h>
-#include "./common.h"
+#include "common.h"
 
 namespace metriko::qex {
     // simple laplacian smoothing of the extracted quad mesh, with vertices

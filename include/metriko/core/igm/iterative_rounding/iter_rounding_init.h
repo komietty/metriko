@@ -10,10 +10,10 @@
 #include <set>
 #include <stdexcept>
 #include <igl/local_basis.h>
-#include <igl/unique.h>
 #include <igl/setdiff.h>
-#include <igl/speye.h>
 #include <igl/slice.h>
+#include <igl/speye.h>
+#include <igl/unique.h>
 #include "iter_rounding_common.h"
 
 namespace metriko {

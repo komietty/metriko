@@ -7,8 +7,6 @@
 //
 #ifndef METRIKO_TYPEDEF_H
 #define METRIKO_TYPEDEF_H
-#include <Eigen/Geometry>
-#include <Eigen/Sparse>
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -27,6 +25,8 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <Eigen/Geometry>
+#include <Eigen/Sparse>
 
 namespace metriko {
 constexpr double PI = M_PI;

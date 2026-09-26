@@ -6,10 +6,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 #include <algorithm>
-#include <set>
 #include <format>
 #include <map>
-#include "./emesh.h"
+#include <set>
+#include "emesh.h"
 using namespace metriko;
 
 void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {

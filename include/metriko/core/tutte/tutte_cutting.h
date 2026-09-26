@@ -7,13 +7,13 @@
 //
 #ifndef METRIKO_TUTTE_CUTTING_H
 #define METRIKO_TUTTE_CUTTING_H
-#include <ranges>
-#include <set>
-#include <unordered_map>
 #include <format>
 #include <map>
 #include <print>
-#include "./tutte.h"
+#include <ranges>
+#include <set>
+#include <unordered_map>
+#include "tutte.h"
 #include "metriko/core/hmesh/hmesh.h"
 #include "metriko/core/tmesh/emesh.h"
 

@@ -10,8 +10,8 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include "metriko/core/common/typedef.h"
 #include <Eigen/Sparse>
+#include "metriko/core/common/typedef.h"
 #ifdef GC_HAVE_SUITESPARSE
 #include "suitesparse/suitesparse_pdefinite.h"
 #include "suitesparse/suitesparse_square.h"
