@@ -25,8 +25,9 @@ vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>&
             auto [e, r] = *er;
 
             if (!lo.contains(e.id)) { lo[e.id] = 0.; hi[e.id] = 1.; }
-            auto dir = get_ptloc_pos(hm, tnodes[te.nids[k]]) - get_ptloc_pos(hm, lj);
-            auto nrm = get_ptloc_nml(hm, lj);
+            // Row3d, not auto: `auto` would keep an Eigen expression referencing the two temporaries
+            Row3d dir = get_ptloc_pos(hm, tnodes[te.nids[k]]) - get_ptloc_pos(hm, lj);
+            Row3d nrm = get_ptloc_nml(hm, lj);
             if (nrm.dot(dir.cross(e.vec())) > 0) lo[e.id] = std::max(lo[e.id], r); // inner side is [r, 1]
             else                                 hi[e.id] = std::min(hi[e.id], r); // inner side is [0, r]
         }
