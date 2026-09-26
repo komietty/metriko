@@ -17,23 +17,19 @@ namespace metriko::qex {
             auto uv = cfn(c.id);
             auto x = std::fmod(std::abs(uv.real()), 1.);
             auto y = std::fmod(std::abs(uv.imag()), 1.);
-            if ((x < EPS || 1 - x < EPS) && (y < EPS || 1 - y < EPS))
-                vqvs.emplace_back(complex(x, y), v.pos(), v.id);
+            if ((x < EPS || 1 - x < EPS) && (y < EPS || 1 - y < EPS)) vqvs.emplace_back(complex(x, y), v.pos(), v.id);
         }
 
         // edge_q_vert
         for (Edge e: mesh.edges) {
-            Row3d p1 = e.half().tail().pos();
-            Row3d p2 = e.half().head().pos();
             auto uv1 = cfn(e.half().next().crnr().id);
             auto uv2 = cfn(e.half().prev().crnr().id);
             auto [minX, minY, maxX, maxY] = get_minmax_int({uv1, uv2});
             for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 auto xy = complex(x, y);
-                auto a = abs(xy - uv1) / abs(uv2 - uv1);
-                if (is_collinear(uv1, uv2, xy) && a > EPS && a < 1 - EPS)
-                    eqvs.emplace_back(xy, p1 + (p2 - p1) * a, e.id);
+                auto a  = ((xy - uv1) / (uv2 - uv1)).real(); // imag part is evaluated by is_collinear
+                if (is_collinear(uv1, uv2, xy) && a > EPS && a < 1 - EPS) eqvs.emplace_back(xy, e.lerp(a), e.id);
             }}
         }
 
@@ -50,8 +46,7 @@ namespace metriko::qex {
             for (int y = minY; y <= maxY; y++) {
                 auto xy = complex(x, y);
                 auto p = conversion_2d_3d(uv1, uv2, uv3, p1, p2, p3, xy);
-                if (is_inside_triangle(uv1, uv2, uv3, xy))
-                    fqvs.emplace_back(xy, p, f.id);
+                if (is_inside_triangle(uv1, uv2, uv3, xy)) fqvs.emplace_back(xy, p, f.id);
             }}
         }
     }
