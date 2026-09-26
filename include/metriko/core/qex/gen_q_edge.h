@@ -4,49 +4,76 @@
 #include "metriko/core/hmesh/utilities.h"
 
 namespace metriko::qex {
-    inline bool predict_extrinsic_collinear(
-        const Hmesh &hm,  //
-        const VecXc &cf,  // corner function
-        const complex o,  // origin
-        const complex d,  // direction
-        const Face f,     // face
-        const Qport &pair //
-    ) {
-        Row3d pb1 = conversion_2d_3d(f, cf, o);
-        Row3d pb2 = conversion_2d_3d(f, cf, o + d);
-        Row3d pa1 = conversion_2d_3d(hm.faces[pair.fid], cf, pair.uv);
-        Row3d pa2 = conversion_2d_3d(hm.faces[pair.fid], cf, pair.uv + pair.dir);
-        Row3d da = (pa2 - pa1).normalized();
-        Row3d db = (pb2 - pb1).normalized();
-        Row3d dc = (pa1 - pb1).normalized();
-        return abs(1. - db.dot(dc)) < EPS && abs(1. + da.dot(db)) < EPS;
+    // sign of orientation with the global tolerance
+    inline int orient_sign(const complex a, const complex b, const complex c) {
+        double o = orientation(a, b, c);
+        return o > EPS ? 1 : o < -EPS ? -1 : 0;
     }
 
-    inline vec<std::pair<Half, complex>> pick_next_half(
-        const VecXc &cf,    // corner function
-        const complex o,   // origin
-        const complex d,   // direction
-        const Face f,      // face
-        const int skip_hid // halfedge we entered through (or start on): never cross back
+    // closed point-in-triangle test (points on an edge or a vertex count as inside)
+    inline bool is_inside_face_closed(const Face f, const VecXc &cf, const complex p) {
+        auto a = cf(f.id * 3), b = cf(f.id * 3 + 1), c = cf(f.id * 3 + 2);
+        auto s = orient_sign(a, b, c);
+        if (s == 0) return false;
+        return orient_sign(a, b, p) * s >= 0 &&
+               orient_sign(b, c, p) * s >= 0 &&
+               orient_sign(c, a, p) * s >= 0;
+    }
+
+    // does the closed segment [p,q] meet the half-open segment (a,b]?
+    inline bool meets_half_open(const complex a, const complex b, const complex p, const complex q) {
+        const int op = orient_sign(a, b, p), oq = orient_sign(a, b, q);
+        if (op == 0 && oq == 0) {// collinear: overlap along the line
+            double L2 = std::norm(b - a);
+            auto t = [&](const complex x) { return ((x - a) * std::conj(b - a)).real() / L2; };
+            double t0 = std::min(t(p), t(q)), t1 = std::max(t(p), t(q));
+            return t1 > EPS && t0 <= 1 + EPS;
+        }
+        if (op * oq > 0) return false; // p and q strictly on one side of the ray line
+        int oa = orient_sign(p, q, a);
+        int ob = orient_sign(p, q, b);
+        if (oa * ob > 0)        return false; // a and b strictly on one side of the edge line
+        if (oa == 0 && ob != 0) return false; // the only contact is the excluded point a
+        return true;
+    }
+
+    // p's outgoing direction is the reverse of the ray (a, d) traced in face f, compared in 3d so that
+    // ports living in a neighbouring chart can be matched without accumulating transitions
+    inline bool is_reverse_port(const Hmesh &hm, const VecXc &cf, const complex a, const complex d, const Face f, const Qport &p) {
+        Row3d pb1 = conversion_2d_3d(f, cf, a);
+        Row3d pb2 = conversion_2d_3d(f, cf, a + d);
+        Row3d pa1 = conversion_2d_3d(hm.faces[p.fid], cf, p.uv);
+        Row3d pa2 = conversion_2d_3d(hm.faces[p.fid], cf, p.uv + p.dir);
+        Row3d da = (pa2 - pa1).normalized();
+        Row3d db = (pb2 - pb1).normalized();
+        return std::abs(1. + da.dot(db)) < 1e-7;
+    }
+
+    // PICK_NEXT_EDGE of Ebke et al. 2013 (Alg. 5): the edge of f other than the one entered through that
+    // meets (a,b]. if two edges meet it (the ray passes through a vertex or runs along an edge), take the one
+    // with fewer endpoints on the ray line, which steps around the vertex until the ray leaves properly
+    inline std::optional<Half> pick_next_half(
+        const VecXc &cf,
+        const complex a,
+        const complex b,
+        const Face f,
+        const int skip_hid
     ) {
+        std::optional<Half> pick;
+        int best = 3;
         for (Half h: f.adjHalfs()) {
             if (h.id == skip_hid) continue;
-            auto uv1 = cf(h.next().crnr().id);
-            auto uv2 = cf(h.prev().crnr().id);
-            double rab, rcd;
-            if (
-                find_extended_intersection(o, o + d * 1e2, uv1, uv2, rab, rcd) &&
-                rab > -EPS &&
-                rcd >  EPS &&
-                rcd < 1 - EPS
-            ) return vec{std::make_pair(h, lerp(uv1, uv2, rcd))};
+            const complex p = cf(h.next().crnr().id);
+            const complex q = cf(h.prev().crnr().id);
+            if (!meets_half_open(a, b, p, q)) continue;
+            const int on_line = (orient_sign(a, b, p) == 0) + (orient_sign(a, b, q) == 0);
+            if (on_line < best) { best = on_line; pick = h; }
         }
-
-        return {};
+        return pick;
     }
 
     inline std::vector<Qedge> generate_q_edge(
-        const Hmesh &mesh,
+        const Hmesh &hm,
         const VecXc &cfn,
         const VecXi &matching,
         std::vector<Qport> &qports
@@ -54,93 +81,72 @@ namespace metriko::qex {
         std::vector<Qedge> qedges;
         VecXc heR;
         VecXc heT;
-        compute_trs_matrix(mesh, cfn, matching, 4, heR, heT);
+        compute_trs_matrix(hm, cfn, matching, 4, heR, heT);
 
-        auto eqports = vw::filter(qports, [&](const Qport &qp) { return qp.eid >= 0; });
-        auto vqports = vw::filter(qports, [&](const Qport &qp) { return qp.vid >= 0; });
-        auto fqports = vw::filter(qports, [&](const Qport &qp) { return qp.fid >= 0; });
-
-        struct Cache {
-            complex ori; //
-            complex dir; //
-            complex gri; //
-            int fid;     //
-            int hid;     // hid comming from (required for not going back)
-        };
+        // ports grouped by carrier for the arrival lookup
+        std::map<int, vec<Qport*>> byV, byE, byF;
+        for (Qport &p: qports) {
+            if      (p.vid >= 0) byV[p.vid].push_back(&p);
+            else if (p.eid >= 0) byE[p.eid].push_back(&p);
+            else                 byF[p.fid].push_back(&p);
+        }
 
         for (Qport &pfr: qports) {
             if (pfr.isConnected) continue;
-            int in0 = -1;
-            if (pfr.eid >= 0) { // an eqvert port starts on its own edge
-                Half h0 = mesh.edges[pfr.eid].half();
-                in0 = (h0.face().id == pfr.fid ? h0 : h0.twin()).id;
+            complex a = pfr.uv;
+            complex d = pfr.dir;
+            complex b = a + d;
+            int fid  = pfr.fid;
+            int e_in = -1;
+            if (pfr.eid >= 0) { // an eqvert port starts on its own edge: never cross back over it
+                Half h0 = hm.edges[pfr.eid].half();
+                e_in = (h0.face().id == fid ? h0 : h0.twin()).id;
             }
-            vec<Cache> caches = {{.ori=pfr.uv, .dir=pfr.dir, .gri=nearby_grid(pfr.uv, pfr.dir), .fid=pfr.fid, .hid=in0}};
-            std::set<int> pushed;
 
-            while (!caches.empty()) {
-                auto [ori, dir, gri, fid, in] = caches.back();
-                caches.pop_back();
-                Face f = mesh.faces[fid];
+            for (int step = 0; step < 1000; ++step) {
+                Face f = hm.faces[fid];
 
-                // face-qport case
-                if (is_inside_face(f, cfn, gri)) {
-                    auto it = rg::find_if(fqports, [&](const Qport &p) {
-                        if (pfr.isConnected || p.idx == pfr.idx || p.fid != f.id) return false;
-                        return equal(p.dir, -dir) && abs(p.uv - gri) < EPS;
-                    });
-
-                    if (it != fqports.end()) {
+                if (is_inside_face_closed(f, cfn, b)) {
+                    // the target grid point lies in the closure of f: find its q-vertex (vertex, edge, then face)
+                    Qport* hit = nullptr;
+                    for (Half h: f.adjHalfs()) {
+                        if (std::abs(cfn(h.next().crnr().id) - b) >= EPS || !byV.contains(h.tail().id)) continue;
+                        for (Qport* p: byV[h.tail().id])
+                            if (!p->isConnected && p != &pfr && is_reverse_port(hm, cfn, a, d, f, *p)) { hit = p; break; }
+                        if (hit) break;
+                    }
+                    if (!hit) {
+                        Row3d pb = conversion_2d_3d(f, cfn, b);
+                        for (Half h: f.adjHalfs()) {
+                            if (orient_sign(cfn(h.next().crnr().id), cfn(h.prev().crnr().id), b) != 0 || !byE.contains(h.edge().id)) continue;
+                            for (Qport* p: byE[h.edge().id])
+                                if (!p->isConnected && p != &pfr && (p->pos - pb).norm() < 1e-6 && is_reverse_port(hm, cfn, a, d, f, *p)) { hit = p; break; }
+                            if (hit) break;
+                        }
+                    }
+                    if (!hit && byF.contains(fid)) {
+                        for (Qport* p: byF[fid])
+                            if (!p->isConnected && p != &pfr && std::abs(p->uv - b) < EPS && std::abs(p->dir + d) < EPS) { hit = p; break; }
+                    }
+                    if (hit) {
                         pfr.isConnected = true;
-                        it->isConnected = true;
-                        qedges.emplace_back(pfr, *it);
-                        goto loop_end;
+                        hit->isConnected = true;
+                        qedges.emplace_back(pfr, *hit);
                     }
+                    break; // reached b: paired, or left dangling
                 }
 
-                // edge-qport case.
-                for (Edge e: f.edges()) {
-                    Qport* it = nullptr;
-                    auto   d0 = std::numeric_limits<double>::infinity();
-                    auto   p0 = conversion_2d_3d(f, cfn, ori);
-                    for (Qport& p: eqports) {
-                        if (p.isConnected || p.eid != e.id || (p.eid == pfr.eid && abs(p.uv - pfr.uv) < EPS) || !predict_extrinsic_collinear(mesh, cfn, ori, dir, f, p)) continue;
-                        if (auto d = (p.pos - p0).norm(); d < d0) { d0 = d; it = &p; }
-                    }
-                    if (it) {
-                        pfr.isConnected = true;
-                        it->isConnected = true;
-                        qedges.emplace_back(pfr, *it);
-                        goto loop_end;
-                    }
-                }
-
-                // vert-qport case
-                for (Vert v: f.verts()) {
-                    auto it = rg::find_if(vqports, [&](const Qport &p) {
-                        if (p.isConnected || p.vid == pfr.vid || p.vid != v.id) return false;
-                        return predict_extrinsic_collinear(mesh, cfn, ori, dir, f, p);
-                    });
-                    if (it != vqports.end()) {
-                        pfr.isConnected = true;
-                        it->isConnected = true;
-                        qedges.emplace_back(pfr, *it);
-                        goto loop_end;
-                    }
-                }
-
-                // cannot find the pair. move to the next face
-                for (auto& [nh, hit]: pick_next_half(cfn, ori, dir, f, in)) {
-                    if (nh.twin().isBoundary()) throw std::runtime_error("not implemented yet");
-                    if (!pushed.insert(nh.id).second) continue; // already explored this crossing
-                    complex r = heR(nh.id);
-                    complex t = heT(nh.id);
-                    complex o2 = r * hit + t;
-                    complex d2 = r * dir;
-                    caches.push_back({.ori=o2, .dir=d2, .gri=nearby_grid(o2, d2), .fid=nh.twin().face().id, .hid=nh.twin().id});
-                }
+                auto nh = pick_next_half(cfn, a, b, f, e_in);
+                if (!nh) break; // numerically inconsistent chart: leave dangling
+                if (nh->twin().isBoundary()) throw std::runtime_error("not implemented yet");
+                auto r = heR(nh->id);
+                auto t = heT(nh->id);
+                a = r * a + t;
+                b = r * b + t;
+                d = r * d;
+                fid  = nh->twin().face().id;
+                e_in = nh->twin().id;
             }
-        loop_end:
         }
 
         for (const Qport& p: qports)
