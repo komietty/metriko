@@ -1,8 +1,0 @@
-//
-// Created by saki on 2026/08/11.
-//
-
-#ifndef METRIKO_VISUALIZE_TMESH_H
-#define METRIKO_VISUALIZE_TMESH_H
-
-#endif //METRIKO_VISUALIZE_TMESH_H

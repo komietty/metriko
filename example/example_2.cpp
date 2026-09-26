@@ -6,6 +6,7 @@
 // boundaries.
 #include <fstream>
 #include <limits>
+#include <chrono>
 #include <igl/readOBJ.h>
 #include <igl/slim.h>
 #include <polyscope/surface_mesh.h>
@@ -39,6 +40,9 @@ static VecXi singular;
 static vec<bool> seam;
 
 int main(int argc, char** argv) {
+    const auto t_start = std::chrono::steady_clock::now();
+    auto t_lap = t_start;
+    auto lap = [&](const char* name) { auto t = std::chrono::steady_clock::now(); std::println("[time] {:<22} {:8.3f} s", name, std::chrono::duration<double>(t - t_lap).count()); t_lap = t; };
     igl::readOBJ(argv[1], V, F);
     //cleanup::decimate_and_clean(V, F,  100000);
     Hmesh hm(V, F);
@@ -48,6 +52,7 @@ int main(int argc, char** argv) {
     Emesh em(hm);
     if (!load_emesh(std::format("{}.{}.em", argv[1], argv[2]), em))
         throw std::runtime_error("the em cache does not exist. run example_1 first");
+    lap("load");
 
     ///--- validate tedge nid chains: duplicated / backtracking nodes break the cut ---///
     for (const auto& th: em.thalfs) {
@@ -92,6 +97,7 @@ int main(int argc, char** argv) {
     vec<HalfData> hdata;
     auto hm_emb = compute_embedding_cut_hmesh(hm, em, seam, matching, singular, seam1, matching1, singular1, hdata);
     auto hm_cut = compute_cut_mesh(*hm_emb, seam1);
+    lap("cut");
 
 
     // --- validate: every halfedge must have its opposite pair. ---
@@ -122,6 +128,7 @@ int main(int argc, char** argv) {
 
     ///--- tutte parameterization (pre-SLIM initial uv) ---///
     MatXd uv =compute_tutte_parameterization(*hm_emb, em, seam1, hdata);
+    lap("tutte");
     {
         embd->addParameterizationQuantity("tutte uv", uv);
         igl::SLIMData sData;
@@ -173,6 +180,7 @@ int main(int argc, char** argv) {
             }
 
             std::println("[slim] displacement: {}", (sData.V_o - uv_init).norm());
+            lap("slim");
             auto* surf = polyscope::registerSurfaceMesh("slim result", hm_cut->pos, hm_cut->idx);
             auto* prms = surf->addVertexParameterizationQuantity("uv", sData.V_o);
             surf->setEnabled(false);
@@ -194,25 +202,33 @@ int main(int argc, char** argv) {
             }}
 
             qex::sanitization(*hm_emb, matching1, singular1, 4, cfn);
+            lap("qex sanitization");
 
             vec<qex::Qport> q_ports;
             vec<qex::Qvert> vqvs, eqvs, fqvs;
             qex::generate_q_vert(*hm_emb, cfn, vqvs, eqvs, fqvs);
+            lap("qex q_vert");
 
-            visualizer::visualize_qverts(vqvs, eqvs, fqvs, 0.001, false);
+            //visualizer::visualize_qverts(vqvs, eqvs, fqvs, 0.001, false);
 
             qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
             qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
             qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
+            lap("qex q_port");
 
-            visualizer::visualize_qports(*hm_emb, cfn, q_ports, 0.001, false);
+            //visualizer::visualize_qports(*hm_emb, cfn, q_ports, 0.001, false);
 
             auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
+            lap("qex q_edge");
             auto qfaces = qex::generate_q_faces(q_ports, qedges);
+            lap("qex q_face");
+            std::println("[time] {:<22} {:8.3f} s", "total (before visualize)", std::chrono::duration<double>(std::chrono::steady_clock::now() - t_start).count());
 
-            visualizer::visualize_qedges(qedges);
-            auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true);
+            //visualizer::visualize_qedges(qedges);
+            auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true, false);
+            lap("quad mesh refinement");
             visualizer::visualize_quad_patch(em, singular, qfaces, qv, qidx);
+            lap("quad patch");
         }
     }
 

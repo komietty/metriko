@@ -34,28 +34,6 @@ inline void visualize_allowed_range(
     cn->resetTransform();
 }
 
-// a chain of locations on the mesh, as a polyline
-inline void visualize_path(
-    const Hmesh& hm,
-    const vec<HmLoc>& path,
-    const std::string& name,
-    const bool show = true,
-    const double scale = 0.0025
-) {
-    vec<glm::vec3> ps;
-    vec<std::array<size_t, 2>> es;
-    for (size_t k = 0; k < path.size(); ++k) {
-        Row3d p = get_ptloc_pos(hm, path[k]);
-        ps.emplace_back(p.x(), p.y(), p.z());
-        if (k + 1 < path.size()) es.push_back({k, k + 1});
-    }
-    auto* cn = polyscope::registerCurveNetwork(name, ps, es);
-    cn->setMaterial("flat");
-    cn->setEnabled(show);
-    cn->setRadius(scale);
-    cn->resetTransform();
-}
-
 inline void visualize_tedge_mut_collapsed(
     const Hmesh& hm,
     const Emesh& tm,

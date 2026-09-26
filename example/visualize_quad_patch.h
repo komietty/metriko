@@ -193,18 +193,20 @@ inline void visualize_quad_patch(
     }
     auto* pc_s = polyscope::registerPointCloud("tedge start", ps);
     pc_s->setPointColor({0.1, 0.8, 0.1});
-    pc_s->setPointRadius(0.004);
+    pc_s->setPointRadius(0.002);
     pc_s->addScalarQuantity("vertex id", s_vid);
     pc_s->addScalarQuantity("tedges", s_tedges);
     pc_s->addScalarQuantity("tracks", s_tracks);
     pc_s->addScalarQuantity("quad valence", s_valence);
+    pc_s->setEnabled(false);
     pc_s->resetTransform();
     for (size_t k = 0; k < s_vid.size(); ++k)
         if (s_tracks[k] != s_tedges[k]) std::println("[quad patch] singular vertex {}: {} tedges but {} quad edges on a track (quad valence {})", (int)s_vid[k], (int)s_tedges[k], (int)s_tracks[k], (int)s_valence[k]);
     auto* pc_e = polyscope::registerPointCloud("tedge end", pe);
     pc_e->setPointColor({0.9, 0.1, 0.1});
-    pc_e->setPointRadius(0.003);
+    pc_e->setPointRadius(0.0015);
     pc_e->resetTransform();
+    pc_e->setEnabled(false);
 
     std::vector<glm::vec3> ns;
     std::vector<std::array<size_t, 2>> es;
@@ -215,7 +217,9 @@ inline void visualize_quad_patch(
         es.push_back({base, base + 1});
     }
     auto* cn = polyscope::registerCurveNetwork("tedge tracks on the quad mesh", ns, es);
-    cn->setRadius(0.0015);
+    cn->setMaterial("flat");
+    cn->setColor({0., 0., 0.});
+    cn->setRadius(0.001);
     cn->resetTransform();
 
     // colours: greedy graph colouring of the patch adjacency, so neighbouring patches never share a colour index
@@ -246,10 +250,12 @@ inline void visualize_quad_patch(
     }
 
     auto* patch = polyscope::registerSurfaceMesh("quad patch", qv, qidx);
-    patch->setShadeStyle(polyscope::MeshShadeStyle::Flat);
+    patch->setShadeStyle(polyscope::MeshShadeStyle::Smooth);
     patch->setEdgeWidth(1.);
     patch->addFaceScalarQuantity("tqid", tqid_of_quad);
-    patch->addFaceScalarQuantity("patch colour", colour)->setEnabled(true);
+    auto* pcol = patch->addFaceScalarQuantity("patch colour", colour);
+    pcol->setColorMap("coolwarm");
+    pcol->setEnabled(true);
 
     std::println("[quad patch] anchors {} | singulars with no consistent rotation {} | with several consistent rotations {} | unreached tedges {} | junction vertices {} | track edges {} | unlabeled quads {}",
                  anchors, no_rotation, several, unreached, (int)pe.size(), (int)track.size(), unlabeled);

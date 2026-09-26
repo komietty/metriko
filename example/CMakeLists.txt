@@ -6,5 +6,5 @@ set(CMAKE_CXX_FLAGS_DEBUG "-O2 -g")
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/.. "metriko")
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/polyscope/ "polyscope")
-add_executable(${PROJECT_NAME} example_2.cpp)
+add_executable(${PROJECT_NAME} example_3.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE metriko polyscope)
