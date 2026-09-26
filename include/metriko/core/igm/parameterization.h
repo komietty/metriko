@@ -122,7 +122,6 @@ namespace metriko {
             }
             return sum / (N * nF);
         }
-
     };
 
     //----- utility function to cut mesh by seam -----//

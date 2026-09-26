@@ -15,7 +15,6 @@
 #include "metriko/core/tmesh/emesh.h"
 
 namespace metriko {
-
 // split points on an original halfedge: (ratio, vid)
 using EdgeSplits = std::set<std::pair<double, int>>;
 

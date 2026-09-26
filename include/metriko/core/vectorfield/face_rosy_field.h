@@ -314,8 +314,6 @@ namespace metriko {
         return ext;
     }
 
-
-
     inline void cut_mesh_with_singularities(
         const MatXd &V,
         const MatXi &F,
@@ -410,5 +408,4 @@ namespace metriko {
         return seam;
     }
 }
-
 #endif

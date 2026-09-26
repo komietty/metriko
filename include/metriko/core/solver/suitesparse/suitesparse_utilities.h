@@ -12,9 +12,7 @@
 #include <cholmod.h>
 #include <umfpack.h>
 
-
 namespace metriko::suitesparse {
-
 template<typename K> using VecX = Eigen::Matrix<K, Eigen::Dynamic, 1>;
 template<typename K> using Sprs = Eigen::SparseMatrix<K>;
 
@@ -151,5 +149,4 @@ void toEigen(cholmod_dense* cVec, VecX<T>& xOut) {
 template void toEigen(cholmod_dense* cVec, Eigen::Matrix<double, Eigen::Dynamic, 1>& xOut);
 template void toEigen(cholmod_dense* cVec, Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1>& xOut);
 }
-
 #endif

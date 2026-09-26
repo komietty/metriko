@@ -10,7 +10,6 @@
 #include "suitesparse_utilities.h"
 
 namespace metriko::suitesparse {
-
 template <typename T>
 struct PSDSolverInternals {
     CholmodContext context;

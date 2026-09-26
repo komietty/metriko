@@ -23,5 +23,4 @@ namespace metriko {
         return n / (d + 1.);
     }
 }
-
 #endif

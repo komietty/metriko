@@ -10,7 +10,6 @@
 #include "typedef.h"
 
 namespace metriko {
-
 // Todo: still using epsilon predicates... consider using strict predicates
 inline double orientation(
     const complex pa,

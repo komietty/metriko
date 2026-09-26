@@ -10,7 +10,6 @@
 #include "common.h"
 
 namespace metriko::qex {
-
     inline void fix_singular_point() { }
 
     inline void sanitization(

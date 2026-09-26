@@ -11,7 +11,6 @@
 #include "emesh.h"
 
 namespace metriko {
-
 // a contact between two tedges: either a strict segment crossing inside a face
 // or a "touch" (a node of one tedge lying in the interior of the other's segment)
 struct TeContact {

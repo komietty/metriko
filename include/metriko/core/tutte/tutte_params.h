@@ -14,7 +14,6 @@
 #include "metriko/core/tmesh/emesh.h"
 
 namespace metriko {
-
 inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
     SprsD S(mesh.nV, mesh.nV);
     std::vector<TripD> T;
@@ -28,7 +27,6 @@ inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
                 double w = 1. / (l + 1e-12);
                 sum += w;
                 T.emplace_back(v.id, h.head().id, -w);
-
             }
             T.emplace_back(v.id, v.id, sum);
         }
@@ -36,7 +34,6 @@ inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
     S.setFromTriplets(T.begin(), T.end());
     return S;
 }
-
 
 inline SprsD embedding_tutte_for_tquad(
     const int tqid,
@@ -212,7 +209,6 @@ inline void apply_transition(
     throw std::runtime_error("failed to apply_transition");
 }
 
-
 inline MatXd compute_tutte_parameterization(
     const Hmesh& hm,          // hmesh after tutte cutting
     const Emesh& tm,          // tmesh original
@@ -234,7 +230,6 @@ inline MatXd compute_tutte_parameterization(
         if (tm.tquads[i].id == -1) continue;
         uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
     }
-
 
     auto flag = vec(hm.nF, false);
     std::stack<int> stack;

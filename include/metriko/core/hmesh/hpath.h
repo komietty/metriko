@@ -11,7 +11,6 @@
 #include "hmloc.h"
 
 namespace metriko {
-
 inline vec<HmLoc> approx_shortest_path(
     const int n_div,
     const Hmesh& hm,
@@ -132,5 +131,4 @@ inline vec<HmLoc> approx_shortest_path(
     return path;
 }
 }
-
 #endif

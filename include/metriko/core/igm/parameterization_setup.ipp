@@ -66,7 +66,6 @@ namespace metriko {
         constParmMats[0] = MatXi::Identity(N, N);
         for (int i = 1; i < N; i++) constParmMats[i] = unitPermMat * constParmMats[i - 1];
 
-
         std::vector<TripD> vT, cT;
         // forming the constraints and the singularity positions
         int currConstraint = 0;
@@ -137,7 +136,6 @@ namespace metriko {
         constraint.resize(N * currConstraint, N * nR);
         constraint.setFromTriplets(cT.begin(), cT.end());
         constraint.prune(1e-3);
-
 
         /// filtering out barycentric symmetry, including sign symmetry.
         /// The parameterization should always only include n dof for the surface

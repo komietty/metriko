@@ -54,5 +54,4 @@ inline bool compute_validation(
     return true;
 }
 }
-
 #endif

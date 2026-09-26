@@ -19,7 +19,6 @@ constexpr double TOLERANCE_CRNR = 2e-6;    //
 constexpr double TOLERANCE_EDGE_AB = 1e-6; // tolerance on two curvs crash close to an edge
 constexpr double TOLERANCE_EDGE_CD = 1e-6; // tolerance on two curvs crash close to an edge
 
-
 struct Mgrph;
 
 struct Mport {

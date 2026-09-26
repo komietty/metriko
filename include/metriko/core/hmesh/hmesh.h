@@ -12,7 +12,6 @@
 #include "metriko/core/common/typedef.h"
 
 namespace metriko {
-
 struct Hmesh;
 struct Half;
 struct Vert;
@@ -204,7 +203,6 @@ struct AdjIter {
 
 // ipp
 namespace metriko {
-
 inline Half Half::next() const { return {m->next[id], m}; }
 inline Half Half::prev() const { return {m->prev[id], m}; }
 inline Half Half::twin() const { return {m->twin[id], m}; }
@@ -272,7 +270,6 @@ inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) const { return {m, m->face2half[i
 inline AdjIter<AdjLH> Loop::adjHalfs(bool ccw) const { return {m, m->loop2half[id], ccw}; }
 inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) const { assert(h.tail().id == id); return {m, h.id, ccw}; }
 inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) const { assert(h.face().id == id); return {m, h.id, ccw}; }
-
 
 inline void dcel(
     const VecXi &D,
@@ -598,5 +595,4 @@ inline Hmesh::Hmesh(
     }
 }
 }
-
 #endif

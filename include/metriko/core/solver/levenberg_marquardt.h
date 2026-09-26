@@ -12,7 +12,6 @@
 #include "matrix_ops.h"
 
 namespace metriko {
-
     template<class SolverTraits>
     class DiagonalDamping {
     public:
@@ -139,7 +138,6 @@ namespace metriko {
             currObjective.resize(ST->ESize);
         }
 
-
         bool solve(const bool verbose) {
             using namespace Eigen;
             ST->initial_solution(x0);
@@ -231,5 +229,4 @@ namespace metriko {
         }
     };
 }
-
 #endif

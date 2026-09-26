@@ -25,5 +25,4 @@ namespace metriko {
     enum class FieldType { UnSpecified, Smoothest, CurvatureAligned };
     enum class MatchingType { Principal, Curl };
 }
-
 #endif

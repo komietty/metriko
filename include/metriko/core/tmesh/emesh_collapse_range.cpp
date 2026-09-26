@@ -9,7 +9,6 @@
 #include <set>
 
 namespace metriko {
-
 vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
     vec v_stop(hm.nV, false);
     umap<int, double> lo, hi;

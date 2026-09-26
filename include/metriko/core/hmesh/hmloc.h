@@ -11,7 +11,6 @@
 #include "metriko/core/hmesh/hmesh.h"
 
 namespace metriko {
-
 struct HmLocOnV { int id;             bool operator==(const HmLocOnV&) const = default; };
 struct HmLocOnC { int id;             bool operator==(const HmLocOnC&) const = default; };
 struct HmLocOnE { int id; double r;   bool operator==(const HmLocOnE&) const = default; };

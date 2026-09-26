@@ -10,7 +10,6 @@
 #include "motorcycle.h"
 
 namespace metriko {
-
 struct Tmesh;
 
 struct Tedge {

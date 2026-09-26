@@ -10,7 +10,6 @@
 #include "suitesparse_utilities.h"
 
 namespace metriko::suitesparse {
-
 template <typename T>
 void umfFactor(size_t N, cholmod_sparse* mat, void*& symbolicFac, void*& numericFac);
 

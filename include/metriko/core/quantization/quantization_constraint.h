@@ -30,5 +30,4 @@ namespace metriko {
         return M;
     }
 }
-
 #endif

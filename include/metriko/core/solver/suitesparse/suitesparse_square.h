@@ -11,7 +11,6 @@
 #include "suitesparse_umfpack.h"
 
 namespace metriko::suitesparse {
-
 template <typename T>
 struct SquareSolverInternals {
     CholmodContext context;
@@ -52,7 +51,6 @@ SquareSolver<T>::~SquareSolver() {
         umfpack_dl_free_numeric(&internals->numericFactorization);
     }
 }
-
 
 template <typename T>
 void SquareSolver<T>::solve(VecX<T>& x, const VecX<T>& rhs) {

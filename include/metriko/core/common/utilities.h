@@ -11,7 +11,6 @@
 #include "typedef.h"
 
 namespace metriko {
-
 template<class... Ts>
 struct overloaded : Ts... { using Ts::operator()...; };
 
@@ -163,6 +162,5 @@ inline Row3d conversion_2d_3d(
     const complex c = calc_coefficient(o2, a2, b2, uv);
     return o3 + (a3 - o3) * c.real() + (b3 - o3) * c.imag();
 }
-
 }
 #endif

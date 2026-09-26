@@ -114,5 +114,4 @@ inline complex nearby_grid(complex uv, complex dir) {
     };
 }
 }
-
 #endif

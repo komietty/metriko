@@ -11,7 +11,6 @@
 using namespace metriko;
 
 void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
-
     struct Candidate {
         int  tqid;
         int  thid;

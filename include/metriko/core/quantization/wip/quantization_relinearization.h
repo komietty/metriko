@@ -120,7 +120,6 @@ namespace metriko {
 
             get_last_trs(mesh, he2matching, he2transidx, fullx, cfn, ms, ts);
 
-
             // compute vert_to rotation
             Mat2d rot_vid_to = Mat2d::Identity();
             for (int i = ts.size() - 1; i >= 0; i--) {
@@ -188,7 +187,6 @@ namespace metriko {
                 complex uv = cfn(h.next().crnr().id);
                 if (abs(uv - complex(uv2.x(), uv2.y())) < 1e-6) { bgnH = h; break; }
             }
-
 
             for (const Half& h: v.adjHalfs(bgnH)) {
                 if ((uv2 - uv1).norm() < 1e-6) break;
@@ -268,7 +266,6 @@ namespace metriko {
             }
             return sum;
         }
-
     };
 
     inline std::optional<Constraint> generate_constraint(
@@ -346,7 +343,6 @@ namespace metriko {
                 std::vector<tmesh::Thalf> path;
                 //... find shortest way to other singular, generate std::vector<Thalf>
 
-
                 // then calc diff, find vfr and vto, accumulate transitions
                 // int vfr = th.sg_fr(tmesh.tedges).edge->port.vert.id;
                 for (auto &th: path) {
@@ -360,5 +356,4 @@ namespace metriko {
     inline bool validate_constraint_matrix(tmesh::Tmesh &tmesh) {
     }
 }
-
 #endif

@@ -144,5 +144,4 @@ namespace metriko {
         return success;
     }
 }
-
 #endif

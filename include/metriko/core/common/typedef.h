@@ -14,7 +14,6 @@
 #include <ranges>
 
 namespace metriko {
-
 constexpr double PI = M_PI;
 constexpr double TwoPI = 2 * M_PI;
 constexpr double EPS = 1e-9;
@@ -49,5 +48,4 @@ namespace vw = std::views;
 template <class T> using vec = std::vector<T>;
 template <class S, class T, class... Rest> using umap = std::unordered_map<S, T, Rest...>;
 }
-
 #endif

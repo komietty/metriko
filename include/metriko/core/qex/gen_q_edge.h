@@ -162,5 +162,4 @@ namespace metriko::qex {
         return qedges;
     }
 }
-
 #endif

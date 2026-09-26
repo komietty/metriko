@@ -10,7 +10,6 @@
 #include "common.h"
 
 namespace metriko::qex {
-
     inline vec<Qface> generate_q_faces(
         const vec<Qport> &qps,
         const vec<Qedge> &qes
@@ -47,5 +46,4 @@ namespace metriko::qex {
         return qfs;
     }
 }
-
 #endif

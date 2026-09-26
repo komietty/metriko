@@ -9,7 +9,6 @@
 
 namespace metriko {
 void Emesh::collapse_tedge_snap(bool flag) {
-
     auto snap_valid = [&](Vert v) {
         for (auto& [id, nids]: live_tedges()) {
             if (rg::any_of(nids, [&](int nid) {
@@ -68,7 +67,6 @@ void Emesh::collapse_tedge_snap(bool flag) {
         tnodes[nid] = HmLocOnV{.id = v.id};
         return true;
     };
-
 
     struct Cand { int nid; int eid; Vert v; double d; };
 

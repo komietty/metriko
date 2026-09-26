@@ -80,5 +80,4 @@ inline vec<vec<int>> cols_by_row(const SprsD& S) {
     return res;
 }
 }
-
 #endif

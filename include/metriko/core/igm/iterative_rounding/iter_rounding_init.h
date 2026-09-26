@@ -94,7 +94,6 @@ namespace metriko {
            fixedVals(fixedVals),
            iter_cb(iter_cb)
         {
-
             // ---
             // Reducing constraint matrix:
             // reducing duplication of Cfull

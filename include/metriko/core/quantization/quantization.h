@@ -204,5 +204,4 @@ namespace metriko {
         return X;
    }
 }
-
 #endif

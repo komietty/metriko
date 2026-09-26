@@ -10,7 +10,6 @@
 #include "quantization_basisloop.h"
 
 namespace metriko {
-
     /*
     // need to evaluate which is better dense or sparse
     inline VecXd construct_generating_vector(

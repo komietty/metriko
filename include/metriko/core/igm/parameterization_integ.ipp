@@ -91,7 +91,6 @@ namespace metriko {
 
         if (!success && verbose) std::cout << "Rounding has failed!" << std::endl;
 
-
         nfn.resize(cut.nV, N);
         cfn.resize(raw.nF, N * 3);
 

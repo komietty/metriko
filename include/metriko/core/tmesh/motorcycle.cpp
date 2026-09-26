@@ -162,7 +162,6 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
 
     // determine to_nid
     if (candidates.empty()) {
-
         // if hit to crnr
         if (buff.cid != -1) {
             auto c1 = hm.crnrs[buff.cid];

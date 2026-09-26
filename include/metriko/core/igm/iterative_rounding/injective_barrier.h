@@ -41,7 +41,6 @@ namespace metriko {
                 Row2d v1 = F2.segment(oft + 2 * ((j + 1) % N), 2);
                 V(i, j) = v0.norm() * v1.norm();
             }}
-
         }
 
         SprsD gen_image_filed(const VecXd &currField) const {

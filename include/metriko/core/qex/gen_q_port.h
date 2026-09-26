@@ -115,5 +115,4 @@ namespace metriko::qex {
         }
     }
 }
-
 #endif
