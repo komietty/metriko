@@ -8,6 +8,9 @@
 #ifndef METRIKO_ITER_ROUNDING_H
 #define METRIKO_ITER_ROUNDING_H
 #include <algorithm>
+#include <Eigen/CholmodSupport>
+#include <functional>
+#include <iterator>
 #include "metriko/core/solver/levenberg_marquardt.h"
 #include "iter_rounding_common.h"
 #include "injective_barrier.h"
@@ -31,7 +34,7 @@ namespace metriko {
         }
 
     public:
-        Eigen::SimplicialLLT<SprsD> llt;
+        Eigen::CholmodSupernodalLLT<SprsD> llt;   // 64-bit indices inside; eigen's AMD overflows int on ~2M unknowns
 
         bool factorize(const SprsD &A) {
             if (!same_pattern(A)) {
