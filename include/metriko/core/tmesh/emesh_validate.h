@@ -59,7 +59,7 @@ inline int validate_no_crossing(const Emesh& tm, const char* stage) {
     auto cs = find_tedge_contacts(tm);
     for (auto& [fid, te_seg, te_ndp, cross]: cs)
         std::println("[crossing] {}: {} at face {}, teid {} x teid {}", stage, cross ? "cross" : "touch", fid, te_seg, te_ndp);
-    std::println("[crossing] {}: {} total", stage, cs.size());
+    if (!cs.empty()) std::println("[crossing] {}: {} total", stage, cs.size());
     return (int)cs.size();
 }
 

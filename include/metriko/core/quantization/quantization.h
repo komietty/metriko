@@ -54,32 +54,48 @@ namespace metriko {
     // cost = sum of w[teid] over its nodes, i.e. the exact energy change of
     // applying +-1 along the loop (up to tedges hit twice, re-checked by the
     // caller).
-    inline std::vector<int> find_negative_cycle(
+    inline vec<int> find_negative_cycle(
         const int n_thalfs,
         const vec<StripArc>& arcs,
         const VecXd& w
     ) {
         vec dist(n_thalfs, 0.);
         vec pred(n_thalfs, -1);
-        int last = -1;
+        vec mark(n_thalfs, 0);
+
+        // any cycle of the predecessor graph is a negative cycle (every
+        // relaxation strictly decreased a label), so a walk along pred that
+        // returns to a node of the same walk yields one without waiting for
+        // the n passes of bellman-ford to finish.
+        auto cycle_in_pred = [&]() -> vec<int> {
+            rg::fill(mark, 0);
+            for (int s = 0; s < n_thalfs; ++s) {
+                if (mark[s] != 0) continue;
+                int x = s;
+                while (x != -1 && mark[x] == 0) { mark[x] = s + 1; x = pred[x]; }
+                if (x == -1 || mark[x] != s + 1) continue; // ended at a root or in an older walk
+                vec cyc = {x};
+                for (int v = pred[x]; v != x; v = pred[v]) cyc.push_back(v);
+                return cyc;
+            }
+            return {};
+        };
+
+        constexpr int check_every = 8;
         for (int it = 0; it < n_thalfs; ++it) {
-            last = -1;
+            bool relaxed = false;
             for (const auto& [fr, to, teid]: arcs) {
                 if (dist[fr] + w[teid] < dist[to] - 1e-12) {
                     dist[to] = dist[fr] + w[teid];
                     pred[to] = fr;
-                    last = to;
+                    relaxed = true;
                 }
             }
-            if (last == -1) return {};   // converged: no negative cycle
+            if (!relaxed) return {}; // converged: no negative cycle
+            if (it % check_every == check_every - 1)
+                if (auto cyc = cycle_in_pred(); !cyc.empty()) return cyc;
         }
-        // still relaxing after n passes: walk n steps back to land inside the
-        // cycle, then collect it
-        int x = last;
-        for (int i = 0; i < n_thalfs; ++i) x = pred[x];
-        vec cyc = {x};
-        for (int v = pred[x]; v != x; v = pred[v]) cyc.push_back(v);
-        return cyc;
+        return cycle_in_pred(); // still relaxing after n passes: the pred graph must contain a cycle
     }
 
     inline VecXd compute_quantization(const Tmesh& tm, const Mgrph& mg) {

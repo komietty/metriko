@@ -86,9 +86,10 @@ namespace metriko {
         G.setFromTriplets(T.begin(), T.end());
         reduce_to_linearly_independent(G);
 
-        std::cout << "The rank of the matrix is: " << G.rows() << std::endl;
+        #if METRIKO_DEBUG
+        #endif
+
         return G.transpose();
     }
 }
-
 #endif

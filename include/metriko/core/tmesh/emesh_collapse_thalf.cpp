@@ -52,7 +52,7 @@ void Emesh::collapse_thalf(int thid) {
             for (size_t j = 0; j < i; ++j)
                 if (locs[i] == locs[j]) { dups++; break; }
 
-            // todo: corner case! not loc-inj from tqad to hm verts
+            // todo: corner case! not loc-inj from tqad to hm verts. Dups == 1 is huge bottle neck for corse quad!
             // if dups >= 2, tquad is self intersected by one of its thalfs
             // if dups == 1, tquad is self intersected by one of its singular (now tempolary skip, and hope aother tquad is loc-inj)
             if (dups >= 2) throw std::runtime_error("collapse thalf error");
