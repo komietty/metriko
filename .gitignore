@@ -8,3 +8,4 @@ build-release/
 thesis/
 AGENTS.md
 imgui.ini
+.polyscope.ini
