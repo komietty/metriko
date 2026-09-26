@@ -9,6 +9,7 @@
 #include "quantization_constraint.h"
 #include "quantization_evaluation.h"
 #include "quantization_validation.h"
+#include "metriko/core/solver/matrix_ops.h"
 
 namespace metriko {
     inline void validate_quantization(const Tmesh &tmesh, const VecXd &X) {
@@ -55,11 +56,11 @@ namespace metriko {
     // caller).
     inline std::vector<int> find_negative_cycle(
         const int n_thalfs,
-        const std::vector<StripArc>& arcs,
+        const vec<StripArc>& arcs,
         const VecXd& w
     ) {
-        vec<double> dist(n_thalfs, 0.);
-        vec<int>    pred(n_thalfs, -1);
+        vec dist(n_thalfs, 0.);
+        vec pred(n_thalfs, -1);
         int last = -1;
         for (int it = 0; it < n_thalfs; ++it) {
             last = -1;
@@ -76,63 +77,54 @@ namespace metriko {
         // cycle, then collect it
         int x = last;
         for (int i = 0; i < n_thalfs; ++i) x = pred[x];
-        std::vector<int> cyc = {x};
+        vec cyc = {x};
         for (int v = pred[x]; v != x; v = pred[v]) cyc.push_back(v);
         return cyc;
     }
 
-    inline VecXd compute_quantization(const Tmesh& tmesh, const Mgrph& mg) {
+    inline VecXd compute_quantization(const Tmesh& tm, const Mgrph& mg) {
+        VecXd R(tm.nTE);
+        for (int i = 0; i < tm.nTE; i++) R[i] = tm.tedges[i].len;
 
-        VecXd R(tmesh.nTE);
-        for (int i = 0; i < tmesh.nTE; i++) R[i] = tmesh.tedges[i].len;
-
-       VecXd X = VecXd::Zero(tmesh.tedges.size());
-       MatXd C = compute_constraint(tmesh);
-       VecXd I = VecXd::Ones(tmesh.tedges.size());
-       MatXd G = construct_generating_vectors(
-           tmesh,
-           R,
-           [](const Comparator &c1, const Comparator &c2) {
-               return c1.length / std::max(c1.weight, 1e-9)
-                    < c2.length / std::max(c2.weight, 1e-9);
-           }
-           );
+        VecXd X = VecXd::Zero(tm.tedges.size());
+        MatXd C = compute_constraint(tm);
+        VecXd I = VecXd::Ones(tm.tedges.size());
+        SprsD G = construct_generating_vectors(tm, R, [](const Comparator& c1, const Comparator& c2) {
+                return c1.length / std::max(c1.weight, 1e-9)
+                     < c2.length / std::max(c2.weight, 1e-9);
+        });
+        auto teid2clid = cols_by_row(G); // teid -> columns of G whose loop passes it
 
        // ----- construct first step vector ----- //
        while ((X.array() == 0).any()) {
            double min = 1e+9;
            int thid = 0;
-           for (auto &th: tmesh.thalfs | vw::filter([&](auto &th_) { return X[th_.edge().id] == 0; })) {
-               double w = compute_weight(R[th.edge().id], X[th.edge().id], tmesh.tedges.size());
-               if (w < min) {
-                   min = w;
-                   thid = th.id;
-               }
+           for (auto &th: tm.thalfs | vw::filter([&](auto &th_) { return X[th_.edge().id] == 0; })) {
+               auto w = compute_weight(R[th.edge().id], X[th.edge().id], tm.tedges.size());
+               if (w < min) { min = w; thid = th.id; }
            }
-           for (auto g: G.colwise()) {
-               if (g[tmesh.thalfs[thid].edge().id] != 0) {
-                   X += g;
-                   break;
-               }
-           }
-           if (compute_validation(mg, tmesh, X)) {
-               std::cout << "validation passed" << std::endl;
-               break;
-           }
+
+           if (auto& col_idcs = teid2clid[tm.thalfs[thid].edge().id]; !col_idcs.empty()) X += G.col(col_idcs.front());
+           // todo: latter code might be better to reflect my intention...
+           //const auto& ks = teid2clid[tm.thalfs[thid].edge().id];
+           //auto k = rg::min_element(ks, {}, [&](int k) { return G.col(k).nonZeros(); });
+           //if (k != ks.end()) X += G.col(*k);
+
+           if (compute_validation(mg, tm, X)) break;
        }
 
-        assert((C * X).norm() == 0);
+        if((C * X).norm() > 1e-12) throw std::runtime_error("it does not fullfill quantization condition");
 
        // ----- construct second step vector ----- //
 
-       double e = (X.cwiseQuotient(R) - I).norm();
+        double e = (X.cwiseQuotient(R) - I).norm();
 
         // ----- second step: exact pricing (column generation) ----- //
         // apply negative-cost loops until none exists. the pricing searches ALL
         // strip loops, not a precomputed basis, so the result is locally optimal
         // w.r.t. every single-loop +-1 move.
-        auto arcs = build_strip_arcs(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side);
-        const int nte = (int)tmesh.tedges.size();
+        auto arcs = build_strip_arcs(tm.tquads, tm.thalfs, tm.th2quad, tm.th2side);
+        const int nte = (int)tm.tedges.size();
         auto energy = [&](const VecXd& x) { return (x.cwiseQuotient(R) - I).norm(); };
 
         //double e = energy(X);
@@ -147,14 +139,14 @@ namespace metriko {
                     w[j] = (2. * sgn * (X[j] - R[j]) + 1.) / (R[j] * R[j]);
                     if (sgn < 0 && X[j] < 1) w[j] = 1e18;   // keep X >= 0
                 }
-                auto cyc = find_negative_cycle((int)tmesh.thalfs.size(), arcs, w);
+                auto cyc = find_negative_cycle(tm.thalfs.size(), arcs, w);
                 if (cyc.empty()) continue;
 
                 VecXd g = VecXd::Zero(nte);
-                for (int thid: cyc) g[tmesh.thalfs[thid].teid] += 1;
+                for (int thid: cyc) g[tm.thalfs[thid].teid] += 1;
                 VecXd x1 = X + sgn * g;
                 double e1 = energy(x1);   // exact: a loop can hit one tedge twice
-                if (e1 < e && (x1.array() >= 0).all() && compute_validation(mg, tmesh, x1)) {
+                if (e1 < e && (x1.array() >= 0).all() && compute_validation(mg, tm, x1)) {
                     X = x1;
                     e = e1;
                     improved = true;
@@ -162,37 +154,35 @@ namespace metriko {
             }
         }
 
-       int counter = 0;
-       while (counter < 30) {
-           double prev_e = e;
-           std::vector<std::tuple<int, int, bool>> es;
-           int l = tmesh.tedges.size();
-           for (int j = 0; j < l; j++) {
-               es.emplace_back(compute_weight(R[j], X[j], l, false), j, false);
-               es.emplace_back(compute_weight(R[j], X[j], l, true),  j, true);
-           }
-           rg::sort(es.begin(), es.end(), [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
+        int counter = 0;
+        while (counter < 30) {
+            double prev_e = e;
+            std::vector<std::tuple<int, int, bool>> es;
+            int l = tm.tedges.size();
+            for (int j = 0; j < l; j++) {
+                es.emplace_back(compute_weight(R[j], X[j], l, false), j, false);
+                es.emplace_back(compute_weight(R[j], X[j], l, true),  j, true);
+            }
+            rg::sort(es.begin(), es.end(), [](auto& a, auto& b) { return std::get<0>(a) < std::get<0>(b); });
 
-           for (int j = 0; j < l * 2; j++) {
-               auto ei = std::get<1>(es[j]);
-               for (auto g: G.colwise()) {
-                   if (g[ei] == 0) continue;
-                   VecXd x1 = X + g;
-                   VecXd x2 = X - g;
-                   double n1 = (x1.cwiseQuotient(R) - I).norm();
-                   double n2 = (x2.cwiseQuotient(R) - I).norm();
-                   if (n1 <= e && compute_validation(mg, tmesh, x1)) { X = x1; e = n1; goto exit_loops; }
-                   if (n2 <= e && compute_validation(mg, tmesh, x2)) { X = x2; e = n2; goto exit_loops; }
-               }
-           }
-           exit_loops:
-           counter = prev_e == e ? counter + 1 : 0;
-       }
+            for (int j = 0; j < l * 2; j++) {
+                auto ei = std::get<1>(es[j]);
+                for (int k: teid2clid[ei]) {
+                    VecXd x1 = X + G.col(k);
+                    VecXd x2 = X - G.col(k);
+                    double n1 = (x1.cwiseQuotient(R) - I).norm();
+                    double n2 = (x2.cwiseQuotient(R) - I).norm();
+                    if (n1 <= e && compute_validation(mg, tm, x1)) { X = x1; e = n1; goto exit_loops; }
+                    if (n2 <= e && compute_validation(mg, tm, x2)) { X = x2; e = n2; goto exit_loops; }
+                }
+            }
+            exit_loops:
+            counter = prev_e == e ? counter + 1 : 0;
+        }
 
-       std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
-
-       assert((C * X).norm() == 0);
-       return X;
+        //std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
+        if ((C * X).norm() > 1e-12) throw std::runtime_error("it does not fullfill quantization condition");
+        return X;
    }
 }
 

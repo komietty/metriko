@@ -23,9 +23,9 @@ namespace metriko {
     };
 
     template<typename Func>
-    std::vector<int> gen_basis_loop(
-        const std::vector<Tquad>& tquads,
-        const std::vector<Thalf>& thalfs,
+    vec<int> gen_basis_loop(
+        const vec<Tquad>& tquads,
+        const vec<Thalf>& thalfs,
         const VecXi& thalf_tquad_table,
         const VecXi& thalf_sides_table,
         const VecXd& R,
@@ -33,9 +33,8 @@ namespace metriko {
         Func compare
     ) {
         std::priority_queue<Comparator, vec<Comparator>, decltype(compare)> q(compare);
-        std::unordered_map<int, int> m;
-        vec<int> visited;
-        vec<vec<int>> result;
+        vec parents(thalfs.size(), -1);    // parent thalf in the search tree
+        vec visited(thalfs.size(), false); // pushed once already
 
         int counter = 0;
         q.emplace(Comparator{.length = 0, .weight = 0, .thid = bgn.id});
@@ -55,21 +54,17 @@ namespace metriko {
                     int idx = prev.id;
                     vec<int> res;
                     res.emplace_back(idx);
-                    do { idx = m[idx]; res.emplace_back(idx); }
+                    do { idx = parents[idx]; res.emplace_back(idx); }
                     while (idx != bgn.id);
                     return res;
                 }
 
-                bool visited_ = false;
-                int tmp_idx = prev.id;
-                while (tmp_idx != bgn.id) {
-                    if (curr.id == tmp_idx) { visited_ = true; break; }
-                    tmp_idx = m[tmp_idx];
-                }
-                if (!visited_ && rg::none_of(visited, [&](int id) { return id == curr.id; })) {
+                // every ancestor of prev except bgn has been pushed, and bgn is
+                // handled above, so the pushed flag covers the ancestor test too
+                if (!visited[curr.id]) {
                     q.emplace(Comparator{.length = len - 1, .weight = R[curr.edge().id], .thid = curr.id});
-                    m.emplace(curr.id, prev.id);
-                    visited.emplace_back(curr.id);
+                    parents[curr.id] = prev.id;
+                    visited[curr.id] = true;
                 }
             }
             counter++;
@@ -77,5 +72,4 @@ namespace metriko {
         throw std::runtime_error("cannot find a loop");
     }
 }
-
 #endif

@@ -62,23 +62,24 @@ namespace metriko {
     */
 
     template <typename Func>
-    MatXd construct_generating_vectors(
+    SprsD construct_generating_vectors(
         const Tmesh& tmesh,
         const VecXd& R,
         Func compare
     ) {
-        std::vector<TripD> T;
-        int irow = 0;
+        vec<const Thalf*> canos;
+        for (auto& th: tmesh.thalfs) if (th.cano) canos.push_back(&th);
+        vec<vec<int>> loops(canos.size());
 
-        for (const Thalf &th: tmesh.thalfs) {
-            if (!th.cano) continue;
-            auto loop = gen_basis_loop(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side, R, th, compare);
-            for (int thid: loop) {
-                int teid = tmesh.thalfs[thid].teid;
-                T.emplace_back(irow, teid, 1);
-            }
-            irow++;
-        }
+        #pragma omp parallel for schedule(dynamic)
+        for (int i = 0; i < canos.size(); ++i)
+            loops[i] = gen_basis_loop(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side, R, *canos[i], compare);
+
+        std::vector<TripD> T;
+        for (int i = 0; i < loops.size(); ++i)
+        for (int thid: loops[i])
+            T.emplace_back(i, tmesh.thalfs[thid].teid, 1);
+
         assert(rg::all_of(T, [](auto &t) { return t.value() <= 2; }));
 
         SprsD G(tmesh.tedges.size(), tmesh.tedges.size());
