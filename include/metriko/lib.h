@@ -15,6 +15,7 @@
 #include "metriko/core/qex/gen_q_port.h"
 #include "metriko/core/qex/gen_q_edge.h"
 #include "metriko/core/qex/gen_q_face.h"
+#include "patching.h"
 
 namespace metriko {
 
@@ -31,13 +32,17 @@ struct RemeshResult {
     vec<qex::Qport>                q_ports;
     vec<qex::Qedge>                q_edges;
     vec<qex::Qface>                q_faces;
+    MatXd                          q_pos;
+    MatXi                          q_idx;
+    QuadPatch                      q_patch;
 };
 
 inline RemeshResult compute_remesh(
     const MatXd& V,
     const MatXi& F,
     const double scale,
-    const bool c_aligned = false
+    const bool c_aligned = false,
+    const bool refine = true
 ) {
     auto res  = RemeshResult();
     auto hm   = std::make_unique<Hmesh>(V, F);
@@ -98,7 +103,6 @@ inline RemeshResult compute_remesh(
 
     repair_crossing_tedges(*em);
 
-
     ///--- cut the original mesh along the collapsed t-mesh ---///
     vec<bool> seam1;
     VecXi matching1;
@@ -156,6 +160,8 @@ inline RemeshResult compute_remesh(
     qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
     auto q_edges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
     auto q_faces = qex::generate_q_faces(q_ports, q_edges);
+    std::tie(res.q_pos, res.q_idx) = extract_quad_mesh(*hm, q_faces, refine);
+    res.q_patch = label_quad_patches(*em, cmbf->singular, q_faces, res.q_idx);
 
     res.hmesh = std::move(hm);
     res.cmbf  = std::move(cmbf);

@@ -23,7 +23,6 @@
 #include "metriko/core/qex/gen_q_port.h"
 #include "metriko/core/qex/gen_q_edge.h"
 #include "metriko/core/qex/gen_q_face.h"
-#include "metriko/core/qex/refinement.h"
 #include "common.h"
 #include "visualize_hmesh.h"
 #include "visualize_qex.h"
@@ -227,7 +226,7 @@ int main(int argc, char** argv) {
             //visualizer::visualize_qedges(qedges);
             auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true, false);
             lap("quad mesh refinement");
-            visualizer::visualize_quad_patch(em, singular, qfaces, qv, qidx);
+            visualizer::visualize_quad_patch(qv, qidx, label_quad_patches(em, singular, qfaces, qidx));
             lap("quad patch");
         }
     }

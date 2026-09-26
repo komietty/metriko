@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
     lap("load");
 
     ///--- stage 0: vectorfield + rosy parameterization ---///
-    FaceRosyField rawf(hm, N, FieldType::CurvatureAligned);
+    FaceRosyField rawf(hm, N, FieldType::Smoothest);
     rawf.computeMatching(MatchingType::Principal);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(hm, seam);
@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
     visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
     visualizer::visualize_tedge_mut_snapped(hm, em, false);
     auto [qv, qidx] = visualizer::visualize_qfaces(hm, qfaces, true, false);
-    visualizer::visualize_quad_patch(em, singular, qfaces, qv, qidx);
+    visualizer::visualize_quad_patch(qv, qidx, label_quad_patches(em, singular, qfaces, qidx));
     polyscope::show();
     return 0;
 }

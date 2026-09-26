@@ -6,7 +6,7 @@
 #include "metriko/core/qex/gen_q_port.h"
 #include "metriko/core/qex/gen_q_edge.h"
 #include "metriko/core/qex/gen_q_face.h"
-#include "metriko/core/qex/refinement.h"
+#include "metriko/patching.h"
 
 namespace metriko::visualizer {
 
@@ -121,32 +121,12 @@ inline std::pair<MatXd, MatXi> visualize_qfaces(
     const bool refine = true,
     const bool show = true
 ) {
-    std::vector<std::array<size_t, 4> > QF;
-    int l = qfaces.size();
-    MatXd pos(l * 4, 3);
-    MatXi idx(l, 4);
-    for (int i = 0; i < l; i++) {
-    for (int j = 0; j < 4; j++) {
-        pos.row(i * 4 + j) = qfaces[i].qhalfs[j].port1().pos;
-        idx(i, j) = i * 4 + j;
-    }}
-
-    MatXd pos_refined;
-    MatXi idx_refined;
-    if (refine) {
-        qex::refinement_hmesh(pos, idx, hm.pos, hm.idx, pos_refined, idx_refined);
-    } else {
-        VecXi SVI, SVJ;
-        const double eps = 1e-7 * (pos.colwise().maxCoeff() - pos.colwise().minCoeff()).norm();
-        igl::remove_duplicate_vertices(pos, eps, pos_refined, SVI, SVJ);
-        idx_refined.resize(idx.rows(), idx.cols());
-        for (int i = 0; i < idx.rows(); ++i) for (int j = 0; j < idx.cols(); ++j) idx_refined(i, j) = SVJ(idx(i, j));
-    }
-    auto* surf = polyscope::registerSurfaceMesh("quad mesh", pos_refined, idx_refined);
+    auto [pos, idx] = extract_quad_mesh(hm, qfaces, refine);
+    auto* surf = polyscope::registerSurfaceMesh("quad mesh", pos, idx);
     surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
     surf->setEdgeWidth(1.);
     surf->setEnabled(show);
-    return {pos_refined, idx_refined};
+    return {pos, idx};
 }
 
 }
