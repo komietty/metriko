@@ -40,7 +40,7 @@ static void validate_emesh(const Emesh& tm) {
 
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
-    //cleanup::decimate_and_clean(V, F,  100000);
+    cleanup::cleanup_mesh(V, F);
     Hmesh hm(V, F);
     if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam))
         throw std::runtime_error("the cache does not exist");

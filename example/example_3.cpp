@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     MatXd V;
     MatXi F;
     igl::readOBJ(argv[1], V, F);
-    //cleanup::cleanup_mesh(V, F);
+    cleanup::cleanup_mesh(V, F);
     Hmesh hm(V, F);
     lap("load");
 
@@ -110,6 +110,9 @@ int main(int argc, char** argv) {
             }
             if (rg::none_of(em.thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; })) break;
         }
+        // show the first leftover zero-width tquad (and its neighbours) if the collapse did not finish
+        if (auto left = find_zero_width_tquads(em); !left.empty()) cur_tqid = left.front();
+        validate_collapse_done(em);
         cur_tqid = -1;
         lap("collapse");
 

@@ -1,7 +1,7 @@
 # metriko
 ![elephant](example/docs/elephant.jpg)
 
-Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing over 100k vertices.
+Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing ~100k vertices.
 
 ## Why Metriko?
 
@@ -11,7 +11,7 @@ Many existing quad meshing algorithms rely heavily on Mixed Integer Programming 
 
 Metriko implements the Quantized Global Parameterization (QGP) algorithm, providing fast and robust quadrilateral parameterization. The algorithm guarantees a valid result and scales linearly with the number of vertices.
 
-## Current Features and Limitations
+## Features
 Metriko is currently in early development. Available features include:
 - Globally optimal rotational symmetry tangent fields
 - Basic integration of tangent fields
@@ -21,9 +21,7 @@ Metriko is currently in early development. Available features include:
 - Extraction of a quad mesh(QEx) from a locally-injective uv map
 
 Known limitations and issues:
-- Quantization results can vary in quality for coarse quads
 - Meshes with boundaries are currently not supported (planned for future support)
-- While the quantization is robust, the meshing technique is not yet optimized for coarse quads. The reparameterization scheme described in Lyon et al. (2021) is currently under implementation.
 
 ## Usage
 Metriko is a header-only library with a minimal dependency on libigl (only the core features are required). To run a demo, install viewer (polyscope), and execute the following commands:
@@ -36,22 +34,6 @@ make
 ./metriko_example ../models/icosphere.obj 0.03
 ```
 If SuiteSparse is installed on your machine, it will be automatically integrated via CMake, providing significantly faster matrix computations compared to Eigen.
-
-## Benchmark
-End-to-end remeshing time (field → IGM → quantization → T-mesh → reparameterization → QEx) with the smoothest cross field. Preliminary numbers; performance work is ongoing.
-
-| Mesh | #V | #F | Grid scale | #Quads | Time |
-|---|--:|--:|--:|--:|--:|
-| spot | 2.9k | 5.9k | 0.01 | 8.0k | 1.3 s |
-| fandisk | 6.5k | 12.9k | 0.01 | 10.0k | 1.1 s |
-| horsers | 3.0k | 6.0k | 0.005 | 20.7k | 1.9 s |
-| rocker-arm | 10.0k | 20.1k | 0.01 | 9.1k | 4.6 s |
-| bunny | 14.3k | 28.6k | 0.01 | 8.9k | 4.7 s |
-| elephant | 12.4k | 24.7k | 0.005 | 25.0k | 5.0 s |
-| rolling_stage | 12.4k | 24.9k | 0.005 | 40.2k | 5.5 s |
-| gargoyle | 26.0k | 51.9k | 0.005 | 34.7k | 10.3 s |
-
-Measured on Apple M5 (32 GB) with SuiteSparse, `-O2`, via `ctest` running 4 tests in parallel.
 
 ## References
 - Bommes et al. [Mixed-integer quadrangulation](https://doi.org/10.1145/1531326.1531383). SIGGRAPH 2009.
