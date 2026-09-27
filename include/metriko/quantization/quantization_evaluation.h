@@ -11,59 +11,6 @@
 #include "metriko/solver/matrix_ops.h"
 
 namespace metriko {
-    /*
-    // need to evaluate which is better dense or sparse
-    inline VecXd construct_generating_vector(
-        const vec<Tedge>& tedges,
-        const vec<Thalf>& thalfs,
-        const vec<int>& generating_loop
-    ) {
-        VecXd V = VecXd::Zero(tedges.size());
-        for (int thid: generating_loop) {
-            Thalf th = thalfs[thid];
-            Tedge te = th.edge();
-            V[te.id] += 1;
-            METRIKO_CHECK(V[te.id] <= 2, "generating loop passes tedge {} more than twice", te.id);
-        }
-        return V;
-    }
-
-    template <typename Func>
-    MatXd construct_generating_vectors(
-        const Tmesh& tmesh,
-        const VecXd& R,
-        Func compare
-    ) {
-        int rows = (int)tmesh.tedges.size();
-        vec<std::pair<int, VecXd>> cache;
-
-        for (const Thalf &th: tmesh.thalfs) {
-            if (!th.cannonical) continue;
-            auto l = gen_basis_loop(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side, R, th, compare);
-            auto g = construct_generating_vector(tmesh.tedges, tmesh.thalfs, l);
-            cache.emplace_back((g.array() > 0).count(), g);
-        }
-
-        rg::sort(cache, [](auto &a, auto &b) { return a.first < b.first; });
-
-        int rank = 0;
-        int cols = 0;
-        MatXd G;
-
-        for (const auto& g: cache | std::views::values) {
-            G.conservativeResize(rows, cols + 1);
-            G.col(cols) = g;
-            Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(G);
-            if (int r = qr.rank(); r > rank) { rank = r; cols++; }
-            else  G.conservativeResize(rows, cols);
-        }
-
-        std::cout << "The rank of the matrix is: " << rank << std::endl;
-
-        return G;
-    }
-    */
-
     template <typename Func>
     SprsD construct_generating_vectors(
         const Tmesh& tmesh,
@@ -83,10 +30,13 @@ namespace metriko {
         for (int thid: loops[i])
             T.emplace_back(i, tmesh.thalfs[thid].teid, 1);
 
-        METRIKO_CHECK(rg::all_of(T, [](auto &t) { return t.value() <= 2; }), "a generating loop passes a tedge more than twice");
-
         SprsD G(tmesh.tedges.size(), tmesh.tedges.size());
         G.setFromTriplets(T.begin(), T.end());
+
+        for (int k = 0; k < G.outerSize(); ++k)
+        for (SprsD::InnerIterator it(G, k); it; ++it)
+            METRIKO_CHECK(it.value() <= 2, "generating loop {} passes tedge {} more than twice", it.row(), it.col());
+
         reduce_to_linearly_independent(G);
 
         #if METRIKO_DEBUG
