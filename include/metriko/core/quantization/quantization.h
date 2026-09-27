@@ -199,7 +199,9 @@ namespace metriko {
             counter = prev_e == e ? counter + 1 : 0;
         }
 
-        //std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
+        #if METRIKO_DEBUG
+        std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
+        #endif
         METRIKO_CHECK((C * X).norm() < 1e-12, "result breaks the quantization constraint");
         return X;
    }

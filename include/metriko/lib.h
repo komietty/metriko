@@ -1,5 +1,5 @@
-#ifndef HMLOC_H_LIB_H
-#define HMLOC_H_LIB_H
+#ifndef METRIKO_LIB_H
+#define METRIKO_LIB_H
 #include <igl/slim.h>
 #include "core/hmesh/hmesh.h"
 #include "core/vectorfield/face_rosy_field.h"

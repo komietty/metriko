@@ -6,8 +6,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-#ifndef METRIKO_SOLVER_COMMON_H
-#define METRIKO_SOLVER_COMMON_H
+#ifndef METRIKO_MATRIX_OPS_H
+#define METRIKO_MATRIX_OPS_H
 #include "metriko/core/common/typedef.h"
 #include "metriko/core/solver/sparse_solver.h"
 

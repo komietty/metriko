@@ -13,11 +13,6 @@
 #include "hmloc.h"
 
 namespace metriko {
-inline complex calc_coefficient(const Face f, const VecXc& cf, const complex uv) {
-    auto cs = f.crnrs();
-    return calc_coefficient(cf(cs[0].id), cf(cs[1].id), cf(cs[2].id), uv);
-}
-
 inline Row3d conversion_2d_3d(const Face& f, const VecXc& cf, const complex uv) {
     auto [c1, c2, c3] = f.crnrs();
     return conversion_2d_3d(
