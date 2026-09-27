@@ -9,11 +9,12 @@
 #ifndef METRIKO_SOLVER_COMMON_H
 #define METRIKO_SOLVER_COMMON_H
 #include "metriko/core/common/typedef.h"
+#include "metriko/core/solver/sparse_solver.h"
 
 namespace metriko {
 inline void reduce_to_linearly_independent(SprsD& mat) {
     if (mat.rows() == 0) return;
-    Eigen::SparseQR<SprsD, Eigen::COLAMDOrdering<int>> qr;
+    SparseRankQR qr;
     qr.compute(mat.transpose());
     int rank = qr.rank();
     const VecXi &idcs = qr.colsPermutation().indices(); // the remaining row idcs of original mtx

@@ -8,8 +8,8 @@
 #ifndef METRIKO_ITER_ROUNDING_H
 #define METRIKO_ITER_ROUNDING_H
 #include <algorithm>
-#include <Eigen/CholmodSupport>
 #include "metriko/core/solver/levenberg_marquardt.h"
+#include "metriko/core/solver/sparse_solver.h"
 #include "iter_rounding_common.h"
 #include "injective_barrier.h"
 #include "iter_rounding_init.h"
@@ -32,7 +32,7 @@ namespace metriko {
         }
 
     public:
-        Eigen::CholmodSupernodalLLT<SprsD> llt;   // 64-bit indices inside; eigen's AMD overflows int on ~2M unknowns
+        SparseLLT<SprsD> llt;   // CHOLMOD: 64-bit indices inside; eigen's AMD (fallback) overflows int on ~2M unknowns
 
         bool factorize(const SprsD &A) {
             if (!same_pattern(A)) {
@@ -49,17 +49,6 @@ namespace metriko {
             x = llt.solve(rhs);
             return true;
         }
-
-        // non-const lvalue reference to type 'SprsD' (aka 'SparseMatrix<double>') cannot bind to a temporary of type
-        //std::unique_ptr<solver::PositiveDefiniteSolver<double>> llt;
-        //bool factorize(SprsD &A) {
-        //    llt = std::make_unique<solver::PositiveDefiniteSolver<double>>(A);
-        //    return true;
-        //}
-        //bool solve(const VecXd &rhs, VecXd &x) const {
-        //    llt->solve(x, rhs);
-        //    return true;
-        //}
     };
 
     inline bool iterative_rounding(

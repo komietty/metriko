@@ -47,20 +47,6 @@ else (SUITESPARSE)
     message("-- Building without SuiteSparse.")
 endif (SUITESPARSE)
 
-# HACK BY NICK
-# The SuiteSparse logic above doesn't look for UMFpack, but we need it.
-# This code attempts to find if by assuming that it will be in the same place as cholmod
-if(SUITESPARSE AND SUITESPARSE_FOUND)
-    string(REGEX REPLACE "cholmod" "umfpack" UMFPACK_LIBRARY ${CHOLMOD_LIBRARY})
-    message("-- Guesstimated umfpack location as: ${UMFPACK_LIBRARY}")
-    if(EXISTS ${UMFPACK_LIBRARY})
-        list(APPEND SUITESPARSE_LIBRARIES ${UMFPACK_LIBRARY})
-    else()
-        message(WARNING "UMFPack guess failed, so we don't actually have SUITESPARSE support.")
-        set(SUITESPARSE_FOUND FALSE)
-    endif()
-endif()
-
 if(SUITESPARSE AND SUITESPARSE_FOUND)
     SET(GC_HAVE_SUITESPARSE TRUE)
     SET(GC_HAVE_SUITESPARSE TRUE)

@@ -15,7 +15,7 @@
 #include <igl/triangle_triangle_adjacency.h>
 #include <igl/vertex_triangle_adjacency.h>
 #include "base_field.h"
-#include "../solver/sparse_linear_solver.h"
+#include "../solver/sparse_solver.h"
 
 namespace metriko {
     class FaceRosyField : public BaseVectorField {
@@ -30,7 +30,7 @@ namespace metriko {
             SprsC M = galerkinMassMatrix();
             switch (type) {
                 case FieldType::Smoothest: {
-                    compressed = solveSmallestEig(L, M);
+                    compressed = solve_smallest_eig(L, M);
                     //int unitSmoothIter = 32
                     // the eigenproblem minimises the dirichlet energy relative to the L2 norm, so
                     // |psi| is free and sags to zero over whole regions; the field that is actually
@@ -79,11 +79,11 @@ namespace metriko {
                         for (Face f: mesh.faces) a += f.area();
                         SprsC lhs_ = M + (guidanceSmooth * a / mesh.nF) * L;
                         VecXc rhs_ = M * D;
-                        D = solveSquare(lhs_, rhs_);
+                        D = solve_hermitian(lhs_, rhs_);
                     }
                     VecXc rhs = M * D / sqrt(abs((D.adjoint() * M * D)[0]));
                     SprsC lhs = L - lambda * M;
-                    compressed = solveSquare(lhs, rhs);
+                    compressed = solve_hermitian(lhs, rhs);
                     break;
                 }
                 default: { break; }
