@@ -4,7 +4,7 @@
 #include <polyscope/surface_mesh.h>
 #include <polyscope/point_cloud.h>
 #include <polyscope/curve_network.h>
-#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/nvec/face_rosy_field.h"
 #include "metriko/igm/parameterization.h"
 #include "metriko/quantization/quantization.h"
 #include "metriko/hmesh/hpath.h"
@@ -26,7 +26,6 @@ int main(int argc, char** argv) {
     Hmesh hm(V, F);
 
     FaceRosyField rawf(hm, N, FieldType::Smoothest);
-    rawf.computeMatching(MatchingType::Principal);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(hm, seam);
     auto cmbf = compute_combbed_field(rawf, seam);

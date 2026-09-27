@@ -7,7 +7,7 @@
 #include <polyscope/point_cloud.h>
 #include <polyscope/curve_network.h>
 #include "metriko/hmesh/utilities.h"
-#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/nvec/face_rosy_field.h"
 #include "metriko/tmesh/emesh.h"
 #include "metriko/patching.h"
 

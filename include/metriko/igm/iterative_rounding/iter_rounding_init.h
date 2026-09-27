@@ -160,7 +160,7 @@ namespace metriko {
 
             //----- Generating naive poisson solution -----
             // Compute poisson eq. so that the gradient of enegy function equal to zero.
-            // Conceptually it computes uv to follow the given vectorfield with the constraint.
+            // Conceptually it computes uv to follow the given nvec with the constraint.
             // See eq. (6) in the report by Bommes(2012)
             //
             // if isometricity is not important, then the solver below might have room for optimization

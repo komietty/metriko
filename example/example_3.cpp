@@ -1,6 +1,6 @@
 //
 // example_3: the whole pipeline in one run, for checking a mesh end to end.
-//   stage 0 (example_0): vectorfield + rosy parameterization
+//   stage 0 (example_0): nvec + rosy parameterization
 //   stage 1 (example_1): quantization + t-mesh collapse / snap
 //   stage 2 (example_2): cutting + tutte + slim + qex
 // usage: example_3 <mesh.obj> <scale>
@@ -10,7 +10,7 @@
 #include <igl/slim.h>
 
 #include "cleanup.h"
-#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/nvec/face_rosy_field.h"
 #include "metriko/igm/parameterization.h"
 #include "metriko/quantization/quantization.h"
 #include "metriko/tmesh/emesh.h"
@@ -37,13 +37,12 @@ int main(int argc, char** argv) {
     MatXd V;
     MatXi F;
     igl::readOBJ(argv[1], V, F);
-    cleanup::cleanup_mesh(V, F);
+    //cleanup::cleanup_mesh(V, F);
     Hmesh hm(V, F);
     lap("load");
 
-    ///--- stage 0: vectorfield + rosy parameterization ---///
+    ///--- stage 0: nvec + rosy parameterization ---///
     FaceRosyField rawf(hm, N, FieldType::Smoothest);
-    rawf.computeMatching(MatchingType::Principal);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(hm, seam);
     auto cmbf = compute_combbed_field(rawf, seam);
@@ -75,27 +74,54 @@ int main(int argc, char** argv) {
     Emesh em(mg, tm, X);
     lap("motorcycle + quantization");
 
-    for (int i = 0; i < 100; ++i) {
-        for (Ehalf th0 : em.thalfs) {
-            if (th0.id == -1 || th0.x != 0) continue;
-            auto& th1 = em.thalfs[th0.twid];
-            auto& tq0 = em.tquads[th0.tqid];
-            auto& tq1 = em.tquads[th1.tqid];
-            if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
-            if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-            em.collapse_thalf(th0.id);
+    // TEMP debug: on a throw in stage 1, stop there and show the t-mesh reached so far. the tquad being
+    // processed and its neighbours are drawn separately so the broken spot is easy to find
+    int cur_tqid = -1;
+    auto show_failure = [&](const char* stage, const std::exception& ex) {
+        std::println("[fail] {} (tqid {}): {}", stage, cur_tqid, ex.what());
+        visualizer::visualize_init();
+        visualizer::visualize_mesh(hm.pos, hm.idx, true, "base mesh");
+        visualizer::visualize_tedges(hm, em, "tedges", true);
+        visualizer::visualize_unsnapped_tnodes(hm, em, false);
+        if (cur_tqid != -1 && em.tquads[cur_tqid].id != -1) {
+            vec<int> near = { cur_tqid };
+            for (const Edata& d: em.tquads[cur_tqid].data)
+                if (int t = em.thalfs[em.thalfs[d.thid].twid].tqid; t != -1 && !rg::contains(near, t)) near.push_back(t);
+            visualizer::visualize_tquads(hm, em, true, 0.002, near);
         }
-        for (const auto& [tqid, _] : em.live_tquads())
-            if (Tqchain c; em.collapse_tquad_chain_prepare(tqid, c)) em.collapse_tquad_chain_execute(c);
-        if (rg::none_of(em.thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; })) break;
-    }
-    lap("collapse");
+        polyscope::show();
+    };
 
-    em.collapse_tedge_snap(false);
-    em.collapse_tedge_snap(true);
-    for (const auto& [teid, _] : em.live_tedges()) em.collapse_tedge_snap_dedup(teid);
-    repair_crossing_tedges(em);
-    if (validate_no_crossing(em, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
+    try {
+        for (int i = 0; i < 100; ++i) {
+            for (Ehalf th0 : em.thalfs) {
+                if (th0.id == -1 || th0.x != 0) continue;
+                auto& th1 = em.thalfs[th0.twid];
+                auto& tq0 = em.tquads[th0.tqid];
+                auto& tq1 = em.tquads[th1.tqid];
+                if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
+                if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
+                cur_tqid = th0.tqid;
+                em.collapse_thalf(th0.id);
+            }
+            for (const auto& [tqid, _] : em.live_tquads()) {
+                cur_tqid = tqid;
+                if (Tqchain c; em.collapse_tquad_chain_prepare(tqid, c)) em.collapse_tquad_chain_execute(c);
+            }
+            if (rg::none_of(em.thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; })) break;
+        }
+        cur_tqid = -1;
+        lap("collapse");
+
+        em.collapse_tedge_snap(false);
+        em.collapse_tedge_snap(true);
+        for (const auto& [teid, _] : em.live_tedges()) em.collapse_tedge_snap_dedup(teid);
+        repair_crossing_tedges(em);
+        if (validate_no_crossing(em, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
+    } catch (const std::exception& ex) {
+        show_failure(cur_tqid == -1 ? "snap + repair" : "collapse", ex);
+        return 1;
+    }
     save_emesh(std::format("{}.{}.em", argv[1], argv[2]), em);
     lap("snap + repair");
 

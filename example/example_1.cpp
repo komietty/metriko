@@ -1,9 +1,8 @@
 #include <igl/readOBJ.h>
 #include <igl/slim.h>
 #include <igl/upsample.h>
-
 #include "cleanup.h"
-#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/nvec/face_rosy_field.h"
 #include "metriko/igm/parameterization.h"
 #include "metriko/quantization/quantization.h"
 #include "metriko/tmesh/emesh.h"
@@ -59,7 +58,11 @@ int main(int argc, char** argv) {
 
     Emesh em(mg, tm, X);
 
-    for (int i = 0; i < 20; ++i) {
+    auto count_zero = [&] { return rg::count_if(em.thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; }); };
+    auto n_zero     = count_zero();
+    std::println("[collapse] zero thalfs before collapse: {}", n_zero);
+
+    for (int i = 0; i < 20 && n_zero > 0; ++i) {
         // collapse thalf
         for (Ehalf th0 : em.thalfs) {
             if (th0.id == -1) continue;
@@ -114,6 +117,29 @@ int main(int argc, char** argv) {
                 validate_emesh(em);
             }
         }
+
+        // peeling must remove at least one zero thalf per pass, otherwise the remaining bands are stuck
+        const auto left = count_zero();
+        std::println("[collapse] pass {}: zero thalfs {} -> {}", i, n_zero, left);
+        if (left >= n_zero) {
+            std::println("[collapse] no progress: {} zero thalfs left", left);
+            auto sides = [&](int thid) {
+                const auto& tq = em.tquads[em.thalfs[thid].tqid];
+                std::string s;
+                for (int k = 0; k < 4; ++k) {
+                    s += " [";
+                    for (int t: tq.thids(k)) s += std::format("{}{}", t == thid ? "*" : " ", em.thalfs[t].x);
+                    s += " ]";
+                }
+                return std::format("tq {}:{}", tq.id, s);
+            };
+            for (const Ehalf& th: em.thalfs) {
+                if (th.id == -1 || th.x != 0 || !th.cano) continue;
+                std::println("[collapse]   thid {} / {}  {}  |  {}", th.id, th.twid, sides(th.id), sides(th.twid));
+            }
+            break;
+        }
+        n_zero = left;
     }
     EXIT_MULTI_LOOP:
 

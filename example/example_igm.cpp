@@ -1,4 +1,4 @@
-#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/nvec/face_rosy_field.h"
 #include "metriko/igm/parameterization.h"
 #include <igl/readOBJ.h>
 #include <polyscope/surface_mesh.h>
@@ -14,7 +14,6 @@ int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     auto mesh = std::make_unique<Hmesh>(V, F);
     auto rawf = std::make_unique<FaceRosyField>(*mesh, N, FieldType::Smoothest);
-    rawf->computeMatching(MatchingType::Curl);
     auto seam = compute_seam(*rawf);
     auto cutm = compute_cut_mesh(*mesh, seam);
     auto cmbf = compute_combbed_field(*rawf, seam);

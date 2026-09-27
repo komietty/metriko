@@ -1,7 +1,7 @@
 #ifndef METRIKO_TEST_PIPELINE_H
 #define METRIKO_TEST_PIPELINE_H
 #include <string>
-#include "metriko/vectorfield/base_field.h"
+#include "metriko/nvec/face_rosy_field.h"
 
 namespace metriko {
 inline FieldType parse_field_type(const std::string& s) {

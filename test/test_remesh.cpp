@@ -1,7 +1,7 @@
 // end-to-end smoke test: lib.h must run from an OBJ to quad faces without
 // throwing, and the t-mesh handed to the cut must be free of tedge contacts.
 //
-// usage: test_remesh <gridscale> <vectorfield> <mesh.obj> [more.obj ...]
+// usage: test_remesh <gridscale> <nvec> <mesh.obj> [more.obj ...]
 #include <igl/readOBJ.h>
 #include <string>
 #include "metriko/lib.h"
@@ -11,7 +11,7 @@
 using namespace metriko;
 
 int main(int argc, char** argv) {
-    if (argc < 4) { std::cerr << "usage: test_remesh <gridscale> <vectorfield> <mesh.obj> [more.obj ...]\n"; return 2; }
+    if (argc < 4) { std::cerr << "usage: test_remesh <gridscale> <nvec> <mesh.obj> [more.obj ...]\n"; return 2; }
     const double    scale = std::stod(argv[1]);
     const FieldType ft    = parse_field_type(argv[2]);
 

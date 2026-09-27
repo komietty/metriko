@@ -2,7 +2,7 @@
 #define METRIKO_LIB_H
 #include <igl/slim.h>
 #include "hmesh/hmesh.h"
-#include "vectorfield/face_rosy_field.h"
+#include "nvec/face_rosy_field.h"
 #include "igm/parameterization.h"
 #include "quantization/quantization.h"
 #include "tmesh/tmesh.h"
@@ -46,7 +46,7 @@ inline RemeshResult compute_remesh(
 ) {
     auto res  = RemeshResult();
     auto hm   = std::make_unique<Hmesh>(V, F);
-    auto rawf = FaceRosyField(*hm, 4, c_aligned? FieldType::CurvatureAligned : FieldType::Smoothest); rawf.computeMatching(MatchingType::Principal);
+    auto rawf = FaceRosyField(*hm, 4, c_aligned? FieldType::CurvatureAligned : FieldType::Smoothest);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(*hm, seam);
     auto cmbf = compute_combbed_field(rawf, seam);

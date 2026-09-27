@@ -12,7 +12,7 @@
 #include <polyscope/surface_mesh.h>
 #include <polyscope/point_cloud.h>
 #include <polyscope/curve_network.h>
-#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/nvec/face_rosy_field.h"
 #include "metriko/igm/parameterization.h"
 #include "metriko/quantization/quantization.h"
 #include "metriko/tmesh/emesh.h"
