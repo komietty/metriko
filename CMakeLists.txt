@@ -5,12 +5,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 option(ENABLE_OPENMP "Enable OpenMP support" ON)
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-include(UpdateCacheVariable)
-include(libigl)
+#========= libigl (also provides Eigen) ================================================================================
+if (NOT TARGET igl::core)
+    include(FetchContent)
+    FetchContent_Declare(
+            libigl
+            GIT_REPOSITORY https://github.com/libigl/libigl.git
+            GIT_TAG v2.5.0
+    )
+    FetchContent_MakeAvailable(libigl)
+endif()
 
 # Work with non-standard homebrew installations
-# (from ceres build system)
 if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     find_program(HOMEBREW_EXECUTABLE brew)
     mark_as_advanced(FORCE HOMEBREW_EXECUTABLE)
@@ -25,46 +31,37 @@ if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     endif()
 endif()
 
-
 ### Handle windows-specific fixes
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     add_definitions (-DNOMINMAX)  # don't use weird windows built-in min/max
     add_definitions (-D_USE_MATH_DEFINES)  # match unix behavior of constants in cmath
 endif()
 
-#============================== Try finding Suitesparse ==============================
-option(SUITESPARSE "Enable SuiteSparse." ON)
+#========= SuiteSparse (CHOLMOD / SPQR, via the CMake config shipped with SuiteSparse >= 7) ============================
+set(SUITESPARSE_HELP "Enable SuiteSparse (CHOLMOD / SPQR). Falls back to Eigen's solvers when off or not found.")
+option(SUITESPARSE "${SUITESPARSE_HELP}" ON)
+set(GC_HAVE_SUITESPARSE FALSE)
 if (SUITESPARSE)
-    message("-- Searching for SuiteSparse.")
-    find_package(SuiteSparse)
-    if (SUITESPARSE_FOUND)
-        message("-- Found SuiteSparse ${SUITESPARSE_VERSION}, building with SuiteSparse.")
-    else (SUITESPARSE_FOUND)
-        message("-- Did not find all SuiteSparse dependencies, disabling SuiteSparse support.")
-        update_cache_variable(SUITESPARSE OFF)
-    endif (SUITESPARSE_FOUND)
-else (SUITESPARSE)
-    message("-- Building without SuiteSparse.")
-endif (SUITESPARSE)
-
-if(SUITESPARSE AND SUITESPARSE_FOUND)
-    SET(GC_HAVE_SUITESPARSE TRUE)
-    SET(GC_HAVE_SUITESPARSE TRUE)
-    set(SUITESPARSE_INCLUDE_DIRS "${SUITESPARSE_INCLUDE_DIRS}")
-    set(SUITESPARSE_LIBRARIES    "${SUITESPARSE_LIBRARIES}"   )
+    find_package(CHOLMOD CONFIG QUIET)
+    find_package(SPQR    CONFIG QUIET)
+    if (CHOLMOD_FOUND AND SPQR_FOUND)
+        message(STATUS "Found SuiteSparse (CHOLMOD ${CHOLMOD_VERSION}, SPQR ${SPQR_VERSION}), building with SuiteSparse.")
+        set(GC_HAVE_SUITESPARSE TRUE)
+    else()
+        message(STATUS "SuiteSparse (CHOLMOD / SPQR) not found, falling back to Eigen's solvers.")
+        set(SUITESPARSE OFF CACHE BOOL "${SUITESPARSE_HELP}" FORCE)
+    endif()
 else()
-    SET(GC_HAVE_SUITESPARSE FALSE)
-    SET(GC_HAVE_SUITESPARSE FALSE PARENT_SCOPE)
+    message(STATUS "Building without SuiteSparse, using Eigen's solvers.")
 endif()
-
-#========= Done finding Suitesparse ====================================================================================
 
 #========= Try finding OpenMp ==========================================================================================
 
+set(METRIKO_HAVE_OPENMP FALSE)
 if (ENABLE_OPENMP)
     find_package(OpenMP)
-    SET(METRIKO_HAVE_OPENMP TRUE)
     if (OpenMP_CXX_FOUND)
+        set(METRIKO_HAVE_OPENMP TRUE)
         message(STATUS "OpenMP found. CXX flags: ${OpenMP_CXX_FLAGS}")
     else()
         message(WARNING "OpenMP not found, building without OpenMP support.")
@@ -90,8 +87,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 if(GC_HAVE_SUITESPARSE)
     target_compile_definitions(${PROJECT_NAME} INTERFACE GC_HAVE_SUITESPARSE)
-    target_include_directories(${PROJECT_NAME} INTERFACE ${SUITESPARSE_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} INTERFACE ${SUITESPARSE_LIBRARIES})
+    target_link_libraries(${PROJECT_NAME} INTERFACE SuiteSparse::CHOLMOD SuiteSparse::SPQR)
 endif()
 
 if(METRIKO_HAVE_OPENMP)
