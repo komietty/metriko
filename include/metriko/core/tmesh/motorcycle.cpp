@@ -76,7 +76,7 @@ void Mgrph::sort_node_adjacency() {
             auto fr  = s.fr_nid == nid;
             auto uvA = get_face_uv(mnodes[s.fr_nid].loc, s.face_id, hm, cf);
             auto uvB = get_face_uv(mnodes[s.to_nid].loc, s.face_id, hm, cf);
-            assert(abs(uvA - uvB) > 1e-8);
+            METRIKO_CHECK(abs(uvA - uvB) > 1e-8, "zero-length segment at node {}", nid);
             return fr ? uvB - uvA : uvA - uvB;
         };
 
@@ -113,7 +113,7 @@ void Mgrph::sort_node_adjacency() {
             [&](const HmLocOnP& _) {
                 rg::sort(mn.adj, [&](auto& a, auto& b) { return std::arg(get_dir(a)) < std::arg(get_dir(b)); });
             },
-            [](const auto& _) { throw std::runtime_error("no impl"); }
+            [](const auto& _) { METRIKO_FAIL("unexpected location type"); }
         }, mn.loc);
     }
 }
@@ -122,7 +122,7 @@ int Mcurv::resolve_bgn_node(const Hmesh& hm, const bool bgn, const int cid) cons
     if (!bgn) return sgmts.back().to_nid;
     auto l = HmLoc{HmLocOnV{hm.crnrs[cid].vert().id}};
     auto i = rg::find(mg->mnodes, l, &Mnode::loc);
-    assert(i != mg->mnodes.end() && "start node must exist!");
+    METRIKO_CHECK(i != mg->mnodes.end(), "start node of the curve must exist");
     return std::distance(mg->mnodes.begin(), i);
 }
 
@@ -201,7 +201,7 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     // intersection happens
     else {
         auto [ab, cd, sg_cd] = rg::min(candidates, [](auto &a, auto &b) { return std::get<0>(a) < std::get<0>(b); });
-        if (ab < TOLERANCE_EDGE_AB) throw std::runtime_error("Not implemented yet");
+        METRIKO_CHECK(ab >= TOLERANCE_EDGE_AB, "a curve passes too close to a vertex (not handled yet)");
         bool cd_bgn_snappable = cd < TOLERANCE_EDGE_CD;
         bool cd_end_snappable = cd > 1 - TOLERANCE_EDGE_CD;
 

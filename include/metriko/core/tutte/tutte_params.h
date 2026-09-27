@@ -206,7 +206,7 @@ inline void apply_transition(
         }
         return;
     }
-    throw std::runtime_error("failed to apply_transition");
+    METRIKO_FAIL("failed to apply_transition");
 }
 
 inline MatXd compute_tutte_parameterization(
@@ -252,7 +252,7 @@ inline MatXd compute_tutte_parameterization(
         if (flag[h.face().id]) continue;
 
         auto it = data_by_half.find(h);
-        if (it == data_by_half.end()) throw std::runtime_error("failed to find data_by_half");
+        METRIKO_CHECK(it != data_by_half.end(), "no half data for this half");
 
         auto  curr = it->second;
         auto& uv_curr = uv_tq[curr->tqid];

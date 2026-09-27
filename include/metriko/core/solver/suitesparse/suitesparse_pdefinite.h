@@ -41,10 +41,10 @@ PositiveDefiniteSolver<T>::PositiveDefiniteSolver(Sprs<T>& mat): LinearSolver<T>
     bool success = (bool)cholmod_l_factorize(internals->cMat, internals->factorization, internals->context);
 
     if(!success) {
-        throw std::runtime_error("failure in cholmod_l_factorize");
+        METRIKO_FAIL("cholmod_l_factorize failed");
     }
     if(internals->context.context.status == CHOLMOD_NOT_POSDEF) {
-        throw std::runtime_error("matrix is not positive definite");
+        METRIKO_FAIL("matrix is not positive definite");
     }
 }
 

@@ -23,7 +23,7 @@ namespace metriko {
             Thalf th = thalfs[thid];
             Tedge te = th.edge();
             V[te.id] += 1;
-            assert(V[te.id] <= 2);
+            METRIKO_CHECK(V[te.id] <= 2, "generating loop passes tedge {} more than twice", te.id);
         }
         return V;
     }
@@ -83,7 +83,7 @@ namespace metriko {
         for (int thid: loops[i])
             T.emplace_back(i, tmesh.thalfs[thid].teid, 1);
 
-        assert(rg::all_of(T, [](auto &t) { return t.value() <= 2; }));
+        METRIKO_CHECK(rg::all_of(T, [](auto &t) { return t.value() <= 2; }), "a generating loop passes a tedge more than twice");
 
         SprsD G(tmesh.tedges.size(), tmesh.tedges.size());
         G.setFromTriplets(T.begin(), T.end());

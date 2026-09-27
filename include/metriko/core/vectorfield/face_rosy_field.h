@@ -65,7 +65,7 @@ namespace metriko {
                     break;
                 }
                 case FieldType::CurvatureAligned: {
-                    assert(rosyN == 2 || rosyN == 4);
+                    if (rosyN != 2 && rosyN != 4) throw std::invalid_argument("curvature alignment needs a 2- or 4-rosy field");
                     constexpr double lambda = 0;
                     VecXc D = principalCurvatureDir();
                     if (rosyN == 4) D = D.array().square();
@@ -364,14 +364,14 @@ namespace metriko {
                 std::vector<int>::iterator it;
                 it = rg::set_intersection(vf0, vf1, common_face_v.begin()).out;
                 common_face_v.resize(it - common_face_v.begin());
-                assert(common_face_v.size() == 2);
+                METRIKO_CHECK(common_face_v.size() == 2, "cut edge {}-{} is shared by {} faces", v0, v1, common_face_v.size());
 
                 const int &fi = common_face_v[0];
                 int j = -1;
                 for (unsigned z = 0; z < 3; ++z)
                     if ((F(fi, z) == v0 && F(fi, (z + 1) % 3) == v1) ||
                         (F(fi, z) == v1 && F(fi, (z + 1) % 3) == v0)) { j = z; }
-                assert(j != -1);
+                METRIKO_CHECK(j != -1, "cut edge {}-{} not found in face {}", v0, v1, fi);
                 cuts(fi, j) = 1;
                 cuts(TT(fi, j), TTi(fi, j)) = 1;
             }

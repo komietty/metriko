@@ -92,7 +92,7 @@ inline void update_to_twin(const Hmesh& hm, const VecXc& cf, const VecXi& matchi
         return;
     }
 
-    throw std::runtime_error("Not implemented yet");
+    METRIKO_FAIL("not implemented");
 }
 
 inline void update_to_oppo(const Hmesh& hm, const VecXc& cf, Mbuff& buff) {
@@ -122,7 +122,7 @@ inline void update_to_oppo(const Hmesh& hm, const VecXc& cf, Mbuff& buff) {
         if (h_.has_value()) { buff = gen_buff_half(h_.value()); return; }
         if (c_.has_value()) { buff = gen_buff_crnr(c_.value()); return; }
     }
-    throw std::runtime_error("Not implemented yet");
+    METRIKO_FAIL("not implemented");
 }
 
 struct  Mgrph {

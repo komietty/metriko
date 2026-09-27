@@ -27,8 +27,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
 
             if (thids_2.size() > 1 || thids_0.size() > 1) {
                 // todo: if multiple thalfs exist on collapse side, need to push all of them to seq and chose appropriate thalf when extend the side
-                if (thids_0.size() > 1 && rg::all_of(thids_0, zero)) throw std::runtime_error(std::format("multiple zero-thalfs on collapse side"));
-                if (thids_2.size() > 1 && rg::all_of(thids_2, zero)) throw std::runtime_error(std::format("multiple zero-thalfs on collapse side"));
+                METRIKO_CHECK(!(thids_0.size() > 1 && rg::all_of(thids_0, zero)), "tquad {}: multiple zero-thalfs on the collapse side", tq_curr.id);
+                METRIKO_CHECK(!(thids_2.size() > 1 && rg::all_of(thids_2, zero)), "tquad {}: multiple zero-thalfs on the collapse side", tq_curr.id);
                 return true;
             }
             if (count_adj_tquads(th_curr.id)   == 4) return true;
@@ -66,7 +66,7 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         if (th1.bgn) return { th1.nid_fr(), s1 };
         if (th0.end) return { th0.nid_to(), s1 };
         if (th1.end) return { th1.nid_to(), s0 };
-        throw std::runtime_error("error in find_terminal (chain)");
+        METRIKO_FAIL("chain end thalf {} has no terminal node", thid);
     };
 
     // 1: push intermidiate pts

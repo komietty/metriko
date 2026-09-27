@@ -46,7 +46,7 @@ inline void weld_quad_soup(const MatXd& pos, const MatXi& idx, MatXd& pos_w, Mat
 }
 
 // laplacian smoothing of a quad mesh, projected back onto the input surface after every step
-inline void smooth_on_surface(MatXd& pos, const MatXi& idx, const MatXd& V, const MatXi& F, const int iters = 300, const double lambda = 0.01) {
+inline void smooth_on_surface(MatXd& pos, const MatXi& idx, const MatXd& V, const MatXi& F, const int iters = 500, const double lambda = 0.01) {
     vec<std::set<int>> adj(pos.rows());
     for (int i = 0; i < idx.rows(); ++i)
     for (int j = 0; j < 4; ++j) {
@@ -265,13 +265,13 @@ inline void flood_patches(const QuadGraph& g, const std::set<std::pair<int, int>
 // greedy colouring of the patch adjacency, then the colour index spread by the golden ratio so that neighbours map far apart
 inline vec<double> colour_patches(const QuadGraph& g, const vec<double>& tqid_of_quad) {
     std::map<int, std::set<int>> adj;
-    for (int i = 0; i < (int)tqid_of_quad.size(); ++i)
+    for (int i = 0; i < tqid_of_quad.size(); ++i)
     for (int j = 0; j < 4; ++j) {
-        int ta = (int)tqid_of_quad[i], tb = (int)tqid_of_quad[g.quad(g.idx(i, (j + 1) % 4), g.idx(i, j))];
+        int ta = tqid_of_quad[i], tb = tqid_of_quad[g.quad(g.idx(i, (j + 1) % 4), g.idx(i, j))];
         if (ta >= 0 && tb >= 0 && ta != tb) { adj[ta].insert(tb); adj[tb].insert(ta); }
     }
     vec<std::pair<int, int>> order;   // (degree, tqid), most constrained first
-    for (auto& [t, ns]: adj) order.emplace_back((int)ns.size(), t);
+    for (auto& [t, ns]: adj) order.emplace_back(ns.size(), t);
     rg::sort(order, std::greater<>{});
     umap<int, int> colour_of;
     for (auto [deg, t]: order) {
@@ -282,8 +282,8 @@ inline vec<double> colour_patches(const QuadGraph& g, const vec<double>& tqid_of
         colour_of[t] = c;
     }
     vec<double> colour(tqid_of_quad.size(), -1);
-    for (int i = 0; i < (int)tqid_of_quad.size(); ++i)
-        if (int t = (int)tqid_of_quad[i]; t >= 0 && colour_of.contains(t)) colour[i] = std::fmod(colour_of.at(t) * 0.618033988749895, 1.);
+    for (int i = 0; i < tqid_of_quad.size(); ++i)
+        if (int t = tqid_of_quad[i]; t >= 0 && colour_of.contains(t)) colour[i] = std::fmod(colour_of.at(t) * 0.618033988749895, 1.);
     return colour;
 }
 
@@ -310,7 +310,7 @@ inline QuadPatch label_quad_patches(
         const auto ring  = g.ring(s, g.nbrs.at(s).front());
         const auto chain = tv.chain(nid, brs[0].first, brs[0].second);
         vec<Replay> good;
-        for (int rot = 0; rot < (int)ring.size(); ++rot) {
+        for (int rot = 0; rot < ring.size(); ++rot) {
             Replay t = rp;
             t.anchor(nid, s, chain, ring, rot);
             t.run();
@@ -327,7 +327,7 @@ inline QuadPatch label_quad_patches(
     res.track        = std::move(rp.track);
     res.node_qv      = std::move(rp.node_qv);
     flood_patches(g, res.track, res.tqid_of_quad);
-    res.unlabeled = (int)rg::count(res.tqid_of_quad, -1.);
+    res.unlabeled = rg::count(res.tqid_of_quad, -1.);
     res.colour    = colour_patches(g, res.tqid_of_quad);
 
     for (auto& [nid, v]: res.node_qv) {

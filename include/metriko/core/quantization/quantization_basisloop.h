@@ -72,7 +72,7 @@ namespace metriko {
             }
             counter++;
         } while (!q.empty());
-        throw std::runtime_error("cannot find a loop");
+        METRIKO_FAIL("no loop through thalf {}", bgn.id);
     }
 }
 #endif

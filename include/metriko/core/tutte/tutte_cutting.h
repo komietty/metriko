@@ -111,7 +111,7 @@ inline void face_cutting(
                 if (ang > best) { best = ang; best_it = it; }
             }
 
-            if (best_it == halfs.end()) throw std::runtime_error(std::format("[cut]: open chain (face {})", f.id));
+            METRIKO_CHECK(best_it != halfs.end(), "open chain in face {}", f.id);
 
             poly.push_back(*best_it);
             cur = best_it->y();
@@ -131,7 +131,7 @@ inline void face_cutting(
                              std::arg((b - c) / (a - c))});
         };
 
-        assert(cyc.size() >= 3);
+        METRIKO_CHECK(cyc.size() >= 3, "polygon with {} vertices", cyc.size());
 
         while (cyc.size() > 3) {
             const size_t n = cyc.size();
@@ -162,13 +162,15 @@ inline void face_cutting(
                 if (n == 4 && common_side(sides, vc, cyc[(k + 2) % n], va) >= 0) q -= penalty;
                 if (q > best_q) { best_q = q; best_k = k; }
             }
-            if (best_k == n) throw std::runtime_error(std::format("[cut]: ear clipping failed (face {}, size {})", f.id, cyc.size()));
+            METRIKO_CHECK(best_k != n, "ear clipping failed in face {} (polygon of {})", f.id, cyc.size());
             if (best_q < -4) std::println("[cut] uv-degenerate triangle unavoidable (face {})", f.id);
             tris.emplace_back(cyc[(best_k + n - 1) % n], cyc[best_k], cyc[(best_k + 1) % n]);
             cyc.erase(cyc.begin() + (long)best_k);
         }
 
+        #if METRIKO_DEBUG
         if (common_side(sides, cyc[0], cyc[1], cyc[2]) >= 0) std::println("[cut] uv-degenerate triangle unavoidable (face {})", f.id);
+        #endif
 
         tris.emplace_back(cyc[0], cyc[1], cyc[2]);
     }
@@ -324,7 +326,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
             len[k] = (get_ptloc_pos(hm, tm.tnodes[nids[k + 1]]) - get_ptloc_pos(hm, tm.tnodes[nids[k]])).norm();
             total += len[k];
         }
-        if (total < EPS) throw std::runtime_error("[cut]: zero-length tedge");
+        METRIKO_CHECK(total >= EPS, "zero-length tedge");
 
         double sum = 0;
         for (int k = 0; k < nsgs; ++k) {
@@ -389,7 +391,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     data.clear();
     for (auto& [i0, i1, d0, d1]: sgms) {
         auto it = half_by_verts.find({i0, i1});
-        if (it == half_by_verts.end()) throw std::runtime_error(std::format("No half_by_verts: i0 {} ({:.6f} {:.6f} {:.6f}), i1 {} ({:.6f} {:.6f} {:.6f}), thid {}, tqid {}, order {}", i0, vpos[i0].x(), vpos[i0].y(), vpos[i0].z(), i1, vpos[i1].x(), vpos[i1].y(), vpos[i1].z(), d0.thid, d0.tqid, d0.order));
+        METRIKO_CHECK(it != half_by_verts.end(), "no half between vertices {} ({:.6f} {:.6f} {:.6f}) and {} ({:.6f} {:.6f} {:.6f}), thid {}, tqid {}, order {}", i0, vpos[i0].x(), vpos[i0].y(), vpos[i0].z(), i1, vpos[i1].x(), vpos[i1].y(), vpos[i1].z(), d0.thid, d0.tqid, d0.order);
         d0.half = it->second;
         d1.half = it->second.twin();
         data.push_back(d0);

@@ -20,11 +20,7 @@
 namespace metriko {
     inline void check_solver_info(const Eigen::SparseLU<SprsC>& solver, const char *what) {
         if (solver.info() != Eigen::Success) {
-            throw std::runtime_error(
-                std::string("Metriko SparseLU failed to factorize the ") + what +
-                " (info=" + std::to_string(static_cast<int>(solver.info())) +
-                "). The mesh is likely degenerate, too coarsely tessellated, or "
-                "contains sharp features / bad triangles.");
+            METRIKO_FAIL("SparseLU failed to factorize the {} (info {}): the mesh is likely degenerate, too coarsely tessellated, or contains sharp features / bad triangles", what, static_cast<int>(solver.info()));
         }
     }
 

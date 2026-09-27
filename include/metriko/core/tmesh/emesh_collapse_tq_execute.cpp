@@ -58,7 +58,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
                 if (cur == b) { if (a != fr) rg::reverse(res); return res; }  // normalize to fr -> to order
             }
         }
-        throw std::runtime_error("could not find thids from remainning side");
+        METRIKO_FAIL("no thalf chain on the remaining side from node {} to node {}", fr, to);
     };
 
     // the merged tedge between the two chain points of a zero-width band, taken from the band itself: along n0's
@@ -113,7 +113,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
             auto path = chi == 0 ? along_band(n0, n1) : vec<HmLoc>{};   // a band around a tube: follow the band, never a shortest path
             if (path.empty()) path = approx_shortest_path(30, hm, tnodes[n0], tnodes[n1], regions[tqid]);
 
-            if (path.size() < 2) throw std::runtime_error(std::format( "approx_shortest_path failed: tqid {}, {} -> {} (path size {}, allowed {})", tqid, loc_str(tnodes[n0]), loc_str(tnodes[n1]), path.size(), regions[tqid].size()));
+            METRIKO_CHECK(path.size() >= 2, "no path within the allowed region: tqid {}", tqid);
 
             auto nids = add_new_path(path, n0, n1);
             int teid  = tedges.size();
@@ -162,7 +162,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     while (!candidates.empty()) {
         if (auto it = rg::find_if(candidates, is_head); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].nid_fr(), it->t_fr, false)); continue; }
         if (auto it = rg::find_if(candidates, is_tail); it != candidates.end()) { chains.push_back(consume_pool(thalfs[it->thid].nid_to(), it->t_to, true));  continue; }
-        throw std::runtime_error("error in collapse_tquad_execute");
+        METRIKO_FAIL("chain with thalfs on one side only");
     }
 
     auto replace = [&](const vec<int>& thids_replace, const vec<int>& chain) {
@@ -179,7 +179,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
 
             // same body as single-tquad replace, per element
             auto& [id, data] = tquads[thalfs[old].tqid];
-            auto it = rg::find(data, old, &Edata::thid); assert(it != data.end());
+            auto it = rg::find(data, old, &Edata::thid); METRIKO_CHECK(it != data.end(), "thalf {} not on its tquad", old);
             auto si = it->side;
             it = data.erase(it);
             vec<Edata> repl;
@@ -235,8 +235,8 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     bool cto_l = count_adj_tquads(th_l.twid) == 4 && !on_chain(th_l.nid_to());
 
     if (!thids_bgn.empty() && thids_end.empty()) {
-        assert(is_top_bgn == is_top_end);
-        assert(thids_bgn.size() == chain.pts.size() - 1);
+        METRIKO_CHECK(is_top_bgn == is_top_end, "chain ends on diff sides");
+        METRIKO_CHECK(thids_bgn.size() == chain.pts.size() - 1, "chain error");
         bool ahd_l = th_l.nid_fr() == nid_bgn;
         bool ahd_r = th_r.nid_fr() == nid_end;
         extend(th_l, ahd_l, cfr_l || cto_l);
@@ -265,7 +265,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         }
         // in middle
         for (auto& c: chains) {
-            assert(c.size() >= 2);
+            METRIKO_CHECK(c.size() >= 2, "chain error");
             auto n0 = thalfs[c.front()].nid_fr();
             auto n1 = thalfs[c.back()].nid_to();
             replace(op(n0, n1), c);
