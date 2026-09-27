@@ -8,8 +8,8 @@
 #ifndef METRIKO_ITER_ROUNDING_H
 #define METRIKO_ITER_ROUNDING_H
 #include <algorithm>
-#include "metriko/core/solver/levenberg_marquardt.h"
-#include "metriko/core/solver/sparse_solver.h"
+#include "metriko/solver/levenberg_marquardt.h"
+#include "metriko/solver/sparse_solver.h"
 #include "iter_rounding_common.h"
 #include "injective_barrier.h"
 #include "iter_rounding_init.h"

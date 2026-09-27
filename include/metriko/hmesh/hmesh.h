@@ -9,7 +9,7 @@
 #define METRIKO_HMESH_H
 #include <array>
 #include <igl/edge_topology.h>
-#include "metriko/core/common/typedef.h"
+#include "metriko/common/typedef.h"
 
 namespace metriko {
 struct Hmesh;

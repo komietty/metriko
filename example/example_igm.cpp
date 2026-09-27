@@ -1,5 +1,5 @@
-#include "metriko/core/vectorfield/face_rosy_field.h"
-#include "metriko/core/igm/parameterization.h"
+#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/igm/parameterization.h"
 #include <igl/readOBJ.h>
 #include <polyscope/surface_mesh.h>
 #include <polyscope/point_cloud.h>

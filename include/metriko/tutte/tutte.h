@@ -8,7 +8,7 @@
 #ifndef METRIKO_TUTTE_H
 #define METRIKO_TUTTE_H
 #include <tuple>
-#include "metriko/core/hmesh/hmesh.h"
+#include "metriko/hmesh/hmesh.h"
 
 namespace metriko {
 struct HalfData {

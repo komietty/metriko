@@ -8,9 +8,9 @@
 #ifndef METRIKO_EMESH_H
 #define METRIKO_EMESH_H
 #include "tmesh.h"
-#include "metriko/core/hmesh/hmloc.h"
-#include "metriko/core/hmesh/hpath.h"
-#include "metriko/core/hmesh/utilities.h"
+#include "metriko/hmesh/hmloc.h"
+#include "metriko/hmesh/hpath.h"
+#include "metriko/hmesh/utilities.h"
 
 namespace metriko {
 struct Emesh;

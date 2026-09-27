@@ -10,7 +10,7 @@
 #include <igl/remove_unreferenced.h>
 #include <igl/per_vertex_normals.h>
 #include <igl/qslim.h>
-#include "metriko/core/common/utilities.h"
+#include "metriko/common/utilities.h"
 
 // Extrinsic cleanup of the input triangulation, to run before the quad pipeline.
 //   delaunay_flips       removes caps    (a corner close to 180 deg) by flipping non-Delaunay edges

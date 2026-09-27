@@ -14,8 +14,8 @@
 #include <set>
 #include <unordered_map>
 #include "tutte.h"
-#include "metriko/core/hmesh/hmesh.h"
-#include "metriko/core/tmesh/emesh.h"
+#include "metriko/hmesh/hmesh.h"
+#include "metriko/tmesh/emesh.h"
 
 namespace metriko {
 // split points on an original halfedge: (ratio, vid)

@@ -7,7 +7,7 @@
 //
 #ifndef METRIKO_QUANTIZATION_CONSTRAINT_H
 #define METRIKO_QUANTIZATION_CONSTRAINT_H
-#include "metriko/core/tmesh/tmesh.h"
+#include "metriko/tmesh/tmesh.h"
 
 namespace metriko {
     inline MatXd compute_constraint(const Tmesh &tmesh) {

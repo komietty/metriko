@@ -10,8 +10,8 @@
 #include "../common/utilities.h"
 #include "../common/predicates.h"
 #include "../hmesh/hmesh.h"
-#include "metriko/core/hmesh/hmloc.h"
-#include "metriko/core/hmesh/utilities.h"
+#include "metriko/hmesh/hmloc.h"
+#include "metriko/hmesh/utilities.h"
 
 namespace metriko {
 constexpr double TOLERANCE_HALF = 1e-6;    //

@@ -8,7 +8,7 @@
 #ifndef METRIKO_QUANTIZATION_BASISLOOP_H
 #define METRIKO_QUANTIZATION_BASISLOOP_H
 #include <queue>
-#include "metriko/core/tmesh/tmesh.h"
+#include "metriko/tmesh/tmesh.h"
 
 namespace metriko {
     class Comparator {

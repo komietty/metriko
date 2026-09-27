@@ -4,7 +4,7 @@
 //   .cache : per-corner uv of the integer-grid map, matching, singular, seam   (example_0 -> example_1)
 //   .em    : the collapsed / snapped Emesh                                      (example_1 -> example_2)
 #include <fstream>
-#include "metriko/core/tmesh/emesh.h"
+#include "metriko/tmesh/emesh.h"
 
 using namespace metriko;
 

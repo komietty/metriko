@@ -3,12 +3,12 @@
 #include <igl/upsample.h>
 
 #include "cleanup.h"
-#include "metriko/core/vectorfield/face_rosy_field.h"
-#include "metriko/core/igm/parameterization.h"
-#include "metriko/core/quantization/quantization.h"
-#include "metriko/core/tmesh/emesh.h"
-#include "metriko/core/tmesh/emesh_validate.h"
-#include "metriko/core/hmesh/hpath.h"
+#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/igm/parameterization.h"
+#include "metriko/quantization/quantization.h"
+#include "metriko/tmesh/emesh.h"
+#include "metriko/tmesh/emesh_validate.h"
+#include "metriko/hmesh/hpath.h"
 #include "common_io.h"
 #include "common_visualizer.h"
 

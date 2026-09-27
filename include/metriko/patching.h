@@ -14,8 +14,8 @@
 #include <queue>
 #include <igl/AABB.h>
 #include <igl/remove_duplicate_vertices.h>
-#include "core/qex/common.h"
-#include "core/tmesh/emesh.h"
+#include "qex/common.h"
+#include "tmesh/emesh.h"
 
 namespace metriko {
 

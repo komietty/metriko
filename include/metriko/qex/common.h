@@ -7,8 +7,8 @@
 //
 #ifndef METRIKO_QEX_COMMON_H
 #define METRIKO_QEX_COMMON_H
-#include "metriko/core/hmesh/hmesh.h"
-#include "metriko/core/common/utilities.h"
+#include "metriko/hmesh/hmesh.h"
+#include "metriko/common/utilities.h"
 
 namespace metriko::qex {
 class Qvert {

@@ -8,7 +8,7 @@
 #ifndef METRIKO_QEX_GEN_Q_VERT_H
 #define METRIKO_QEX_GEN_Q_VERT_H
 #include "common.h"
-#include "metriko/core/hmesh/utilities.h"
+#include "metriko/hmesh/utilities.h"
 
 namespace metriko::qex {
     inline void generate_q_vert(

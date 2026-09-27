@@ -6,9 +6,9 @@
 #include <polyscope/surface_mesh.h>
 #include <polyscope/point_cloud.h>
 #include <polyscope/curve_network.h>
-#include "metriko/core/hmesh/utilities.h"
-#include "metriko/core/vectorfield/face_rosy_field.h"
-#include "metriko/core/tmesh/emesh.h"
+#include "metriko/hmesh/utilities.h"
+#include "metriko/vectorfield/face_rosy_field.h"
+#include "metriko/tmesh/emesh.h"
 #include "metriko/patching.h"
 
 namespace metriko::visualizer {

@@ -12,7 +12,7 @@
 #include "quantization_constraint.h"
 #include "quantization_evaluation.h"
 #include "quantization_validation.h"
-#include "metriko/core/solver/matrix_ops.h"
+#include "metriko/solver/matrix_ops.h"
 
 namespace metriko {
     inline void validate_quantization(const Tmesh &tmesh, const VecXd &X) {

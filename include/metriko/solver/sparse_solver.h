@@ -8,7 +8,7 @@
 #ifndef METRIKO_SPARSE_SOLVER_H
 #define METRIKO_SPARSE_SOLVER_H
 #include <Eigen/Sparse>
-#include "metriko/core/common/typedef.h"
+#include "metriko/common/typedef.h"
 #ifdef GC_HAVE_SUITESPARSE
 #include <Eigen/CholmodSupport>
 #endif

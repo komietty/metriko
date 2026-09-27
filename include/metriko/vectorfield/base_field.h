@@ -7,7 +7,7 @@
 //
 #ifndef METRIKO_BASE_FIELD_H
 #define METRIKO_BASE_FIELD_H
-#include "metriko/core/hmesh/hmesh.h"
+#include "metriko/hmesh/hmesh.h"
 
 namespace metriko {
     class BaseVectorField {

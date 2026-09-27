@@ -8,8 +8,8 @@
 //
 #ifndef METRIKO_MATRIX_OPS_H
 #define METRIKO_MATRIX_OPS_H
-#include "metriko/core/common/typedef.h"
-#include "metriko/core/solver/sparse_solver.h"
+#include "metriko/common/typedef.h"
+#include "metriko/solver/sparse_solver.h"
 
 namespace metriko {
 inline void reduce_to_linearly_independent(SprsD& mat) {

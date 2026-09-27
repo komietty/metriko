@@ -10,7 +10,7 @@
 #include <map>
 #include <print>
 #include "common.h"
-#include "metriko/core/hmesh/utilities.h"
+#include "metriko/hmesh/utilities.h"
 
 namespace metriko::qex {
     // sign of orientation with the global tolerance

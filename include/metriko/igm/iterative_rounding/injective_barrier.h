@@ -7,7 +7,7 @@
 //
 #ifndef METRIKO_INJECTIVE_BARRIER_H
 #define METRIKO_INJECTIVE_BARRIER_H
-#include "metriko/core/common/typedef.h"
+#include "metriko/common/typedef.h"
 
 namespace metriko {
     class InjectiveBarrier {

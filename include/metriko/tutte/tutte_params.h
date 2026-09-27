@@ -11,7 +11,7 @@
 #include <numeric>
 #include <unordered_set>
 #include "tutte.h"
-#include "metriko/core/tmesh/emesh.h"
+#include "metriko/tmesh/emesh.h"
 
 namespace metriko {
 inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
