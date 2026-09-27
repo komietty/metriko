@@ -51,9 +51,8 @@ namespace metriko::qex {
             auto [minX, minY, maxX, maxY] = get_minmax_int({uv1, uv2, uv3});
             for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
-                auto xy = complex(x, y);
-                auto p = conversion_2d_3d(uv1, uv2, uv3, p1, p2, p3, xy);
-                if (is_inside_triangle(uv1, uv2, uv3, xy)) fqvs.emplace_back(xy, p, f.id);
+                auto c = complex(x, y);
+                if (is_inside_triangle(uv1, uv2, uv3, c)) fqvs.emplace_back(c, conversion_2d_3d(uv1, uv2, uv3, p1, p2, p3, c), f.id);
             }}
         }
     }
