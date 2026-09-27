@@ -59,14 +59,12 @@ void Emesh::collapse_thalf(int thid) {
             for (size_t j = 0; j < i; ++j)
                 if (locs[i] == locs[j]) { dups++; break; }
 
-            // todo: corner case! not loc-inj from tqad to hm verts. Dups == 1 is huge bottle neck for corse quad!
             // if dups >= 2, tquad is self intersected by one of its thalfs
             // if dups == 1, tquad is self intersected by one of its singular (now tempolary skip, and hope aother tquad is loc-inj)
             METRIKO_CHECK(dups < 2, "tquad {} is self-intersected by one of its thalfs", tq_crr.id);
             if (dups == 1) {
-                auto  r = 0.5;
                 auto& te_tgt = collapse_to_prev ? te_prv : te_nxt;
-                if (path_length(nids) < r * (path_length(te_crr.nids) + path_length(te_tgt.nids))) return;
+                if (path_length(nids) < 0.5 * (path_length(te_crr.nids) + path_length(te_tgt.nids))) return;
             }
         }
 

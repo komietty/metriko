@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
                     std::println("");
                     for (size_t k = 0; k < chain.pts.size(); ++k) {
                         const auto& p = chain.pts[k];
-                        std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} adj {} top {}", k, loc_str(em.tnodes[p.nid]), p.val, p.ord, p.adj, p.top);
+                        std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} top {}", k, loc_str(em.tnodes[p.nid]), p.val, p.ord, p.top);
                     }
                     auto dump_side = [&](const char* name, const vec<int>& thids) {
                         for (int t: thids) {

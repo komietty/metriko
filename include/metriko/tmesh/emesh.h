@@ -19,7 +19,6 @@ struct Tqpoint {
     int    nid = -1; // tnode of this point
     int    val = -1;
     double ord = -1; // geometric sort key: arc-length (th.r) position along the spine, per-tquad normalized
-    int    adj = -1; // adjancy count
     bool   top = false;
 };
 

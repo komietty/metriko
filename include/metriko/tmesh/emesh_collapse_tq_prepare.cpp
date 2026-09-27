@@ -26,8 +26,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
             auto thids_3 = tq_curr.thids((s0 + 3) % 4);
             if (!rg::all_of(thids_0, zero))               return true; // stop caz tq_curr is not collapsable
             if (thids_0.size() > 1 || thids_2.size() > 1) return true; // stop caz tq_curr has split chain
-            if (count_adj_tquads(th_curr.id)   == 4)      return true; //
-            if (count_adj_tquads(th_curr.twid) == 4)      return true; //
+            if (count_adj_tquads(th_curr.id)   == 4)      return true; // stop caz cannot go father
+            if (count_adj_tquads(th_curr.twid) == 4)      return true; // stop caz cannot go father
             if (rg::any_of(thids_1, zero)) return false; // cancel collapsing
             if (rg::any_of(thids_3, zero)) return false; // cancel collapsing
             seq.push_back(thids_2.front());
@@ -69,8 +69,6 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         const auto& th_r = thalfs[chain.thids_z[i]];
         const auto& th_t = thalfs[th_r.twid];
         const auto& tq_  = tquads[th_r.tqid];
-        auto a0 = count_adj_tquads(th_t.id); // top
-        auto a1 = count_adj_tquads(th_r.id); // btm
         auto n0 = th_r.nid_to();
         auto n1 = th_r.nid_fr();
         auto sr = tq_.side_of(th_r);
@@ -93,24 +91,24 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         int    span   = 0; for (int t: thids_t) span   += thalfs[t].x;
         double rt_sum = 0; for (int t: thids_t) rt_sum += thalfs[t].r;
         double rb_sum = 0; for (int t: thids_b) rb_sum += thalfs[t].r;
-        for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (f(th.nid_fr(), th.id))   chain.pts.push_back({ .nid = th.nid_fr(), .val = oft, .ord = base + rt / rt_sum * span, .adj = 3, .top = true  }); }
-        for (int thid: thids_b)               { auto& th = thalfs[thid]; btm += th.x; rb += th.r; if (f(th.nid_to(), th.twid)) chain.pts.push_back({ .nid = th.nid_to(), .val = btm, .ord = base + rb / rb_sum * span, .adj = 3, .top = false }); }
+        for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (f(th.nid_fr(), th.id))   chain.pts.push_back({ .nid = th.nid_fr(), .val = oft, .ord = base + rt / rt_sum * span, .top = true  }); }
+        for (int thid: thids_b)               { auto& th = thalfs[thid]; btm += th.x; rb += th.r; if (f(th.nid_to(), th.twid)) chain.pts.push_back({ .nid = th.nid_to(), .val = btm, .ord = base + rb / rb_sum * span, .top = false }); }
 
         chain.bounds.push_back(oft);
 
         // push ladder thalf points
         if (i == chain.thids_z.size() - 1) break;
-        if      (th_r.bgn) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
-        else if (th_t.bgn) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
-        else if (th_r.end) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .adj = a0, .top = true  });
-        else if (th_t.end) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .adj = a1, .top = false });
+        if      (th_r.bgn) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .top = false });
+        else if (th_t.bgn) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .top = true  });
+        else if (th_r.end) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .top = true  });
+        else if (th_t.end) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .top = false });
     }
 
     // 2: push the edge pts
     auto [nid_bgn, side_bgn] = find_terminal(chain.thid_l, true, false);
     auto [nid_end, side_end] = find_terminal(chain.thid_r, false, true);
-    chain.pts.push_back({ .nid = nid_bgn, .val = 0,   .ord = 0.,          .adj = count_adj_tquads(chain.thid_l), .top = side_bgn });
-    chain.pts.push_back({ .nid = nid_end, .val = oft, .ord = (double)oft, .adj = count_adj_tquads(chain.thid_r), .top = side_end });
+    chain.pts.push_back({ .nid = nid_bgn, .val = 0,   .ord = 0.,          .top = side_bgn });
+    chain.pts.push_back({ .nid = nid_end, .val = oft, .ord = (double)oft, .top = side_end });
 
     rg::stable_sort(chain.pts, {}, [](const Tqpoint& p) { return std::pair(p.val, p.ord); });
     return true;

@@ -14,12 +14,9 @@ using namespace metriko;
 
 void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     struct Candidate {
-        int  tqid;
         int  thid;
         bool t_fr;
         bool t_to;
-        int  v_fr;
-        int  v_to;
     };
     vec<Candidate> candidates;
 
@@ -102,12 +99,12 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     };
 
     for (int i = 0; i < chain.pts.size() - 1; ++i) {
-        auto& [n0, v0, ord0, adj0, s0] = chain.pts[i];
-        auto& [n1, v1, ord1, adj1, s1] = chain.pts[i + 1];
+        auto& [n0, v0, ord0, s0] = chain.pts[i];
+        auto& [n1, v1, ord1, s1] = chain.pts[i + 1];
         auto tqid = tquad_of(std::min(v0, v1));
 
         if (s0 == s1) {
-            candidates.push_back({ .tqid = tqid, .thid = thid_of(n0, n1).value(), .t_fr = s0, .t_to = s1, .v_fr = v0, .v_to = v1 });
+            candidates.push_back({.thid = thid_of(n0, n1).value(), .t_fr = s0, .t_to = s1 });
         } else {
             const int chi = euler(regions[tqid]);
             auto path = chi == 0 ? along_band(n0, n1) : vec<HmLoc>{};   // a band around a tube: follow the band, never a shortest path
@@ -125,8 +122,8 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
             tedges.push_back({ .id = teid, .nids = nids });
             thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x, .r = r });
             thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x, .r = r });
-            candidates.push_back({ .tqid = tqid, .thid = thid0, .t_fr = s0, .t_to = s1, .v_fr = v0, .v_to = v1});
-            candidates.push_back({ .tqid = tqid, .thid = thid1, .t_fr = s1, .t_to = s0, .v_fr = v1, .v_to = v0});
+            candidates.push_back({.thid = thid0, .t_fr = s0, .t_to = s1});
+            candidates.push_back({.thid = thid1, .t_fr = s1, .t_to = s0});
         }
     }
 
@@ -150,8 +147,8 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         return res;
     };
 
-    auto& [nid_bgn, v_bgn, o_bgn, a_bgn, is_top_bgn] = chain.pts.front(); // left
-    auto& [nid_end, v_end, o_end, a_end, is_top_end] = chain.pts.back();  // right
+    auto& [nid_bgn, v_bgn, o_bgn, is_top_bgn] = chain.pts.front(); // L
+    auto& [nid_end, v_end, o_end, is_top_end] = chain.pts.back();  // R
     vec<int> thids_bgn = consume_pool(nid_bgn, !is_top_bgn,  is_top_bgn);
     vec<int> thids_end = consume_pool(nid_end, !is_top_end, !is_top_end);
     vec<vec<int>> chains;
