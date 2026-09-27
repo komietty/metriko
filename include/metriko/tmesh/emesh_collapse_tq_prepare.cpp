@@ -24,20 +24,13 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
             auto thids_1 = tq_curr.thids((s0 + 1) % 4);
             auto thids_2 = tq_curr.thids((s0 + 2) % 4);
             auto thids_3 = tq_curr.thids((s0 + 3) % 4);
-
-            if (thids_2.size() > 1 || thids_0.size() > 1) {
-                // todo: if multiple thalfs exist on collapse side, need to push all of them to seq and chose appropriate thalf when extend the side
-                METRIKO_CHECK(!(thids_0.size() > 1 && rg::all_of(thids_0, zero)), "tquad {}: multiple zero-thalfs on the collapse side", tq_curr.id);
-                METRIKO_CHECK(!(thids_2.size() > 1 && rg::all_of(thids_2, zero)), "tquad {}: multiple zero-thalfs on the collapse side", tq_curr.id);
-                return true;
-            }
-            if (count_adj_tquads(th_curr.id)   == 4) return true;
-            if (count_adj_tquads(th_curr.twid) == 4) return true;
-
-            auto th_pair  = thalfs[thids_2.front()];
-            if (th_pair.x == 0 && rg::any_of(thids_1, zero)) return false;
-            if (th_pair.x == 0 && rg::any_of(thids_3, zero)) return false;
-            seq.push_back(th_pair.id);
+            if (!rg::all_of(thids_0, zero))               return true; // stop caz tq_curr is not collapsable
+            if (thids_0.size() > 1 || thids_2.size() > 1) return true; // stop caz tq_curr has split chain
+            if (count_adj_tquads(th_curr.id)   == 4)      return true; //
+            if (count_adj_tquads(th_curr.twid) == 4)      return true; //
+            if (rg::any_of(thids_1, zero)) return false; // cancel collapsing
+            if (rg::any_of(thids_3, zero)) return false; // cancel collapsing
+            seq.push_back(thids_2.front());
         }
     };
 
@@ -49,8 +42,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     for (int thid : tq.thids(side == 0 ? 3 : 0)) if (zero(thid)) return false;
     for (int thid : tq.thids(side == 0 ? 1 : 2)) if (zero(thid)) return false;
 
-    vec seq_l = {tq.thids(side == 0 ? 2 : 3)[0]}; // todo: multiple thalf issue here too
-    vec seq_r = {tq.thids(side == 0 ? 0 : 1)[0]}; // todo: multiple thalf issue here too
+    vec seq_l = {tq.thids(side == 0 ? 2 : 3)[0]};
+    vec seq_r = {tq.thids(side == 0 ? 0 : 1)[0]};
     if (!find_simple_chain(seq_l)) return false;
     if (!find_simple_chain(seq_r)) return false;
 

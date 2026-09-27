@@ -20,6 +20,13 @@
     ]
   },
   {
+    "gridscale": "0.03",
+    "vectorfield": "smoothest",
+    "meshes": [
+      "spot"
+    ]
+  },
+  {
     "gridscale": "0.02",
     "vectorfield": "smoothest",
     "meshes": [
@@ -32,6 +39,7 @@
     "gridscale": "0.01",
     "vectorfield": "smoothest",
     "meshes": [
+      "gargoyle",
       "fertility",
       "rocker-arm",
       "fandisk",
