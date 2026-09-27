@@ -39,7 +39,7 @@ namespace metriko::qex {
                 qp = &qhs[h].port2();
             }
             if (qfhs.size() == 4) {
-                if (qps[qp->prev_id].idx != qhs[i].port1().idx) throw std::runtime_error("not closed ring");
+                METRIKO_CHECK(qps[qp->prev_id].idx == qhs[i].port1().idx, "q-face ring does not close");
                 qfs.emplace_back(qfhs);
             }
         }

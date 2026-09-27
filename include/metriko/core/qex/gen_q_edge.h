@@ -147,7 +147,7 @@ namespace metriko::qex {
 
                 auto nh = pick_next_half(cfn, a, b, f, e_in);
                 if (!nh) break; // numerically inconsistent chart: leave dangling
-                if (nh->twin().isBoundary()) throw std::runtime_error("not implemented yet");
+                METRIKO_CHECK(!nh->twin().isBoundary(), "a q-edge reaches the mesh boundary (not handled yet)");
                 auto r = heR(nh->id);
                 auto t = heT(nh->id);
                 a = r * a + t;

@@ -28,7 +28,7 @@ inline Row3d get_ptloc_pos(const Hmesh& hm, const HmLoc& loc) {
         [&](const HmLocOnE& l) -> Row3d { return hm.edges[l.id].lerp(l.r); },
         [&](const HmLocOnH& l) -> Row3d { return hm.halfs[l.id].lerp(l.r); },
         [&](const HmLocOnF& l) -> Row3d { return hm.faces[l.id].to_world(l.xy); },
-        [&](const HmLocOnP& _) -> Row3d { throw std::runtime_error("no impl"); },
+        [&](const HmLocOnP& _) -> Row3d { METRIKO_FAIL("no impl"); },
     }, loc);
 }
 
@@ -38,7 +38,7 @@ inline Row3d get_ptloc_nml(const Hmesh& hm, const HmLoc& loc) {
         [&](const HmLocOnF& l) -> Row3d { return hm.faces[l.id].normal(); },
         [&](const HmLocOnE& l) -> Row3d { return hm.edges[l.id].nml(); },
         [&](const HmLocOnH& l) -> Row3d { return hm.halfs[l.id].nml(); },
-        [&](const auto& _) -> Row3d { throw std::runtime_error("no impl"); },
+        [&](const auto& _) -> Row3d { METRIKO_FAIL("no impl"); },
     }, loc);
 }
 
@@ -118,7 +118,7 @@ inline bool is_in_face(Face f, const HmLoc& loc) {
         [&](const HmLocOnE& l) { for (Half h: f.adjHalfs()) { if (h.edge().id == l.id) return true; } return false; },
         [&](const HmLocOnH& l) { for (Half h: f.adjHalfs()) { if (h.id == l.id)        return true; } return false; },
         [&](const HmLocOnF& l) { return l.id == f.id; },
-        [&](const auto&) -> bool { throw std::runtime_error("not implemented"); },
+        [&](const auto&) -> bool { METRIKO_FAIL("no impl"); },
     }, loc);
 }
 

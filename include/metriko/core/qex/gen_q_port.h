@@ -21,8 +21,8 @@ namespace metriko::qex {
             vec<std::pair<double, Qport>> ps;
             Edge e = mesh.edges[qv.sid];
             for (const Half h: std::vector{e.half(), e.half().twin()}) {
-                Crnr c1  = h.next().crnr();
-                Crnr c2  = h.prev().crnr();
+                auto c1  = h.next().crnr();
+                auto c2  = h.prev().crnr();
                 auto uv1 = cfn(c1.id);
                 auto uv2 = cfn(c2.id);
                 Row3d p1 = c1.vert().pos();
@@ -43,7 +43,7 @@ namespace metriko::qex {
                 }
             }
 
-            assert(ps.size() == 4);
+            METRIKO_CHECK(ps.size() == 4, "edge {}: {} ports at the q-vert", e.id, ps.size());
             rg::sort(ps, {}, [](const auto& p) { return p.first; });
 
             const int s = ps.size();
@@ -82,8 +82,8 @@ namespace metriko::qex {
     ) {
         for (const Qvert &qv: vqverts) {
             vec<std::pair<double, Qport>> ps;
-            double acc = 0.;
-            Vert v = mesh.verts[qv.sid];
+            auto acc = 0.;
+            auto v = mesh.verts[qv.sid];
             for (Half h: v.adjHalfs()) {
                 auto uv1 = cfn(h.next().crnr().id);
                 auto uv2 = cfn(h.prev().crnr().id);

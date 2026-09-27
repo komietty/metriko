@@ -205,10 +205,7 @@ namespace metriko {
             Eigen::SparseLU<SprsD> solver;
             solver.compute(bigMat);
             if (solver.info() != Eigen::Success) {
-                throw std::runtime_error(
-                    "Metriko NaiveIntegration: initial Poisson solve (SparseLU) "
-                    "failed. The mesh is likely degenerate, too coarsely "
-                    "tessellated, or has sharp features.");
+                METRIKO_FAIL("initial Poisson solve (SparseLU) failed: the mesh is likely degenerate, too coarsely tessellated, or has sharp features");
             }
 
             VecXd XSmallFull = solver.solve(bigRhs);

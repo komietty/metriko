@@ -20,6 +20,7 @@
 #include <ranges>
 #include <stack>
 #include <stdexcept>
+#include <format>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -27,6 +28,9 @@
 #include <vector>
 #include <Eigen/Geometry>
 #include <Eigen/Sparse>
+
+#define METRIKO_FAIL(...) throw std::runtime_error(std::format(__VA_ARGS__))
+#define METRIKO_CHECK(cond, ...) do { if (!(cond)) { __VA_OPT__(METRIKO_FAIL(__VA_ARGS__);) METRIKO_FAIL("{}", #cond); } } while (0)
 
 namespace metriko {
 constexpr double PI = M_PI;

@@ -47,7 +47,7 @@ inline complex normalize(
     const complex a
 ) {
     double l = abs(a);
-    assert(l > 0);
+    METRIKO_CHECK(l > 0, "normalize of a zero vector");
     return a / l;
 }
 
@@ -76,27 +76,25 @@ inline minmax_int get_minmax_int(std::vector<complex> uvs) {
     auto xs = vw::transform(uvs, [](complex uv) { return uv.real(); });
     auto ys = vw::transform(uvs, [](complex uv) { return uv.imag(); });
     return minmax_int{
-        static_cast<int>(std::floor(rg::min(xs))),
-        static_cast<int>(std::floor(rg::min(ys))),
-        static_cast<int>(std::ceil(rg::max(xs))),
-        static_cast<int>(std::ceil(rg::max(ys)))
+        .min_x = static_cast<int>(std::floor(rg::min(xs))),
+        .min_y = static_cast<int>(std::floor(rg::min(ys))),
+        .max_x = static_cast<int>(std::ceil(rg::max(xs))),
+        .max_y = static_cast<int>(std::ceil(rg::max(ys)))
     };
 };
 
 inline complex calc_coefficient(
-    const complex origin,
-    const complex point1,
-    const complex point2,
-    const complex target
+    const complex ori,
+    const complex pt1,
+    const complex pt2,
+    const complex tgt
 ) {
-    const complex v1 = point1 - origin;
-    const complex v2 = point2 - origin;
-    const complex d = target - origin;
-    Mat2d m;
-    m << v1.real(), v2.real(), v1.imag(), v2.imag();
-    assert(m.determinant() != 0);
-    const Row2d x = m.inverse() * Row2d(d.real(), d.imag()).transpose();
-    return {x[0], x[1]};
+    auto v1  = pt1 - ori;
+    auto v2  = pt2 - ori;
+    auto dif = tgt - ori;
+    auto det = cross(v1, v2);
+    METRIKO_CHECK(det != 0, "degenerate uv triangle");
+    return {cross(dif, v2) / det, cross(v1, dif) / det};
 }
 
 // Find the intersection of a line passing through a and b and another line passing through c and d.
@@ -109,12 +107,11 @@ inline bool find_extended_intersection(
     double &ratio_a2b,
     double &ratio_c2d
 ) {
-    Mat2d m;
-    m << d.real() - c.real(), -(b - a).real(), d.imag() - c.imag(), -(b - a).imag();
-    if (m.determinant() == 0) return false;
-    Vec2d v = m.inverse() * Vec2d(-c.real() + a.real(), -c.imag() + a.imag());
-    ratio_a2b = v.y();
-    ratio_c2d = v.x();
+    auto e1  = d - c, e2 = b - a, w = a - c;
+    auto det = cross(e1, e2);
+    if (det == 0) return false;
+    ratio_c2d = cross(w, e2) / det;
+    ratio_a2b = cross(w, e1) / det;
     return true;
 }
 

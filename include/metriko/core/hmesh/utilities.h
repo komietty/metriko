@@ -122,7 +122,7 @@ inline complex get_face_uv(const HmLoc& loc, int fid, const Hmesh& hm, const Vec
             auto p1 = cf[h.prev().crnr().id];
             return lerp(p0, p1, h.isCanonical() ? e.r : 1 - e.r);
         },
-        [&](const auto& _) -> complex { throw std::runtime_error("invalid arguments"); },
+        [&](const auto& _) -> complex { METRIKO_FAIL("no impl"); },
     }, loc);
 }
 }

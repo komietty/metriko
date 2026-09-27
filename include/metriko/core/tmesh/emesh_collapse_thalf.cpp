@@ -23,8 +23,8 @@ void Emesh::collapse_thalf(int thid) {
     auto& te_prv = tedges[th_prv.teid];
     auto& te_nxt = tedges[th_nxt.teid];
 
-    if(it_crr->side != it_prv->side && it_crr->side != it_nxt->side) throw std::runtime_error("collapse thalf error");
-    if(it_crr->side == it_prv->side && it_crr->side == it_nxt->side) throw std::runtime_error("collapse thalf error");
+    METRIKO_CHECK(it_crr->side == it_prv->side || it_crr->side == it_nxt->side, "collapse thalf error");
+    METRIKO_CHECK(it_crr->side != it_prv->side || it_crr->side != it_nxt->side, "collapse thalf error");
 
     int cout_fr = count_adj_tquads(th_crr.id);
     int cout_to = count_adj_tquads(th_twn.id);
@@ -39,7 +39,7 @@ void Emesh::collapse_thalf(int thid) {
             if ( collapse_to_prev && !th_prv.cano) return std::pair{th_crr.nid_to(), th_prv.nid_fr()};
             if (!collapse_to_prev &&  th_nxt.cano) return std::pair{th_crr.nid_fr(), th_nxt.nid_to()};
             if (!collapse_to_prev && !th_nxt.cano) return std::pair{th_nxt.nid_to(), th_crr.nid_fr()};
-            throw std::runtime_error("no impl");
+            throw std::runtime_error("unreachable");
         }();
 
         auto region = allowed_range_tquads({tq_crr.id});
@@ -62,7 +62,7 @@ void Emesh::collapse_thalf(int thid) {
             // todo: corner case! not loc-inj from tqad to hm verts. Dups == 1 is huge bottle neck for corse quad!
             // if dups >= 2, tquad is self intersected by one of its thalfs
             // if dups == 1, tquad is self intersected by one of its singular (now tempolary skip, and hope aother tquad is loc-inj)
-            if (dups >= 2) throw std::runtime_error("collapse thalf error");
+            METRIKO_CHECK(dups < 2, "tquad {} is self-intersected by one of its thalfs", tq_crr.id);
             if (dups == 1) {
                 auto  r = 0.5;
                 auto& te_tgt = collapse_to_prev ? te_prv : te_nxt;
@@ -73,7 +73,7 @@ void Emesh::collapse_thalf(int thid) {
         auto  it_twn_adj = collapse_to_prev ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
         auto& th_twn_adj = thalfs[it_twn_adj->thid];
         auto& te_twn_adj = tedges[th_twn_adj.teid];
-        if(it_twn_adj->side != it_twn->side) throw std::runtime_error("collapse thalf error");
+        METRIKO_CHECK(it_twn_adj->side == it_twn->side, "collapse thalf error");
 
         // 1: collapse to the prv/nxt edge
         // 2: insert missing segments to the adjacent edge.

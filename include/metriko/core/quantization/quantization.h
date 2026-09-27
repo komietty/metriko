@@ -24,7 +24,7 @@ namespace metriko {
                 int sumB = 0;
                 for (int thid: thidsA) { sumA += (int) X[tmesh.thalfs[thid].edge().id]; }
                 for (int thid: thidsB) { sumB += (int) X[tmesh.thalfs[thid].edge().id]; }
-                assert(sumA == sumB);
+                METRIKO_CHECK(sumA == sumB, "tquad {} side {}: {} vs {}", tquad.id, i, sumA, sumB);
             }
         }
     }
@@ -132,7 +132,7 @@ namespace metriko {
            if (compute_validation(mg, tm, X)) break;
        }
 
-        if((C * X).norm() > 1e-12) throw std::runtime_error("it does not fullfill quantization condition");
+        METRIKO_CHECK((C * X).norm() < 1e-12, "first step breaks the quantization constraint");
 
        // ----- construct second step vector ----- //
 
@@ -200,7 +200,7 @@ namespace metriko {
         }
 
         //std::cout << "evaluation: " << e << ", norm of diff: " << (X - R).norm() << std::endl;
-        if ((C * X).norm() > 1e-12) throw std::runtime_error("it does not fullfill quantization condition");
+        METRIKO_CHECK((C * X).norm() < 1e-12, "result breaks the quantization constraint");
         return X;
    }
 }

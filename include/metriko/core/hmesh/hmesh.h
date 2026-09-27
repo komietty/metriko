@@ -268,8 +268,8 @@ inline std::array<Crnr, 3> Face::crnrs() const { auto [h0, h1, h2] = halfs(); re
 inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) const { return {m, m->vert2half[id], ccw}; }
 inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) const { return {m, m->face2half[id], ccw}; }
 inline AdjIter<AdjLH> Loop::adjHalfs(bool ccw) const { return {m, m->loop2half[id], ccw}; }
-inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) const { assert(h.tail().id == id); return {m, h.id, ccw}; }
-inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) const { assert(h.face().id == id); return {m, h.id, ccw}; }
+inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) const { METRIKO_CHECK(h.tail().id == id, "half {} is not on vert {}", h.id, id); return {m, h.id, ccw}; }
+inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) const { METRIKO_CHECK(h.face().id == id, "half {} is not on face {}", h.id, id); return {m, h.id, ccw}; }
 
 inline void dcel(
     const VecXi &D,

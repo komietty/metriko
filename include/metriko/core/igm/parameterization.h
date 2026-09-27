@@ -85,7 +85,7 @@ namespace metriko {
         Half find_first_bndr_he(Vert v) const { Half b = v.half(); for (auto h: v.adjHalfs(false)) if (h.edge().isBoundary()) { b = h; break; } return b; }
 
         void set_sign_symmetry(const int N) {
-            assert(N % 2 == 0);
+            if (N % 2 != 0) throw std::invalid_argument("sign symmetry needs an even N");
             n = N / 2;
             lreductor.resize(N, N / 2);
             lreductor << MatXi::Identity(N / 2, N / 2),
@@ -94,7 +94,7 @@ namespace metriko {
 
         void set_tris_symmetry(const int N) {
             // the entire first N/3 lines are symmetric w.r.t. to the next two (N/3) packets,
-            assert(N % 3 == 0);
+            if (N % 3 != 0) throw std::invalid_argument("triangle symmetry needs N divisible by 3");
             if (N % 2 == 0) {
                 n = N / 3;
                 lreductor.resize(N, N / 3);
