@@ -96,6 +96,7 @@ inline RemeshResult compute_remesh(
         // if there is no zero-x tedge, break
         if (rg::none_of(em->thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; })) break;
     }
+    validate_collapse_done(*em);
 
     em->collapse_tedge_snap(false);
     em->collapse_tedge_snap(true);

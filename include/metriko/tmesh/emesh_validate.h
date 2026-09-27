@@ -81,5 +81,24 @@ inline void repair_crossing_tedges(Emesh& tm, const int max_iter = 10) {
         }
     }
 }
+
+// live tquads with a side of zero total length: they map onto a segment or a point in tutte, so none may be
+// left once the collapse is done
+inline vec<int> find_zero_width_tquads(const Emesh& tm) {
+    vec<int> res;
+    for (const auto& tq: tm.live_tquads()) {
+        for (int s = 0; s < 4; ++s) {
+            double x = 0;
+            for (int thid: tq.thids(s)) x += tm.thalfs[thid].x;
+            if (x == 0) { res.push_back(tq.id); break; }
+        }
+    }
+    return res;
+}
+
+inline void validate_collapse_done(const Emesh& tm) {
+    auto tqids = find_zero_width_tquads(tm);
+    METRIKO_CHECK(tqids.empty(), "t-mesh collapse left {} zero-width tquads: {}", tqids.size(), tqids | vw::take(20) | rg::to<vec<int>>());
+}
 }
 #endif

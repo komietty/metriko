@@ -14,6 +14,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     if (tq.id == -1) return false;
 
     auto zero = [&](int thid) { return thalfs[thid].x == 0; };
+    auto sum  = [&](const vec<int>& thids) { double x = 0; for (int t: thids) x += thalfs[t].x; return x; };
+
     auto find_simple_chain = [&](vec<int>& seq) {
         while (true) {
             const auto& th_prev = thalfs[seq.back()];
@@ -28,8 +30,7 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
             if (thids_0.size() > 1 || thids_2.size() > 1) return true; // stop caz tq_curr has split chain
             if (count_adj_tquads(th_curr.id)   == 4)      return true; // stop caz cannot go father
             if (count_adj_tquads(th_curr.twid) == 4)      return true; // stop caz cannot go father
-            if (rg::any_of(thids_1, zero)) return false; // cancel collapsing
-            if (rg::any_of(thids_3, zero)) return false; // cancel collapsing
+            if (sum(thids_1) == 0 || sum(thids_3) == 0)   return true; // stop caz tq_curr's all sides are x == zero
             seq.push_back(thids_2.front());
         }
     };
@@ -39,8 +40,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     if (tq.thids(1).size() == 1 && tq.thids(3).size() == 1 && zero(tq.thids(1).front())) side = 1;
     if (side == -1) return false;
 
-    for (int thid : tq.thids(side == 0 ? 3 : 0)) if (zero(thid)) return false;
-    for (int thid : tq.thids(side == 0 ? 1 : 2)) if (zero(thid)) return false;
+    if (sum(tq.thids(side == 0 ? 3 : 0)) == 0) return false;
+    if (sum(tq.thids(side == 0 ? 1 : 2)) == 0) return false;
 
     vec seq_l = {tq.thids(side == 0 ? 2 : 3)[0]};
     vec seq_r = {tq.thids(side == 0 ? 0 : 1)[0]};
@@ -111,5 +112,20 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     chain.pts.push_back({ .nid = nid_end, .val = oft, .ord = (double)oft, .top = side_end });
 
     rg::stable_sort(chain.pts, {}, [](const Tqpoint& p) { return std::pair(p.val, p.ord); });
+
+    // A zero thalf on a lateral side (the end of another band) stays as it is on the merged tedge, which needs
+    // its two end points next to each other on one side. give up when an end point was not pushed, when something
+    // falls between them, or when the other side has a point at the same position
+    for (const auto* thids: { &chain.thids_t, &chain.thids_b }) {
+        for (int thid: *thids) {
+            if (!zero(thid)) continue;
+            auto p0 = rg::find(chain.pts, thalfs[thid].nid_fr(), &Tqpoint::nid);
+            auto p1 = rg::find(chain.pts, thalfs[thid].nid_to(), &Tqpoint::nid);
+            if (p0 == chain.pts.end() || p1 == chain.pts.end()) return false;
+            if (std::abs(p0 - p1) != 1) return false;
+            if (rg::any_of(chain.pts, [&](const Tqpoint& p) { return p.val == p0->val && p.top != p0->top; })) return false;
+        }
+    }
+
     return true;
 }
