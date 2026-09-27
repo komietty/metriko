@@ -13,8 +13,8 @@ namespace metriko {
         reduce_to_linearly_independent(Cfull);
 
         //---- generating G: the matrix for generating a vector field from uv -----
-        std::vector<TripD> eT;
-        std::vector<TripD> iT;
+        vec<TripD> eT;
+        vec<TripD> iT;
         for (Face f: cut.faces) {
         for (Half h: f.adjHalfs()) {
             Row3d g = f.normal().cross(h.next().vec()) / (f.area() * 2);

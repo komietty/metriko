@@ -81,13 +81,13 @@ namespace metriko::qex {
         return pick;
     }
 
-    inline std::vector<Qedge> generate_q_edge(
+    inline vec<Qedge> generate_q_edge(
         const Hmesh &hm,
         const VecXc &cfn,
         const VecXi &matching,
-        std::vector<Qport> &qports
+        vec<Qport> &qports
     ) {
-        std::vector<Qedge> qedges;
+        vec<Qedge> qedges;
         VecXc heR;
         VecXc heT;
         compute_trs_matrix(hm, cfn, matching, 4, heR, heT);

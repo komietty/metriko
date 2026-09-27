@@ -45,7 +45,7 @@ namespace metriko {
 
         SprsD gen_image_filed(const VecXd &currField) const {
             SprsD m(N * nF, currField.size());
-            std::vector<TripD> T;
+            vec<TripD> T;
             for (int i = 0; i < I.rows(); i++)
                 for (int j = 0; j < I.cols(); j++)
                     T.emplace_back(I(i, j), J(i, j), S(i, j));
@@ -101,7 +101,7 @@ namespace metriko {
                         barDer(i) = std::numeric_limits<double>::infinity();
 
                 gBarrier.resize(barDer.size(), barDer.size());
-                std::vector<TripD> T;
+                vec<TripD> T;
                 for (int i = 0; i < barDer.size(); i++)
                     T.emplace_back(i, i, barDer(i));
                 gBarrier.setFromTriplets(T.begin(), T.end());

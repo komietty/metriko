@@ -68,7 +68,7 @@ public:
 
 class Qface {
 public:
-    std::vector<Qhalf> qhalfs;
+    vec<Qhalf> qhalfs;
 };
 
 inline void compute_trs_matrix(

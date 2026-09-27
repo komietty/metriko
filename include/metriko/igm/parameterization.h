@@ -17,7 +17,7 @@ namespace metriko {
         const MatXd &ext;
         const VecXi &singlars;
         const VecXi &matching;
-        const std::vector<bool> &seam;
+        const vec<bool> &seam;
         double gridscale;      // Global scaling of the grid
         int nT;                // Number of transitions
         int nR;                // Number of vertices that are inside the raw mesh plus nT
@@ -49,7 +49,7 @@ namespace metriko {
             const MatXd &ext,
             const VecXi &singlars,
             const VecXi &matching,
-            const std::vector<bool> &seam,
+            const vec<bool> &seam,
             const int degree,
             const double ratio = 0.02
         ) : raw(raw),
@@ -127,11 +127,11 @@ namespace metriko {
     //----- utility function to cut mesh by seam -----//
     inline std::unique_ptr<Hmesh> compute_cut_mesh(
         const Hmesh& m,
-        const std::vector<bool>& seam
+        const vec<bool>& seam
     ) {
         MatXd cutV;
         MatXi cutF(m.nF, 3);
-        std::vector<Row3d> cut2pos;
+        vec<Row3d> cut2pos;
 
         for (Vert v: m.verts) {
             Half bgn = v.half();
@@ -155,7 +155,7 @@ namespace metriko {
 
     template <typename T1, typename T2>
     void assign_block(
-        std::vector<Eigen::Triplet<T1>>& triplets,
+        vec<Eigen::Triplet<T1>>& triplets,
         const Eigen::Matrix<T2, Eigen::Dynamic, Eigen::Dynamic>& mat,
         const int row_bgn,
         const int col_bgn

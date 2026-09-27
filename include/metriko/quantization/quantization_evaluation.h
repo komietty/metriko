@@ -14,9 +14,9 @@ namespace metriko {
     /*
     // need to evaluate which is better dense or sparse
     inline VecXd construct_generating_vector(
-        const std::vector<Tedge>& tedges,
-        const std::vector<Thalf>& thalfs,
-        const std::vector<int>& generating_loop
+        const vec<Tedge>& tedges,
+        const vec<Thalf>& thalfs,
+        const vec<int>& generating_loop
     ) {
         VecXd V = VecXd::Zero(tedges.size());
         for (int thid: generating_loop) {
@@ -35,7 +35,7 @@ namespace metriko {
         Func compare
     ) {
         int rows = (int)tmesh.tedges.size();
-        std::vector<std::pair<int, VecXd>> cache;
+        vec<std::pair<int, VecXd>> cache;
 
         for (const Thalf &th: tmesh.thalfs) {
             if (!th.cannonical) continue;
@@ -78,7 +78,7 @@ namespace metriko {
         for (int i = 0; i < canos.size(); ++i)
             loops[i] = gen_basis_loop(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side, R, *canos[i], compare);
 
-        std::vector<TripD> T;
+        vec<TripD> T;
         for (int i = 0; i < loops.size(); ++i)
         for (int thid: loops[i])
             T.emplace_back(i, tmesh.thalfs[thid].teid, 1);

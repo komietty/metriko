@@ -14,13 +14,13 @@ namespace metriko::qex {
     inline void generate_eqvert_qport(
         const Hmesh &mesh,
         const VecXc &cfn,
-        const std::vector<Qvert> &eqverts,
-        std::vector<Qport> &qports
+        const vec<Qvert> &eqverts,
+        vec<Qport> &qports
     ) {
         for (const Qvert &qv: eqverts) {
             vec<std::pair<double, Qport>> ps;
             Edge e = mesh.edges[qv.sid];
-            for (const Half h: std::vector{e.half(), e.half().twin()}) {
+            for (const Half h: vec{e.half(), e.half().twin()}) {
                 auto c1  = h.next().crnr();
                 auto c2  = h.prev().crnr();
                 auto uv1 = cfn(c1.id);
@@ -58,8 +58,8 @@ namespace metriko::qex {
 
     inline void generate_fqvert_qport(
         const Hmesh &mesh,
-        const std::vector<Qvert> &fqverts,
-        std::vector<Qport> &qports
+        const vec<Qvert> &fqverts,
+        vec<Qport> &qports
     ) {
         for (const Qvert &qv: fqverts) {
             Face f = mesh.faces[qv.sid];
@@ -77,8 +77,8 @@ namespace metriko::qex {
     inline void generate_vqvert_qport(
         const Hmesh &mesh,
         const VecXc &cfn,
-        const std::vector<Qvert> &vqverts,
-        std::vector<Qport> &qports
+        const vec<Qvert> &vqverts,
+        vec<Qport> &qports
     ) {
         for (const Qvert &qv: vqverts) {
             vec<std::pair<double, Qport>> ps;

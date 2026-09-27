@@ -16,7 +16,7 @@
 namespace metriko {
 inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
     SprsD S(mesh.nV, mesh.nV);
-    std::vector<TripD> T;
+    vec<TripD> T;
 
     for (Vert v: mesh.verts) {
         if (v.isBoundary()) T.emplace_back(v.id, v.id, 1);

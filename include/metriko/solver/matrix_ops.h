@@ -22,7 +22,7 @@ inline void reduce_to_linearly_independent(SprsD& mat) {
     VecXi rid_map = VecXi::Constant(mat.rows(), -1);
     for (int j = 0; j < rank; ++j) rid_map(idcs(j)) = j; // original mat row idx -> QR decomped mat row idx
 
-    std::vector<TripD> T;
+    vec<TripD> T;
     T.reserve(mat.nonZeros());
     for (int k = 0; k < mat.outerSize(); ++k) {
     for (SprsD::InnerIterator it(mat, k); it; ++it) {
@@ -36,7 +36,7 @@ inline void reduce_to_linearly_independent(SprsD& mat) {
 template<typename Scalar>
 void sparse_block(
     const MatXi &idcs,
-    const std::vector<Eigen::SparseMatrix<Scalar> *> &mats,
+    const vec<Eigen::SparseMatrix<Scalar> *> &mats,
     Eigen::SparseMatrix<Scalar> &result
 ) {
     //assessing dimensions
@@ -52,7 +52,7 @@ void sparse_block(
         col_offsets(col_oft - 1) + mats[idcs(0, col_oft - 1)]->cols()
     );
 
-    std::vector<Eigen::Triplet<Scalar>> T;
+    vec<Eigen::Triplet<Scalar>> T;
     for (int i = 0; i < row_offsets.size(); i++)
     for (int j = 0; j < col_offsets.size(); j++)
     for (int k = 0; k < mats[i]->outerSize(); ++k)

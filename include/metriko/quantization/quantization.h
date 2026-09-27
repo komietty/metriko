@@ -34,13 +34,13 @@ namespace metriko {
     // loop passes the tedge of `to`.
     struct StripArc { int fr; int to; int teid; };
 
-    inline std::vector<StripArc> build_strip_arcs(
-        const std::vector<Tquad>& tquads,
-        const std::vector<Thalf>& thalfs,
+    inline vec<StripArc> build_strip_arcs(
+        const vec<Tquad>& tquads,
+        const vec<Thalf>& thalfs,
         const VecXi& th2quad,
         const VecXi& th2side
     ) {
-        std::vector<StripArc> arcs;
+        vec<StripArc> arcs;
         for (const Thalf& th: thalfs) {
             const auto& tq = tquads[th2quad[th.id]];
             for (const auto& d: tq.data)
@@ -176,7 +176,7 @@ namespace metriko {
         int counter = 0;
         while (counter < 30) {
             double prev_e = e;
-            std::vector<std::tuple<int, int, bool>> es;
+            vec<std::tuple<int, int, bool>> es;
             int l = tm.tedges.size();
             for (int j = 0; j < l; j++) {
                 es.emplace_back(compute_weight(R[j], X[j], l, false), j, false);

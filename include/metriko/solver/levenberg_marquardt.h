@@ -25,7 +25,7 @@ namespace metriko {
         ) {
             //collecting the diagonal values
             Eigen::VectorXd dampVector = Eigen::VectorXd::Zero(initSolution.size());
-            std::vector<Eigen::Triplet<double> > dampJTris;
+            vec<Eigen::Triplet<double> > dampJTris;
             for (int k = 0; k < J.outerSize(); ++k) {
                 for (Eigen::SparseMatrix<double>::InnerIterator it(J, k); it; ++it) {
                     dampVector(it.col()) += currLambda * it.value() * it.value();
@@ -67,7 +67,7 @@ namespace metriko {
                 std::cout << "Current Lambda: " << currLambda << std::endl;
             //collecting the diagonal values
             Eigen::VectorXd dampVector = Eigen::VectorXd::Zero(currSolution.size());
-            std::vector<Eigen::Triplet<double> > dampJTris;
+            vec<Eigen::Triplet<double> > dampJTris;
             for (int k = 0; k < J.outerSize(); ++k) {
                 for (Eigen::SparseMatrix<double>::InnerIterator it(J, k); it; ++it) {
                     dampVector(it.col()) += currLambda * it.value() * it.value();

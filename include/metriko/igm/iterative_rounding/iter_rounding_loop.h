@@ -19,11 +19,11 @@ public:
     VecXd xInit;
     VecXd xCurr;
     VecXd xPrev;
-    std::vector<int> leftIdcs;
-    std::vector<int> fixedIdcs;
-    std::vector<int> fixedVals;
-    std::vector<int> integerIdcs;  // used when rounding uv on seams
-    std::vector<int> singularIdcs; // used when rounding uv on singularities
+    vec<int> leftIdcs;
+    vec<int> fixedIdcs;
+    vec<int> fixedVals;
+    vec<int> integerIdcs;  // used when rounding uv on seams
+    vec<int> singularIdcs; // used when rounding uv on singularities
     bool roundedSingulars, roundSeams;
 
     void initial_solution(VecXd &x0_) const { x0_ = xInit; }
@@ -60,7 +60,7 @@ public:
 
         //fixedIndices constantness
         gConst.resize(fixedIdcs.size(), X.size());
-        std::vector<TripD> gcT;
+        vec<TripD> gcT;
         for (int i = 0; i < fixedIdcs.size(); i++)
             gcT.emplace_back(i, fixedIdcs[i], 1.);
 
@@ -117,8 +117,8 @@ public:
        roundedSingulars(false),
        roundSeams(roundSeams_)
     {
-        integerIdcs  = std::vector(iIdcs.data(), iIdcs.data() + iIdcs.size());
-        singularIdcs = std::vector(sIdcs.data(), sIdcs.data() + sIdcs.size());
+        integerIdcs  = vec(iIdcs.data(), iIdcs.data() + iIdcs.size());
+        singularIdcs = vec(sIdcs.data(), sIdcs.data() + sIdcs.size());
         leftIdcs = roundSeams ? integerIdcs : singularIdcs;
 
         xSize = UFull.cols();

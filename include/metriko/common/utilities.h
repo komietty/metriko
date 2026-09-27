@@ -72,7 +72,7 @@ struct minmax_int {
     int max_y;
 };
 
-inline minmax_int get_minmax_int(std::vector<complex> uvs) {
+inline minmax_int get_minmax_int(vec<complex> uvs) {
     auto xs = vw::transform(uvs, [](complex uv) { return uv.real(); });
     auto ys = vw::transform(uvs, [](complex uv) { return uv.imag(); });
     return minmax_int{

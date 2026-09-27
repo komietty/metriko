@@ -18,8 +18,8 @@ namespace metriko {
     inline void RosyParameterization::compute_he2transidx() {
         he2transidx.resize(raw.nH);
         he2transidx.setConstant(32767);
-        std::vector valence(raw.nV, 0.);
-        std::vector claimed(raw.nE, false);
+        vec valence(raw.nV, 0.);
+        vec claimed(raw.nE, false);
 
         for (Edge e: raw.edges)
             if (seam[e.id]) {
@@ -58,7 +58,7 @@ namespace metriko {
 
     inline void RosyParameterization::setup() {
         // here we compute a permutation matrix
-        std::vector<MatXi> constParmMats(N);
+        vec<MatXi> constParmMats(N);
         MatXi unitPermMat = MatXi::Zero(N, N);
         for (int i = 0; i < N; i++) unitPermMat((i + 1) % N, i) = 1;
 
@@ -66,14 +66,14 @@ namespace metriko {
         constParmMats[0] = MatXi::Identity(N, N);
         for (int i = 1; i < N; i++) constParmMats[i] = unitPermMat * constParmMats[i - 1];
 
-        std::vector<TripD> vT, cT;
+        vec<TripD> vT, cT;
         // forming the constraints and the singularity positions
         int currConstraint = 0;
         // this loop set up the transitions (vector field matching) across the cuts
         for (Vert v: raw.verts) {
             // 1: The initial corner gets the identity without any transition
-            std::vector<MatXi> permMats;
-            std::vector<int> permIdcs;
+            vec<MatXi> permMats;
+            vec<int> permIdcs;
             permMats.emplace_back(MatXi::Identity(N, N));
             permIdcs.emplace_back(v.id);
             int iVcut = -1;
@@ -110,8 +110,8 @@ namespace metriko {
             // 2: cleaning parmMats and permIdcs to see if there is a constraint or reveal singularity-from-transition
             if (!v.isBoundary()) {
                 std::set temp(permIdcs.begin(), permIdcs.end());
-                std::vector idcs(temp.begin(), temp.end());
-                std::vector<MatXi> mats(idcs.size());
+                vec idcs(temp.begin(), temp.end());
+                vec<MatXi> mats(idcs.size());
 
                 for (int j = 0; j < idcs.size(); j++) {
                     mats[j] = MatXi::Zero(N, N);
@@ -141,7 +141,7 @@ namespace metriko {
         /// The parameterization should always only include n dof for the surface
         /// Warning: this assumes n divides N!
         /// integer variables are per single "d" packet, and the rounding is done for the N functions with projection over linRed
-        std::vector<TripD> buff;
+        vec<TripD> buff;
         buff.clear();
         for (int i = 0; i < N * nR; i += N) assign_block(buff, lreductor, i, i * n/N);
         uncompress.resize(N * nR, n * nR);

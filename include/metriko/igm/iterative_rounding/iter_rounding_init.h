@@ -40,7 +40,7 @@ namespace metriko {
             gClose.resize(l1, l2);
             gConst.resize(l3, l2);
 
-            std::vector<TripD> T;
+            vec<TripD> T;
 
             for (int k = 0; k < G2.outerSize(); ++k)
                 for (SprsD::InnerIterator it(G2, k); it; ++it)
@@ -114,7 +114,7 @@ namespace metriko {
 
             // creating small dense matrix with all non-zero columns
             VecXi JMask = VecXi::Constant(Cfull.cols(), -1);
-            std::vector uj(uniqueJ.begin(), uniqueJ.end());
+            vec uj(uniqueJ.begin(), uniqueJ.end());
             VecXi uniqueJVec = Eigen::Map<VecXi>(uj.data(), uj.size());
             for (int i = 0; i < uj.size(); i++) JMask(uj[i]) = i;
 
@@ -138,7 +138,7 @@ namespace metriko {
                 nonPartIndices.size() + USmall.rows(),
                 nonPartIndices.size() + USmall.cols()
             );
-            std::vector<TripD> urT;
+            vec<TripD> urT;
             for (int i = 0; i < nonPartIndices.size(); i++) urT.emplace_back(i, i, 1.);
 
             for (int i = 0; i < USmall.rows(); i++) {
@@ -150,7 +150,7 @@ namespace metriko {
             URaw.setFromTriplets(urT.begin(), urT.end());
 
             SprsD permMat(URaw.rows(), URaw.rows());
-            std::vector<TripD> pmT;
+            vec<TripD> pmT;
             for (int ci = 0; ci < nonPartIndices.size(); ci++) pmT.emplace_back(nonPartIndices(ci), ci, 1.);
             for (int ci = 0; ci < uniqueJVec.size(); ci++) pmT.emplace_back(
                 uniqueJVec(ci), nonPartIndices.size() + ci, 1.);
@@ -169,7 +169,7 @@ namespace metriko {
             // maybe it is better to use correct mass matrix ...
             // double max_mass = 0;
             // for (Face f: mesh.faces) { max_mass = std::max(max_mass, f.area() * 0.5); }
-            // std::vector<TripD> T;
+            // vec<TripD> T;
             // for (Face f: mesh.faces) {
             // for (int i = 0; i < N * 2; i++) {
             //     T.emplace_back(f.id * N * 2 + i, f.id * N * 2 + i, f.area() / max_mass);
@@ -184,7 +184,7 @@ namespace metriko {
 
             igl::slice(UFull, fixedIdcs, 1, constMat);
 
-            std::vector<TripD> bmT;
+            vec<TripD> bmT;
 
             for (int k = 0; k < E.outerSize(); ++k)
             for (SprsD::InnerIterator it(E, k); it; ++it)
@@ -215,7 +215,7 @@ namespace metriko {
             XF_Small.resize(XSmall.size() + F2.size());
             XF_Small << XSmall, F2;
 
-            std::vector<TripD> ueT;
+            vec<TripD> ueT;
             for (int k = 0; k < UFull.outerSize(); ++k)
             for (SprsD::InnerIterator it(UFull, k); it; ++it)
                 ueT.emplace_back(it.row(), it.col(), it.value());

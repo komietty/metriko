@@ -14,9 +14,9 @@ namespace metriko::qex {
     inline void generate_q_vert(
         const Hmesh &mesh,
         const VecXc &cfn,
-        std::vector<Qvert> &vqvs,
-        std::vector<Qvert> &eqvs,
-        std::vector<Qvert> &fqvs
+        vec<Qvert> &vqvs,
+        vec<Qvert> &eqvs,
+        vec<Qvert> &fqvs
     ) {
         // vert_q_vert
         for (Vert v: mesh.verts) {

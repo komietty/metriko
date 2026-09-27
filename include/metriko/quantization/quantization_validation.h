@@ -18,14 +18,14 @@ inline bool compute_validation(
 ) {
     if ((X.array() < 0).any()) return false;
 
-    std::vector<std::vector<int>> adjs(mg.mnodes.size());
+    vec<vec<int>> adjs(mg.mnodes.size());
     for (auto& te : tm.tedges)
         if (X[te.id] == 0) {
             adjs[te.fr_nid].push_back(te.to_nid);
             adjs[te.to_nid].push_back(te.fr_nid);
         }
 
-    std::vector visited(mg.mnodes.size(), false);
+    vec visited(mg.mnodes.size(), false);
 
     for (int i = 0; i < mg.mnodes.size(); ++i) {
         if (mg.mnodes[i].jt != JunctionType::F || visited[i]) continue;
