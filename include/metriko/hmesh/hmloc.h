@@ -32,6 +32,10 @@ inline Row3d get_ptloc_pos(const Hmesh& hm, const HmLoc& loc) {
     }, loc);
 }
 
+inline Row3d get_ptloc_dif(const Hmesh& hm, const HmLoc& l0, const HmLoc& l1) {
+    return get_ptloc_pos(hm, l1) - get_ptloc_pos(hm, l0);
+}
+
 inline Row3d get_ptloc_nml(const Hmesh& hm, const HmLoc& loc) {
     return std::visit(overloaded{
         [&](const HmLocOnV& l) -> Row3d { return hm.verts[l.id].normal(); },

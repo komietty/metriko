@@ -9,9 +9,10 @@
 #include "emesh.h"
 
 namespace metriko {
-vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
+vec<Erng> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
+    vec<Erng> res;
     vec v_stop(hm.nV, false);
-    umap<int, double> lo, hi;
+    umap<int, Erng> rngs;
     std::set<int> v_wall = {};
 
     for (int thid : thids) {
@@ -30,23 +31,18 @@ vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>&
             auto er = try_get_edge_ratio(hm, lj); if (!er) continue;
             auto [e, r] = *er;
 
-            if (!lo.contains(e.id)) { lo[e.id] = 0.; hi[e.id] = 1.; }
-
-            Row3d dir = get_ptloc_pos(hm, tnodes[te.nids[k]]) - get_ptloc_pos(hm, lj); // Row3d, not auto
-            Row3d nrm = get_ptloc_nml(hm, lj);                                         // Row3d, not auto
-            if (nrm.dot(dir.cross(e.vec())) > 0) lo[e.id] = std::max(lo[e.id], r); // inner side is [r, 1]
-            else                                 hi[e.id] = std::min(hi[e.id], r); // inner side is [0, r]
+            auto& rng = rngs.try_emplace(e.id, Erng{.id = e.id, .fr = 0., .to = 1.}).first->second;
+            Row3d dif = get_ptloc_dif(hm, lj, tnodes[te.nids[k]]);
+            Row3d nrm = get_ptloc_nml(hm, lj);
+            if (nrm.dot(dif.cross(e.vec())) > 0) rng.clip(r, 1.);
+            else                                 rng.clip(0., r);
         }
     }
 
-    vec<std::tuple<int, double, double>> res;
-    for (auto& [eid, l] : lo) if (l < hi[eid]) res.emplace_back(eid, l, hi[eid]);
-
-    // flood the interior vertex by vertex: walls are the crossing edges and the OnV nodes;
-    // every edge met on the way is fully admissible
     vec v_seen(hm.nV, false);
     vec e_done(hm.nE, false);
-    for (const auto& eid: lo | std::views::keys) e_done[eid] = true;
+    for (const auto& [eid, r] : rngs) if (!r.empty()) res.push_back(r);
+    for (const auto& [eid, r] : rngs) e_done[eid] = true;
 
     vec<int> stack;
 
@@ -56,12 +52,10 @@ vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>&
         stack.push_back(vid);
     };
 
-    // 種：交差 edge の内側端点（lo==0 → tail 内側 / hi==1 → head 内側）
-    for (auto& [eid, l] : lo) {
-        if (!(l < hi[eid])) continue;
-        Edge e = hm.edges[eid];
-        if (l <= 0)       push_v(e.vert0().id);
-        if (hi[eid] >= 1) push_v(e.vert1().id);
+    for (const auto& [eid, rng] : rngs) {
+        if (rng.empty()) continue;
+        if (rng.fr <= 0.) push_v(hm.edges[eid].vert0().id);
+        if (rng.to >= 1.) push_v(hm.edges[eid].vert1().id);
     }
 
     while (!stack.empty()) {
@@ -89,7 +83,7 @@ vec<std::tuple<int, double, double>> Emesh::allowed_range_thalfs(const vec<int>&
     return res;
 }
 
-vec<std::tuple<int, double, double>> Emesh::allowed_range_tquads(const vec<int>& tqids) const {
+vec<Erng> Emesh::allowed_range_tquads(const vec<int>& tqids) const {
     vec<int> thids;
     for (int tqid: tqids)
     for (auto& [thid, _]: tquads[tqid].data)

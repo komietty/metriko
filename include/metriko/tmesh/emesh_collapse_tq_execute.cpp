@@ -21,7 +21,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     vec<Candidate> candidates;
 
     // create map of tqid and region
-    std::map<int, vec<std::tuple<int, double, double>>> regions;
+    std::map<int, vec<Erng>> regions;
     for (int tqid : chain.tqids) regions[tqid] = allowed_range_tquads({tqid});
 
     auto tquad_of = [&](int v) {
@@ -81,13 +81,13 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         return path;
     };
 
-    // euler characteristic of the faces a region touches: 1 for a disk, 0 for an annulus (a band around a tube)
-    auto euler = [&](const vec<std::tuple<int, double, double>>& region) {
+    auto euler = [&](const vec<Erng>& region) {
         std::set<int> fs, vs, es;
 
-        for (auto& [eid, r0, r1]: region)
-        for (int fid: get_ptloc_faces(hm, HmLocOnE{ eid, 0.5 }))
-            fs.insert(fid);
+        for (auto& [eid, r0, r1]: region) {
+            fs.insert(hm.edges[eid].face0().id);
+            fs.insert(hm.edges[eid].face1().id);
+        }
 
         for (int fid: fs)
         for (Half h: hm.faces[fid].adjHalfs()) {
