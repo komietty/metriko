@@ -20,7 +20,9 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         while (true) {
             const auto& th_prev = thalfs[seq.back()];
             const auto& th_curr = thalfs[th_prev.twid];
+            METRIKO_CHECK(th_curr.id != -1 && th_curr.tqid != -1, "thalf {}: twin {} is not on a live tquad", th_prev.id, th_prev.twid);
             const auto& tq_curr = tquads[th_curr.tqid];
+            METRIKO_CHECK(tq_curr.id != -1 && tq_curr.find_of(th_curr.id) != tq_curr.data.end(), "thalf {} is not on its tquad {}", th_curr.id, th_curr.tqid);
             auto s0      = tq_curr.side_of(th_curr);
             auto thids_0 = tq_curr.thids(s0);
             auto thids_1 = tq_curr.thids((s0 + 1) % 4);
@@ -31,6 +33,7 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
             if (count_adj_tquads(th_curr.id)   == 4)      return true; // stop caz cannot go father
             if (count_adj_tquads(th_curr.twid) == 4)      return true; // stop caz cannot go father
             if (sum(thids_1) == 0 || sum(thids_3) == 0)   return true; // stop caz tq_curr's all sides are x == zero
+            METRIKO_CHECK(!thids_2.empty(), "tquad {}: no thalf on the side opposite to thalf {} (side sizes {} {} {} {})", tq_curr.id, th_curr.id, thids_0.size(), thids_1.size(), thids_2.size(), thids_3.size());
             seq.push_back(thids_2.front());
         }
     };
