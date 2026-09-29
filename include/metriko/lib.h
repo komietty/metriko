@@ -5,7 +5,6 @@
 #include "nvec/face_rosy_field.h"
 #include "igm/parameterization.h"
 #include "quantization/quantization.h"
-#include "tmesh/tmesh.h"
 #include "tmesh/emesh.h"
 #include "tmesh/emesh_validate.h"
 #include "metriko/tutte/tutte_cutting.h"
@@ -22,7 +21,6 @@ namespace metriko {
 struct RemeshResult {
     std::unique_ptr<Hmesh>         hmesh;
     std::unique_ptr<Mgrph>         mgrph;
-    std::unique_ptr<Tmesh>         tmesh;
     std::unique_ptr<Emesh>         emesh;
     std::unique_ptr<FaceRosyField> cmbf;
     vec<bool>                      seam;
@@ -69,49 +67,48 @@ inline RemeshResult compute_remesh(
     }
 
     auto mg = std::make_unique<Mgrph>(*hm, cfn_c, cmbf->matching, cmbf->singular);
-    auto tm = std::make_unique<Tmesh>(*mg);
-    auto em = std::make_unique<Emesh>(*mg, *tm);
-    auto X  = compute_quantization(*em, *mg);
-    validate_quantization(*em, X);
-    em->set_x(X);
+    auto tm = std::make_unique<Emesh>(*mg);
+    auto X  = compute_quantization(*tm, *mg);
+    validate_quantization(*tm, X);
+    tm->set_x(X);
 
     for (int i = 0; i < 100; ++i) {
         // collapse thalf
-        for (Ehalf th0 : em->thalfs) {
+        for (Ehalf th0 : tm->thalfs) {
             if (th0.id == -1 || th0.x != 0) continue;
-            auto& th1 = em->thalfs[th0.twid];
-            auto& tq0 = em->tquads[th0.tqid];
-            auto& tq1 = em->tquads[th1.tqid];
+            auto& th1 = tm->thalfs[th0.twid];
+            auto& tq0 = tm->tquads[th0.tqid];
+            auto& tq1 = tm->tquads[th1.tqid];
             if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
             if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
-            em->collapse_thalf(th0.id);
+            tm->collapse_thalf(th0.id);
         }
 
         // collapse tquad
-        for (const auto& [tqid, _] : em->live_tquads())
-            if (Tqchain c; em->collapse_tquad_chain_prepare(tqid, c))
-                em->collapse_tquad_chain_execute(c);
+        for (const auto& [tqid, _] : tm->live_tquads())
+            if (Tqchain c; tm->collapse_tquad_chain_prepare(tqid, c))
+                tm->collapse_tquad_chain_execute(c);
 
         // if there is no zero-x tedge, break
-        if (rg::none_of(em->thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; })) break;
+        if (rg::none_of(tm->thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; })) break;
     }
-    validate_collapse_done(*em);
+    validate_collapse_done(*tm);
 
-    em->collapse_tedge_snap(false);
-    em->collapse_tedge_snap(true);
-    for (const auto& [teid, _] : em->live_tedges()) { em->collapse_tedge_snap_dedup(teid); }
+    tm->collapse_tedge_snap(false);
+    tm->collapse_tedge_snap(true);
+    for (const auto& [teid, _] : tm->live_tedges()) { tm->collapse_tedge_snap_dedup(teid); }
 
-    repair_crossing_tedges(*em);
+    repair_crossing_tedges(*tm);
 
     ///--- cut the original mesh along the collapsed t-mesh ---///
     vec<bool> seam1;
     VecXi matching1;
     VecXi singular1;
     vec<HalfData> hdata;
-    auto hm_emb = compute_embedding_cut_hmesh(*hm, *em, seam, cmbf->matching, cmbf->singular, seam1, matching1, singular1, hdata);
+    auto hm_emb = compute_embedding_cut_hmesh(*hm, *tm, seam, cmbf->matching, cmbf->singular, seam1, matching1, singular1, hdata);
     auto hm_cut = compute_cut_mesh(*hm_emb, seam1);
 
-    MatXd uv = compute_tutte_parameterization(*hm_emb, *em, seam1, hdata);
+    MatXd uv = compute_tutte_parameterization(*hm_emb, *tm, seam1, hdata);
 
     igl::SLIMData sData;
     MatXd uv_init(hm_cut->nV, 2);
@@ -161,13 +158,12 @@ inline RemeshResult compute_remesh(
     auto q_edges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
     auto q_faces = qex::generate_q_faces(q_ports, q_edges);
     std::tie(res.q_pos, res.q_idx) = extract_quad_mesh(*hm, q_faces, refine);
-    res.q_patch = label_quad_patches(*em, cmbf->singular, q_faces, res.q_idx);
+    res.q_patch = label_quad_patches(*tm, cmbf->singular, q_faces, res.q_idx);
 
     res.hmesh = std::move(hm);
     res.cmbf  = std::move(cmbf);
     res.mgrph = std::move(mg);
-    res.tmesh = std::move(tm);
-    res.emesh = std::move(em);
+    res.emesh = std::move(tm);
     res.seam  = seam;
     res.qnt_x = X;
     res.cfn_d = std::move(rp.cfn);

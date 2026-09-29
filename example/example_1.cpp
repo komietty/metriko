@@ -47,47 +47,47 @@ int main(int argc, char** argv) {
 
     ///--- gen mport, medge ---///
     auto mg = Mgrph(hm, uv2, matching, singular);
-    auto tm = Tmesh(mg);
-    Emesh em(mg, tm);
-    auto X  = compute_quantization(em, mg);
-    validate_quantization(em, X);
-    em.set_x(X);
-    assert(tm.check_non_zero_tquad(X));
+    Emesh tm(mg);
+    auto X  = compute_quantization(tm, mg);
+    validate_quantization(tm, X);
+    tm.set_x(X);
+    // every tquad keeps a non-zero side after the quantization
+    assert(rg::none_of(tm.live_tquads(), [&](const Equad& tq) { return rg::all_of(tq.data, [&](const Edata& d) { return tm.thalfs[d.thid].x == 0; }); }));
 
     visualizer::visualize_init();
-    visualizer::visualize_tedge(tm, mg, uv2, &X);
-    visualizer::visualize_pinched_tquads(tm, mg, uv2);
+    visualizer::visualize_tedge(tm);
+    visualizer::visualize_pinched_tquads(tm);
 
 
-    auto count_zero = [&] { return rg::count_if(em.thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; }); };
+    auto count_zero = [&] { return rg::count_if(tm.thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; }); };
     auto n_zero     = count_zero();
     std::println("[collapse] zero thalfs before collapse: {}", n_zero);
 
     for (int i = 0; i < 20 && n_zero > 0; ++i) {
         // collapse thalf
-        for (Ehalf th0 : em.thalfs) {
+        for (Ehalf th0 : tm.thalfs) {
             if (th0.id == -1) continue;
-            auto& th1 = em.thalfs[th0.twid];
-            auto& tq0 = em.tquads[th0.tqid];
-            auto& tq1 = em.tquads[th1.tqid];
+            auto& th1 = tm.thalfs[th0.twid];
+            auto& tq0 = tm.tquads[th0.tqid];
+            auto& tq1 = tm.tquads[th1.tqid];
             if (th1.id == -1) continue;
             if (th0.x != 0)   continue;
             if (tq0.thids(tq0.side_of(th0)).size() == 1) continue;
             if (tq1.thids(tq1.side_of(th1)).size() == 1) continue;
             std::cout << "th collapse: " << th0.id << std::endl;
-            em.collapse_thalf(th0.id);
-            validate_emesh(em);
+            tm.collapse_thalf(th0.id);
+            validate_emesh(tm);
         }
 
         // collapse tquad
-        for (const auto& [tqid, data] : em.live_tquads()) {
+        for (const auto& [tqid, data] : tm.live_tquads()) {
             Tqchain chain;
-            if (em.collapse_tquad_chain_prepare(tqid, chain)) {
+            if (tm.collapse_tquad_chain_prepare(tqid, chain)) {
                 std::cout << "tq collapse: " << tqid << std::endl;
 
                 // TODO TEMP: dump the chain when execute fails, then rethrow
                 try {
-                    em.collapse_tquad_chain_execute(chain);
+                    tm.collapse_tquad_chain_execute(chain);
                 } catch (const std::exception& ex) {
                     std::println("[debug] execute failed at tqid {}: {}", tqid, ex.what());
                     std::print  ("[debug] tqids:");
@@ -97,11 +97,11 @@ int main(int argc, char** argv) {
                     std::println("");
                     for (size_t k = 0; k < chain.pts.size(); ++k) {
                         const auto& p = chain.pts[k];
-                        std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} top {}", k, loc_str(em.tnodes[p.nid]), p.val, p.ord, p.top);
+                        std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} top {}", k, loc_str(tm.tnodes[p.nid]), p.val, p.ord, p.top);
                     }
                     auto dump_side = [&](const char* name, const vec<int>& thids) {
                         for (int t: thids) {
-                            const auto& th = em.thalfs[t];
+                            const auto& th = tm.thalfs[t];
                             std::println("[debug] {} thid {} (teid {}, tqid {}, cano {}, x {}): {} -> {}", name, t, th.teid, th.tqid, th.cano, th.x, loc_str(th.loc_fr()), loc_str(th.loc_to()));
                         }
                     };
@@ -109,13 +109,13 @@ int main(int argc, char** argv) {
                     dump_side("thids_b", chain.thids_b);
                     dump_side("thids_z", chain.thids_z);
                     for (int t: {chain.thid_l, chain.thid_r}) {
-                        const auto& th = em.thalfs[t];
+                        const auto& th = tm.thalfs[t];
                         std::println("[debug] {} thid {}: {} -> {}", t == chain.thid_l ? "thid_l" : "thid_r", t, loc_str(th.loc_fr()), loc_str(th.loc_to()));
                     }
-                    visualizer::visualize_allowed_range(hm, em.allowed_range_tquads({tqid}), std::format("allowed tq{}", tqid));
+                    visualizer::visualize_allowed_range(hm, tm.allowed_range_tquads({tqid}), std::format("allowed tq{}", tqid));
                     goto EXIT_MULTI_LOOP;
                 }
-                validate_emesh(em);
+                validate_emesh(tm);
             }
         }
 
@@ -125,16 +125,16 @@ int main(int argc, char** argv) {
         if (left >= n_zero) {
             std::println("[collapse] no progress: {} zero thalfs left", left);
             auto sides = [&](int thid) {
-                const auto& tq = em.tquads[em.thalfs[thid].tqid];
+                const auto& tq = tm.tquads[tm.thalfs[thid].tqid];
                 std::string s;
                 for (int k = 0; k < 4; ++k) {
                     s += " [";
-                    for (int t: tq.thids(k)) s += std::format("{}{}", t == thid ? "*" : " ", em.thalfs[t].x);
+                    for (int t: tq.thids(k)) s += std::format("{}{}", t == thid ? "*" : " ", tm.thalfs[t].x);
                     s += " ]";
                 }
                 return std::format("tq {}:{}", tq.id, s);
             };
-            for (const Ehalf& th: em.thalfs) {
+            for (const Ehalf& th: tm.thalfs) {
                 if (th.id == -1 || th.x != 0 || !th.cano) continue;
                 std::println("[collapse]   thid {} / {}  {}  |  {}", th.id, th.twid, sides(th.id), sides(th.twid));
             }
@@ -146,8 +146,8 @@ int main(int argc, char** argv) {
 
     // TEMP debug: tquads surviving the collapse with a zero-length side (they map onto a segment in
     // tutte), and tquads whose opposite sides disagree in quantized length
-    for (auto& tq: em.live_tquads()) {
-        auto sum = [&](int s) { double x = 0; for (int t: tq.thids(s)) x += em.thalfs[t].x; return x; };
+    for (auto& tq: tm.live_tquads()) {
+        auto sum = [&](int s) { double x = 0; for (int t: tq.thids(s)) x += tm.thalfs[t].x; return x; };
         double x0 = sum(0), x1 = sum(1), x2 = sum(2), x3 = sum(3);
         bool zero     = x0 == 0 || x1 == 0;
         bool mismatch = x0 != x2 || x1 != x3;
@@ -155,24 +155,24 @@ int main(int argc, char** argv) {
         std::print("[tq check] tqid {}: {}{} side x = {} {} {} {} |", tq.id, zero ? "zero side " : "", mismatch ? "opposite sides differ " : "", x0, x1, x2, x3);
         for (int s = 0; s < 4; ++s) {
             std::print(" [");
-            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, em.thalfs[t].x, em.count_adj_tquads(t), em.count_adj_tquads(em.thalfs[t].twid));
+            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, tm.thalfs[t].x, tm.count_adj_tquads(t), tm.count_adj_tquads(tm.thalfs[t].twid));
             std::print(" ]");
         }
         std::println("");
     }
 
-    em.collapse_tedge_snap(false);
-    em.collapse_tedge_snap(true);
-    for (const auto& [teid, _] : em.live_tedges()) { em.collapse_tedge_snap_dedup(teid); }
+    tm.collapse_tedge_snap(false);
+    tm.collapse_tedge_snap(true);
+    for (const auto& [teid, _] : tm.live_tedges()) { tm.collapse_tedge_snap_dedup(teid); }
 
-    for (auto& tq: em.live_tquads()) {
-        auto sum = [&](int s) { double x = 0; for (int t: tq.thids(s)) x += em.thalfs[t].x; return x; };
+    for (auto& tq: tm.live_tquads()) {
+        auto sum = [&](int s) { double x = 0; for (int t: tq.thids(s)) x += tm.thalfs[t].x; return x; };
         assert(sum(0) == sum(2) && sum(1) == sum(3));
         if (sum(0) > 0 && sum(1) > 0) continue;
         std::print("[zero tq] tqid {}: side x = {} {} {} {} |", tq.id, sum(0), sum(1), sum(2), sum(3));
         for (int s = 0; s < 4; ++s) {
             std::print(" [");
-            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, em.thalfs[t].x, em.count_adj_tquads(t), em.count_adj_tquads(em.thalfs[t].twid));
+            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, tm.thalfs[t].x, tm.count_adj_tquads(t), tm.count_adj_tquads(tm.thalfs[t].twid));
             std::print(" ]");
         }
         std::println("");
@@ -181,20 +181,20 @@ int main(int argc, char** argv) {
 
     // snapping can bring two tedges into contact: re-trace the offenders and
     // refuse to emit a t-mesh that still has contacts
-    repair_crossing_tedges(em);
-    if (validate_no_crossing(em, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
+    repair_crossing_tedges(tm);
+    if (validate_no_crossing(tm, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
 
-    if (validate_no_crossing(em, "after repair") > 0) {
+    if (validate_no_crossing(tm, "after repair") > 0) {
         // TODO TEMP: show the surviving contacts before aborting
         visualizer::visualize_mesh(hm.pos, hm.idx, true, "base mesh");
-        for (auto& c: find_tedge_contacts(em)) {
+        for (auto& c: find_tedge_contacts(tm)) {
             for (int teid: {c.te_seg, c.te_ndp}) {
-                const auto& nids = em.tedges[teid].nids;
+                const auto& nids = tm.tedges[teid].nids;
                 std::vector<glm::vec3> ns;
                 std::vector<std::array<size_t, 2>> es;
                 std::vector<double> ord;
                 for (size_t k = 0; k < nids.size(); ++k) {
-                    Row3d p = get_ptloc_pos(hm, em.tnodes[nids[k]]);
+                    Row3d p = get_ptloc_pos(hm, tm.tnodes[nids[k]]);
                     ns.emplace_back(p.x(), p.y(), p.z());
                     ord.push_back((double)k);
                     if (k + 1 < nids.size()) es.push_back({k, k + 1});
@@ -229,24 +229,24 @@ int main(int argc, char** argv) {
         throw std::runtime_error("tedge contacts remain");
     }
 
-    save_emesh(std::format("{}.{}.em", argv[1], argv[2]), em);
-    std::println("saved em cache");
+    save_emesh(std::format("{}.{}.tm", argv[1], argv[2]), tm);
+    std::println("saved tm cache");
 
     // TEMP debug: crossings left by the collapse phase, with the full node chains involved
-    if (validate_no_crossing(em, "after collapse") > 0) {
-        for (auto& c: find_tedge_contacts(em))
+    if (validate_no_crossing(tm, "after collapse") > 0) {
+        for (auto& c: find_tedge_contacts(tm))
         for (int t: {c.te_seg, c.te_ndp}) {
             std::print("[debug] teid {}:", t);
-            for (int nid: em.tedges[t].nids) std::print(" {}", loc_str(em.tnodes[nid]));
+            for (int nid: tm.tedges[t].nids) std::print(" {}", loc_str(tm.tnodes[nid]));
             std::println("");
         }
     }
 
     visualizer::visualize_mesh(hm.pos, hm.idx);
-    visualizer::visualize_unsnapped_tnodes(hm, em, false);
-    visualizer::visualize_tedges(hm, em, "tedges snapped", true);
-    visualizer::visualize_tedges(hm, em, "tedges collapsed", false);
-    visualizer::visualize_tquads(hm, em, false);
+    visualizer::visualize_unsnapped_tnodes(hm, tm, false);
+    visualizer::visualize_tedges(hm, tm, "tedges snapped", true);
+    visualizer::visualize_tedges(hm, tm, "tedges collapsed", false);
+    visualizer::visualize_tquads(hm, tm, false);
 
     polyscope::show(); return 0;
 }

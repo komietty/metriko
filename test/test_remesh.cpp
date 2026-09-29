@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
         try {
             auto res = compute_remesh(V, F, scale, ft == FieldType::CurvatureAligned);
 
-            CHECK(res.hmesh && res.mgrph && res.tmesh && res.emesh);
+            CHECK(res.hmesh && res.mgrph && res.emesh);
             CHECK(validate_no_crossing(*res.emesh, "test") == 0);                              // no tedge contacts
             CHECK(!res.q_faces.empty());                                                        // reached quad extraction
             CHECK(rg::all_of(res.q_ports, [](const qex::Qport& p) { return p.isConnected; }));  // every port paired

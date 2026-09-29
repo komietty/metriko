@@ -117,24 +117,23 @@ inline void visualize_seam(const Hmesh& hm, const vec<bool>& seam, const VecXi& 
 }
 
 //------------------------------------------------------------------------------
-// motorcycle t-mesh (Tmesh over the Mgrph, before the collapse)
+// t-mesh right after the motorcycle graph and the quantization (before the collapse)
 //------------------------------------------------------------------------------
 
-// every tedge as its motorcycle segments, with the quantized length X when given
-inline void visualize_tedge(const Tmesh& tm, const Mgrph& mg, const VecXc& uv, const VecXd* X = nullptr, const bool show = true) {
+// every tedge as its node chain, with the tquads on both sides, its length R and its quantized length X (x < 0
+// before the quantization)
+inline void visualize_tedge(const Emesh& tm, const bool show = true) {
     Segments sg;
-    for (const auto& te: tm.tedges) {
-        const auto& th0 = tm.thalfs[te.id * 2];   // cano thalf: created as a consecutive pair (2*teid, +1 = twin)
-        for (const Msgmt& s: te.segs) {
-            const Face f = mg.hm.faces[s.face_id];
-            complex a = get_face_uv(mg.mnodes[s.fr_nid].loc, s.face_id, mg.hm, mg.cf);
-            complex b = get_face_uv(mg.mnodes[s.to_nid].loc, s.face_id, mg.hm, mg.cf);
-            sg.add(conversion_2d_3d(f, uv, a), conversion_2d_3d(f, uv, b));
-            sg.scalar("teid", te.id);
-            sg.scalar("tqid1", tm.th2quad[th0.id]);
-            sg.scalar("tqid2", tm.th2quad[th0.twid]);
-            sg.scalar("R", te.len);
-            if (X) sg.scalar("X", (*X)[te.id]);
+    for (const Ehalf& th: tm.thalfs) {
+        if (th.id == -1 || !th.cano) continue;
+        const auto& nids = tm.tedges[th.teid].nids;
+        for (size_t k = 0; k + 1 < nids.size(); ++k) {
+            sg.add(get_ptloc_pos(tm.hm, tm.tnodes[nids[k]]), get_ptloc_pos(tm.hm, tm.tnodes[nids[k + 1]]));
+            sg.scalar("teid", th.teid);
+            sg.scalar("tqid1", th.tqid);
+            sg.scalar("tqid2", tm.thalfs[th.twid].tqid);
+            sg.scalar("R", th.r);
+            sg.scalar("X", th.x);
         }
     }
     sg.show("tedges", 0.0005, show)->setColor({0., 0., 0.});
@@ -143,33 +142,35 @@ inline void visualize_tedge(const Tmesh& tm, const Mgrph& mg, const VecXc& uv, c
 // tquads whose boundary walk returns to a corner node it already passed. the patch is then not a
 // disk, which the per-tquad tutte embedding downstream assumes it is. it happens around
 // high-valence singularities: the patch leaves along one separatrix and comes back along another
-inline void visualize_pinched_tquads(const Tmesh& tm, const Mgrph& mg, const VecXc& uv, const bool show = true, const double scale = 0.002) {
+inline void visualize_pinched_tquads(const Emesh& tm, const bool show = true, const double scale = 0.002) {
     Segments sg;
     Points pts;
-    for (const auto& tq: tm.tquads) {
-        if (tq.id == -1 || tq.data.empty()) continue;
+    for (const Equad& tq: tm.live_tquads()) {
+        if (tq.data.empty()) continue;
         std::map<int, int> visits;
         for (const auto& d: tq.data) visits[tm.thalfs[d.thid].nid_fr()]++;
         if (rg::none_of(visits, [](const auto& p) { return p.second > 1; })) continue;
 
         std::set<int> done;
-        for (const auto& [thid, side]: tq.data)
-        for (const Msgmt& s: tm.tedges[tm.thalfs[thid].teid].segs) {
-            const Face f = mg.hm.faces[s.face_id];
-            Row3d p = conversion_2d_3d(f, uv, get_face_uv(mg.mnodes[s.fr_nid].loc, s.face_id, mg.hm, mg.cf));
-            Row3d q = conversion_2d_3d(f, uv, get_face_uv(mg.mnodes[s.to_nid].loc, s.face_id, mg.hm, mg.cf));
-            sg.add(p, q);
-            sg.scalar("tqid", tq.id);
-            sg.scalar("side", side);
-            if (auto it = visits.find(s.fr_nid); it != visits.end() && it->second > 1 && done.insert(s.fr_nid).second) {
-                pts.add(p);
-                pts.scalar("nid", s.fr_nid);
-                pts.scalar("tqid", tq.id);
-                pts.scalar("visits", it->second);
+        for (const auto& [thid, side]: tq.data) {
+            auto nids = tm.tedges[tm.thalfs[thid].teid].nids;
+            if (!tm.thalfs[thid].cano) rg::reverse(nids);
+            for (size_t k = 0; k + 1 < nids.size(); ++k) {
+                Row3d p = get_ptloc_pos(tm.hm, tm.tnodes[nids[k]]);
+                Row3d q = get_ptloc_pos(tm.hm, tm.tnodes[nids[k + 1]]);
+                sg.add(p, q);
+                sg.scalar("tqid", tq.id);
+                sg.scalar("side", side);
+                if (auto it = visits.find(nids[k]); it != visits.end() && it->second > 1 && done.insert(nids[k]).second) {
+                    pts.add(p);
+                    pts.scalar("nid", nids[k]);
+                    pts.scalar("tqid", tq.id);
+                    pts.scalar("visits", it->second);
+                }
             }
         }
     }
-    if (!pts.ps.empty()) std::println("[pinched] {} pinch nodes over {} tquads", pts.ps.size(), tm.nTQ);
+    if (!pts.ps.empty()) std::println("[pinched] {} pinch nodes over {} tquads", pts.ps.size(), tm.tquads.size());
     sg.show("pinched tquad boundary", scale, show, "side");
     pts.show("pinch node", scale * 2.5, show, "nid");
 }

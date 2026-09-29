@@ -7,7 +7,7 @@
 //
 #ifndef METRIKO_EMESH_H
 #define METRIKO_EMESH_H
-#include "tmesh.h"
+#include "motorcycle.h"
 #include "metriko/hmesh/hmloc.h"
 #include "metriko/hmesh/hpath.h"
 #include "metriko/hmesh/utilities.h"
@@ -87,14 +87,13 @@ struct Emesh {
 
     explicit Emesh(const Hmesh& hm): hm(hm) {}
 
-    // x stays -1 until set_x() is called with the quantization result
-    Emesh(const Mgrph& mg, const Tmesh& tm): hm(mg.hm) {
+    // builds the t-mesh from the motorcycle graph: every curve is split into tedges at its junction nodes, the
+    // thalfs leaving a junction are ordered by the node's adjacency, and every tquad is traced along the next
+    // thalfs. r is the length of the tedge in the parameter domain (used by the quantization); x stays -1 until
+    // set_x() is called with the quantization result
+    explicit Emesh(const Mgrph& mg): hm(mg.hm) {
         const VecXc& cf = mg.cf;
         tnodes.reserve(mg.mnodes.size());
-        tedges.reserve(tm.tedges.size());
-        thalfs.reserve(tm.thalfs.size());
-        tquads.reserve(tm.tquads.size());
-
         for (const Mnode& mn : mg.mnodes) {
             tnodes.push_back(std::visit(overloaded{
                 [&](const auto&     _) -> HmLoc { METRIKO_FAIL("no impl"); },
@@ -104,35 +103,90 @@ struct Emesh {
             }, mn.loc));
         }
 
-        for (const Tedge& te : tm.tedges) {
-            Eedge tem {};
-            tem.id = te.id;
-            tem.nids.reserve(te.segs.size() + 1);
-            tem.nids.push_back(te.segs.front().fr_nid);
-            for (const Msgmt& sg : te.segs) tem.nids.push_back(sg.to_nid);
-            tedges.push_back(std::move(tem));
+        // 1: one tedge per run of segments between two junction nodes. a trailing run that ends at no junction
+        //    does not make a tedge
+        vec<int> crv;             // teid -> curve it lies on, delimits the tquad sides below
+        vec<const Msgmt*> sg_bgn; // teid -> its first / last segment, ranks the thalfs at the junctions
+        vec<const Msgmt*> sg_end;
+        for (const Mcurv& mc: mg.mcurvs) {
+            int    bgn_nid = mc.sgmts.front().fr_nid;
+            size_t bgn_sg  = 0;
+            double len     = 0;
+            vec<int> nids  = {bgn_nid};
+            for (size_t i = 0; i < mc.sgmts.size(); ++i) {
+                const Msgmt& sg = mc.sgmts[i];
+                len += std::abs(get_face_uv(mg.mnodes[sg.to_nid].loc, sg.face_id, hm, cf) - get_face_uv(mg.mnodes[sg.fr_nid].loc, sg.face_id, hm, cf));
+                nids.push_back(sg.to_nid);
+                if (mg.mnodes[sg.to_nid].jt == JunctionType::None) continue;
+
+                const int  teid = tedges.size();
+                const int  thid = thalfs.size();
+                const bool bgn  = mg.mnodes[bgn_nid].jt == JunctionType::F;
+                const bool end  = mg.mnodes[sg.to_nid].jt == JunctionType::T;
+                tedges.push_back({.id = teid, .nids = std::move(nids)});
+                thalfs.push_back({.tm = this, .id = thid,     .twid = thid + 1, .teid = teid, .cano = true,  .bgn = bgn, .end = end, .r = len});
+                thalfs.push_back({.tm = this, .id = thid + 1, .twid = thid,     .teid = teid, .cano = false, .r = len});
+                crv.push_back(mc.id);
+                sg_bgn.push_back(&mc.sgmts[bgn_sg]);
+                sg_end.push_back(&sg);
+
+                bgn_nid = sg.to_nid;
+                bgn_sg  = i + 1;
+                len     = 0;
+                nids    = {bgn_nid};
+            }
         }
 
-        for (const Thalf& th : tm.thalfs) {
-            thalfs.push_back({
-                .tm   = this,
-                .id   = th.id,
-                .twid = th.twid,
-                .teid = th.teid,
-                .tqid = tm.th2quad[th.id],
-                .cano = th.cano,
-                .bgn  = th.cano && tm.tedges[th.teid].isBgn,
-                .end  = th.cano && tm.tedges[th.teid].isEnd,
-                .r    = tm.tedges[th.teid].len
-            });
+        // 2: at every junction, the thalf entering it continues with the next outgoing one clockwise
+        vec<int>      nxid(thalfs.size(), -1);
+        vec<vec<int>> outgoing(mg.mnodes.size());
+        for (const Ehalf& th: thalfs) outgoing[th.nid_fr()].push_back(th.id);
+        for (int nid = 0; nid < mg.mnodes.size(); ++nid) {
+            const Mnode& mn  = mg.mnodes[nid];
+            vec<int>&    out = outgoing[nid];
+            if (mn.jt == JunctionType::None || out.empty()) continue;
+            auto rank = [&](int thid) {
+                const Ehalf& th = thalfs[thid];
+                const Msgmt& sg = th.cano ? *sg_bgn[th.teid] : *sg_end[th.teid];
+                return rg::distance(mn.adj.begin(), rg::find_if(mn.adj, [&](const Row2i& ad) { return ad.x() == sg.curv_id && ad.y() == sg.this_id; }));
+            };
+            rg::sort(out, {}, rank);
+            const int n = out.size();
+            for (int i = 0; i < n; ++i) nxid[thalfs[out[i]].twid] = out[(i - 1 + n) % n];
         }
 
-        for (const auto& [id, data] : tm.tquads) {
-            Equad tqm;
-            tqm.id = id;
-            tqm.data.reserve(data.size());
-            for (const auto& d : data) tqm.data.push_back({d.thid, d.side});
-            tquads.push_back(std::move(tqm));
+        // 3: trace every tquad along nxid. a side is a run of thalfs on one curve
+        vec visited(thalfs.size(), false);
+        for (int i = 0; i < thalfs.size(); ++i) {
+            if (visited[i]) continue;
+            Equad tq;
+            tq.id = tquads.size();
+            int thid = i;
+            int side = 0;
+            do {
+                if (visited[thid]) break;
+                tq.data.push_back({thid, side});
+                visited[thid] = true;
+                const int next = nxid[thid];
+                if (crv[thalfs[thid].teid] != crv[thalfs[next].teid]) side = (side + 1) % 4;
+                thid = next;
+            } while (thid != i);
+
+            // the walk started inside a side: rotate so that every side is one contiguous run, then renumber
+            if (crv[thalfs[tq.data.front().thid].teid] == crv[thalfs[tq.data.back().thid].teid]) {
+                const int f = tq.data.front().side;
+                const int n = rg::distance(tq.data | vw::take_while([=](const Edata& d) { return d.side == f; }));
+                rg::rotate(tq.data, tq.data.begin() + n);
+                int s = 0;
+                int c = crv[thalfs[tq.data.front().thid].teid];
+                for (Edata& d: tq.data) {
+                    if (crv[thalfs[d.thid].teid] != c) s = (s + 1) % 4;
+                    d.side = s;
+                    c = crv[thalfs[d.thid].teid];
+                }
+            }
+            for (const Edata& d: tq.data) thalfs[d.thid].tqid = tq.id;
+            tquads.push_back(std::move(tq));
         }
     }
 
