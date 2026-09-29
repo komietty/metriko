@@ -1,0 +1,60 @@
+//
+// Created by saki on 2026/09/28.
+//
+
+#ifndef HMESH_H_HMRAY_H
+#define HMESH_H_HMRAY_H
+#include "metriko/common/predicates.h"
+#include "metriko/hmesh/hmesh.h"
+#include "metriko/hmesh/hmloc.h"
+namespace metriko {
+inline std::optional<HmLoc> find_ray_intersection(
+    const Half h,
+    const VecXc& cfn,
+    const complex o,
+    const complex d,
+    const double tol
+) {
+    auto a = cfn(h.crnr_t().id);
+    auto b = cfn(h.crnr_h().id);
+    auto s = 0.;
+    auto t = 0.;
+    if (!find_extended_intersection(a, b, o, o + d, s, t)) return std::nullopt;
+    if (t <= tol || s < -tol || s > 1 + tol) return std::nullopt;
+    if (s < tol)     return HmLocOnC{.id = h.crnr_t().id};
+    if (s > 1 - tol) return HmLocOnC{.id = h.crnr_h().id};
+    return HmLocOnH{.id = h.id, .r = s};
+}
+
+inline HmLoc find_ray_intersection(
+    const Hmesh& hm,
+    const HmLoc& loc,
+    const VecXc& cfn,
+    const complex dir
+) {
+    double tol = EPS;
+
+    return std::visit(overloaded{
+        [&](const HmLocOnC& l) -> HmLoc {
+            if (auto x = find_ray_intersection(hm.crnrs[l.id].half(), cfn, cfn(l.id), dir, tol)) return *x;
+            METRIKO_FAIL("no intersection");
+        },
+        [&](const HmLocOnH& l) -> HmLoc {
+            auto h = hm.halfs[l.id];
+            auto o = lerp(cfn(h.crnr_t().id), cfn(h.crnr_h().id), l.r);
+            if (auto x = find_ray_intersection(h.next(), cfn, o, dir, tol)) return *x;
+            if (auto x = find_ray_intersection(h.prev(), cfn, o, dir, tol)) return *x;
+            METRIKO_FAIL("no intersection");
+        },
+        [&](const HmLocOnP& l) -> HmLoc {
+            auto hs = hm.faces[l.id].halfs();
+            if (auto x = find_ray_intersection(hs[0], cfn, l.uv, dir, tol)) return *x;
+            if (auto x = find_ray_intersection(hs[1], cfn, l.uv, dir, tol)) return *x;
+            if (auto x = find_ray_intersection(hs[2], cfn, l.uv, dir, tol)) return *x;
+            METRIKO_FAIL("no intersection");
+        },
+        [&](const auto& _) -> HmLoc { METRIKO_FAIL("no impl"); },
+    }, loc);
+}
+}
+#endif

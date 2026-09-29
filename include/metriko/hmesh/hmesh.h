@@ -86,16 +86,18 @@ struct Loop : Elem {
 };
 
 struct Half : Elem {
-    [[nodiscard]] Half next() const;
-    [[nodiscard]] Half prev() const;
-    [[nodiscard]] Half twin() const;
-    [[nodiscard]] Vert tail() const;
-    [[nodiscard]] Vert head() const;
-    [[nodiscard]] Edge edge() const;
-    [[nodiscard]] Face face() const;
-    [[nodiscard]] Crnr crnr() const;
-    [[nodiscard]] double len() const;
-    [[nodiscard]] double cot() const;
+    [[nodiscard]] Half next()   const;
+    [[nodiscard]] Half prev()   const;
+    [[nodiscard]] Half twin()   const;
+    [[nodiscard]] Vert tail()   const;
+    [[nodiscard]] Vert head()   const;
+    [[nodiscard]] Edge edge()   const;
+    [[nodiscard]] Face face()   const;
+    [[nodiscard]] Crnr crnr()   const;
+    [[nodiscard]] Crnr crnr_t() const;
+    [[nodiscard]] Crnr crnr_h() const;
+    [[nodiscard]] double len()  const;
+    [[nodiscard]] double cot()  const;
     [[nodiscard]] double varg() const;
     [[nodiscard]] double farg() const;
     [[nodiscard]] double darg() const;
@@ -137,6 +139,7 @@ struct Hmesh {
     vec<Crnr> crnrs;
     MatXd pos;
     MatXi idx;
+    //VecXc cfn;
     MatXi edge2vert;
     MatXi edge2face;
     MatXi face2edge;
@@ -211,6 +214,8 @@ inline Vert Half::head() const { return {m->head[id], m}; }
 inline Edge Half::edge() const { return {m->edge[id], m}; }
 inline Face Half::face() const { return {m->face[id], m}; }
 inline Crnr Half::crnr() const { return {m->crnr[id], m}; }
+inline Crnr Half::crnr_t() const { return next().crnr(); }
+inline Crnr Half::crnr_h() const { return prev().crnr(); }
 
 inline Half Vert::half() const { return {m->vert2half[id], m}; }
 inline Half Edge::half() const { return {m->edge2half[id], m}; }

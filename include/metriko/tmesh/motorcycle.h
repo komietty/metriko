@@ -11,6 +11,7 @@
 #include "../common/predicates.h"
 #include "../hmesh/hmesh.h"
 #include "metriko/hmesh/hmloc.h"
+#include "metriko/hmesh/hmray.h"
 #include "metriko/hmesh/utilities.h"
 
 namespace metriko {
@@ -78,8 +79,8 @@ inline void update_to_twin(const Hmesh& hm, const VecXc& cf, const VecXi& matchi
             d *= std::polar(1., PI / 2 * get_m(h));
             auto c1  = h.next().crnr();
             auto uv0 = cf(c1.id);
-            auto uv1 = cf(c1.half().next().crnr().id);
-            auto uv2 = cf(c1.half().prev().crnr().id);
+            auto uv1 = cf(c1.half().crnr_t().id);
+            auto uv2 = cf(c1.half().crnr_h().id);
             if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) { buff = Mbuff{.uv = uv0, .dr = d, .cid = c1.id}; return; }
         }
     }
@@ -96,33 +97,13 @@ inline void update_to_twin(const Hmesh& hm, const VecXc& cf, const VecXi& matchi
 }
 
 inline void update_to_oppo(const Hmesh& hm, const VecXc& cf, Mbuff& buff) {
-    auto dir = buff.dr;
-    auto uv0 = buff.uv;
-
-    auto gen_buff_crnr = [&](Crnr c) { return Mbuff {.uv = cf(c.id), .dr = dir, .cid = c.id }; };
-    auto gen_buff_half = [&](Half h) {
-        double _, r;
-        auto uv1 = cf(h.next().crnr().id);
-        auto uv2 = cf(h.prev().crnr().id);
-        find_extended_intersection(uv0, uv0 + dir, uv1, uv2, _, r);
-        return Mbuff{.uv = lerp(uv1, uv2, r), .dr = dir, .hid = h.id, .r = r};
-    };
-
-    if (buff.cid != -1) {
-        auto c  = hm.crnrs[buff.cid];
-        auto h_ = try_get_opposite_half_from_crnr(c, cf, dir, TOLERANCE_HALF);
-        auto c_ = try_get_opposite_crnr_from_crnr(c, cf, dir, TOLERANCE_CRNR);
-        if (h_.has_value()) { buff = gen_buff_half(h_.value()); return; }
-        if (c_.has_value()) { buff = gen_buff_crnr(c_.value()); return; }
-    }
-    if (buff.hid != -1) {
-        auto h  = hm.halfs[buff.hid];
-        auto h_ = try_get_opposite_half_from_half(h, cf, uv0, dir, TOLERANCE_HALF);
-        auto c_ = try_get_opposite_crnr_from_half(h, cf, uv0, dir, TOLERANCE_CRNR);
-        if (h_.has_value()) { buff = gen_buff_half(h_.value()); return; }
-        if (c_.has_value()) { buff = gen_buff_crnr(c_.value()); return; }
-    }
-    METRIKO_FAIL("not implemented");
+    auto fr = buff.cid != -1 ? HmLoc{HmLocOnC{buff.cid}} : HmLoc{HmLocOnH{buff.hid, buff.r}};
+    auto it = find_ray_intersection(hm, fr, cf, buff.dr);
+    std::visit(overloaded{
+        [&](const HmLocOnC& l) { buff = Mbuff{.uv = cf(l.id), .dr = buff.dr, .cid = l.id}; },
+        [&](const HmLocOnH& l) { buff = Mbuff{.uv = lerp(cf(hm.halfs[l.id].crnr_t().id), cf(hm.halfs[l.id].crnr_h().id), l.r), .dr = buff.dr, .hid = l.id, .r = l.r}; },
+        [&](const auto&) { METRIKO_FAIL("unexpected exit location"); },
+    }, it);
 }
 
 struct  Mgrph {

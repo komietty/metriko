@@ -25,6 +25,10 @@ inline Row3d conversion_2d_3d(const Face& f, const VecXc& cf, const complex uv) 
         uv);
 }
 
+inline complex lerp_uv(const Half h, const VecXc& cfn, double ratio) {
+    return lerp(cfn(h.crnr_t().id), cfn(h.crnr_h().id), ratio);
+}
+
 inline bool is_inside_face(const Face f, const VecXc& cf, const complex uv) {
     auto uv1 = cf(f.id * 3 + 0);
     auto uv2 = cf(f.id * 3 + 1);
