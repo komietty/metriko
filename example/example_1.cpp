@@ -46,7 +46,8 @@ int main(int argc, char** argv) {
         throw std::runtime_error("the cache does not exist");
 
     ///--- gen mport, medge ---///
-    auto mg = Mgrph(hm, uv2, matching, singular);
+    hm.cfn = uv2;
+    auto mg = Mgrph(hm, matching, singular);
     Emesh tm(mg);
     auto X  = compute_quantization(tm, mg);
     validate_quantization(tm, X);

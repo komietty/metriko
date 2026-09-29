@@ -56,22 +56,20 @@ struct Mcurv {
     vec<Msgmt> sgmts = {};
     Mbuff buff = {};
     bool operator==(const Mcurv &c) const { return id == c.id; }
-    void add_segment(const Hmesh& hm, const VecXc& cf);
+    void add_segment(const Hmesh& hm);
 };
 
 struct  Mgrph {
     const Hmesh &hm;
-    const VecXc &cf;
     vec<Mport> mports;
     vec<Mnode> mnodes;
     vec<Mcurv> mcurvs;
 
     Mgrph(
         const Hmesh &hm,
-        const VecXc &cf,
         const VecXi &matching,
         const VecXi &singular
-    ) : hm(hm), cf(cf) {
+    ) : hm(hm) {
         gen_ports(singular);
 
         for (auto v: hm.verts | vw::filter([&](auto& v) { return singular[v.id]; }))
@@ -81,16 +79,15 @@ struct  Mgrph {
         mcurvs.reserve(mports.size());
         for (const auto& p : mports) {
             mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.loc = HmLocOnC{p.crnr_id}, .dir = p.dir}});
-            mcurvs.back().add_segment(hm, cf);
+            mcurvs.back().add_segment(hm);
         }
 
         // 2: Add further segments until every curve crash to another curve
         while (rg::any_of(mcurvs, [](auto &c) { return !c.buff.end; })) {
             for (auto &mc: mcurvs) {
                 if (mc.buff.end) continue;
-                std::tie(mc.buff.loc, mc.buff.dir) =
-                    cross_to_twin(hm, mc.buff.loc, cf, matching, mc.buff.dir);
-                mc.add_segment(hm, cf);
+                std::tie(mc.buff.loc, mc.buff.dir) = cross_to_twin(hm, mc.buff.loc, matching, mc.buff.dir);
+                mc.add_segment(hm);
             }
         }
 
@@ -126,9 +123,9 @@ inline void Mgrph::gen_ports(const VecXi &singular) {
 
         for (Half h: v.adjHalfs()) {
             buff1.clear();
-            auto a = cf(h.next().crnr().id);
-            auto b = cf(h.prev().crnr().id);
-            auto c = cf(h.crnr().id);
+            auto a = hm.cfn(h.next().crnr().id);
+            auto b = hm.cfn(h.prev().crnr().id);
+            auto c = hm.cfn(h.crnr().id);
             auto o = orientation(a, b, c);
             auto ab = b - a;
             auto ac = c - a;
@@ -170,8 +167,8 @@ inline void Mgrph::sort_node_adjacency() {
         auto get_fid = [&](const Row2i& ad) { return mcurvs[ad.x()].sgmts[ad.y()].face_id; };
         auto get_dir = [&](const Row2i& ad) {
             auto& s  = mcurvs[ad.x()].sgmts[ad.y()];
-            auto uvA = get_face_uv(mnodes[s.fr_nid].loc, s.face_id, hm, cf);
-            auto uvB = get_face_uv(mnodes[s.to_nid].loc, s.face_id, hm, cf);
+            auto uvA = get_face_uv(mnodes[s.fr_nid].loc, s.face_id, hm);
+            auto uvB = get_face_uv(mnodes[s.to_nid].loc, s.face_id, hm);
             METRIKO_CHECK(abs(uvA - uvB) > 1e-8, "zero-length segment at node {}", nid);
             return s.fr_nid == nid ? uvB - uvA : uvA - uvB;
         };
@@ -208,13 +205,13 @@ inline void Mgrph::sort_node_adjacency() {
     }
 }
 
-inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
+inline void Mcurv::add_segment(const Hmesh &hm) {
     auto fr  = buff.loc;
     auto bgn = sgmts.empty(); // add_segment always appends one, so only the first call sees it empty
-    auto uv0 = get_chart_uv(hm, cf, fr);
+    auto uv0 = get_chart_uv(hm, fr);
     auto fid = get_chart_face(hm, fr).id;
-    buff.loc = find_ray_intersection(hm, fr, cf, buff.dir);
-    auto uv3 = get_chart_uv(hm, cf, buff.loc);
+    buff.loc = find_ray_intersection(hm, fr, buff.dir);
+    auto uv3 = get_chart_uv(hm, buff.loc);
 
     vec<std::tuple<double, double, Msgmt>> candidates;
 
@@ -227,8 +224,8 @@ inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
 
     for (auto &s: sgs) {
         double ab, cd;
-        auto uvA = get_face_uv(mg->mnodes[s.fr_nid].loc, fid, hm, cf);
-        auto uvB = get_face_uv(mg->mnodes[s.to_nid].loc, fid, hm, cf);
+        auto uvA = get_face_uv(mg->mnodes[s.fr_nid].loc, fid, hm);
+        auto uvB = get_face_uv(mg->mnodes[s.to_nid].loc, fid, hm);
         if (find_strict_intersection(uv0, uv3, uvA, uvB, ab, cd, 0.)) candidates.emplace_back(ab, cd, s); // closed segments
     }
 
@@ -288,14 +285,14 @@ inline void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
             for (const auto& c: mg->mcurvs) {
             for (const auto& s: c.sgmts) {
                  if (s.to_nid == nid && s.face_id == fid) {
-                     auto o  = get_face_uv(mg->mnodes[nid].loc, fid, hm, cf);
-                     auto d0 = get_face_uv(mg->mnodes[s.fr_nid].loc , fid, hm, cf) - o;
-                     auto d1 = get_face_uv(mg->mnodes[sg.fr_nid].loc, fid, hm, cf) - o;
+                     auto o  = get_face_uv(mg->mnodes[nid].loc, fid, hm);
+                     auto d0 = get_face_uv(mg->mnodes[s.fr_nid].loc , fid, hm) - o;
+                     auto d1 = get_face_uv(mg->mnodes[sg.fr_nid].loc, fid, hm) - o;
                      auto l0 = abs(d0);
                      auto l1 = abs(d1);
                      if (l0 < EPS || l1 < EPS || dot(d0 / l0 , d1 / l1) > EPS) return false;
                  };
-            }}
+             }}
 
             mg->mnodes[nid].jt = JunctionType::T;
             sg.to_nid = nid;

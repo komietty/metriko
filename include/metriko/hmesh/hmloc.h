@@ -174,10 +174,10 @@ inline HmLoc to_chart_free(const Hmesh& hm, const HmLoc& loc) {
     }, loc);
 }
 
-inline complex get_chart_uv(const Hmesh& hm, const VecXc& cfn, const HmLoc& loc) {
+inline complex get_chart_uv(const Hmesh& hm, const HmLoc& loc) {
     return std::visit(overloaded{
-        [&](const HmLocOnC& l) -> complex { return cfn(l.id); },
-        [&](const HmLocOnH& l) -> complex { auto h = hm.halfs[l.id]; return lerp(cfn(h.crnr_t().id), cfn(h.crnr_h().id), l.r); },
+        [&](const HmLocOnC& l) -> complex { return hm.cfn(l.id); },
+        [&](const HmLocOnH& l) -> complex { return hm.halfs[l.id].lerp_uv(l.r); },
         [&](const HmLocOnP& l) -> complex { return l.uv; },
         [&](const auto& _)     -> complex { METRIKO_FAIL("{} has no chart", loc_str(loc)); },
     }, loc);

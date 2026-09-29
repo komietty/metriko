@@ -10,13 +10,12 @@
 namespace metriko {
 inline std::optional<HmLoc> find_ray_intersection(
     const Half h,
-    const VecXc& cfn,
     const complex o,
     const complex d,
     const double tol
 ) {
-    auto a = cfn(h.crnr_t().id);
-    auto b = cfn(h.crnr_h().id);
+    auto a = h.m->cfn(h.crnr_t().id);
+    auto b = h.m->cfn(h.crnr_h().id);
     auto s = 0.;
     auto t = 0.;
     if (!find_extended_intersection(a, b, o, o + d, s, t)) return std::nullopt;
@@ -29,28 +28,27 @@ inline std::optional<HmLoc> find_ray_intersection(
 inline HmLoc find_ray_intersection(
     const Hmesh& hm,
     const HmLoc& loc,
-    const VecXc& cfn,
     const complex dir
 ) {
     double tol = EPS;
 
     return std::visit(overloaded{
         [&](const HmLocOnC& l) -> HmLoc {
-            if (auto x = find_ray_intersection(hm.crnrs[l.id].half(), cfn, cfn(l.id), dir, tol)) return *x;
+            if (auto x = find_ray_intersection(hm.crnrs[l.id].half(), hm.cfn(l.id), dir, tol)) return *x;
             METRIKO_FAIL("no intersection");
         },
         [&](const HmLocOnH& l) -> HmLoc {
             auto h = hm.halfs[l.id];
-            auto o = lerp(cfn(h.crnr_t().id), cfn(h.crnr_h().id), l.r);
-            if (auto x = find_ray_intersection(h.next(), cfn, o, dir, tol)) return *x;
-            if (auto x = find_ray_intersection(h.prev(), cfn, o, dir, tol)) return *x;
+            auto o = h.lerp_uv(l.r);
+            if (auto x = find_ray_intersection(h.next(), o, dir, tol)) return *x;
+            if (auto x = find_ray_intersection(h.prev(), o, dir, tol)) return *x;
             METRIKO_FAIL("no intersection");
         },
         [&](const HmLocOnP& l) -> HmLoc {
             auto hs = hm.faces[l.id].halfs();
-            if (auto x = find_ray_intersection(hs[0], cfn, l.uv, dir, tol)) return *x;
-            if (auto x = find_ray_intersection(hs[1], cfn, l.uv, dir, tol)) return *x;
-            if (auto x = find_ray_intersection(hs[2], cfn, l.uv, dir, tol)) return *x;
+            if (auto x = find_ray_intersection(hs[0], l.uv, dir, tol)) return *x;
+            if (auto x = find_ray_intersection(hs[1], l.uv, dir, tol)) return *x;
+            if (auto x = find_ray_intersection(hs[2], l.uv, dir, tol)) return *x;
             METRIKO_FAIL("no intersection");
         },
         [&](const auto& _) -> HmLoc { METRIKO_FAIL("no impl"); },
@@ -60,7 +58,6 @@ inline HmLoc find_ray_intersection(
 inline std::pair<HmLoc, complex> cross_to_twin(
     const Hmesh& hm,
     const HmLoc& loc,
-    const VecXc& cfn,
     const VecXi& matching,
     const complex dir
 ) {
@@ -74,9 +71,9 @@ inline std::pair<HmLoc, complex> cross_to_twin(
             for (Half h: v.adjHalfs(c.half().next().twin())) {
                 d *= std::polar(1., PI / 2 * get_m(h));
                 auto c1  = h.next().crnr();
-                auto uv0 = cfn(c1.id);
-                auto uv1 = cfn(c1.half().crnr_t().id);
-                auto uv2 = cfn(c1.half().crnr_h().id);
+                auto uv0 = hm.cfn(c1.id);
+                auto uv1 = hm.cfn(c1.half().crnr_t().id);
+                auto uv2 = hm.cfn(c1.half().crnr_h().id);
                 if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {HmLocOnC{c1.id}, d};
             }
             METRIKO_FAIL("no face around vert {} admits the ray direction", v.id);

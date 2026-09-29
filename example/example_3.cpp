@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     MatXd V;
     MatXi F;
     igl::readOBJ(argv[1], V, F);
-    cleanup::cleanup_mesh(V, F);
+    //cleanup::cleanup_mesh(V, F);
     Hmesh hm(V, F);
     lap("load");
 
@@ -66,9 +66,10 @@ int main(int argc, char** argv) {
     const VecXi& matching = cmbf->matching;
     const VecXi& singular = cmbf->singular;
     save_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam);
+    hm.cfn = uv2;
 
     ///--- stage 1: quantization + t-mesh collapse / snap ---///
-    auto mg = Mgrph(hm, uv2, matching, singular);
+    auto mg = Mgrph(hm, matching, singular);
     Emesh tm(mg);
     auto X  = compute_quantization(tm, mg);
     tm.set_x(X);

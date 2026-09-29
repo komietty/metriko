@@ -24,8 +24,6 @@ struct RemeshResult {
     std::unique_ptr<Emesh>         emesh;
     std::unique_ptr<FaceRosyField> cmbf;
     vec<bool>                      seam;
-    std::unique_ptr<VecXc>         cfn_c;
-    MatXd                          cfn_d;
     MatXd                          qnt_x;
     vec<qex::Qport>                q_ports;
     vec<qex::Qedge>                q_edges;
@@ -58,15 +56,14 @@ inline RemeshResult compute_remesh(
     rp.integ();
 
     // built inside the result: Mgrph keeps a reference to it, so its address must stay put
-    res.cfn_c = std::make_unique<VecXc>(hm->nF * 3);
-    VecXc& cfn_c = *res.cfn_c;
+    hm->cfn = VecXc(hm->nF * 3);
     for (const Face f: hm->faces) {
-        cfn_c(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
-        cfn_c(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
-        cfn_c(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
+        hm->cfn(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
+        hm->cfn(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
+        hm->cfn(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
     }
 
-    auto mg = std::make_unique<Mgrph>(*hm, cfn_c, cmbf->matching, cmbf->singular);
+    auto mg = std::make_unique<Mgrph>(*hm, cmbf->matching, cmbf->singular);
     auto tm = std::make_unique<Emesh>(*mg);
     auto X  = compute_quantization(*tm, *mg);
     validate_quantization(*tm, X);
@@ -166,7 +163,6 @@ inline RemeshResult compute_remesh(
     res.emesh = std::move(tm);
     res.seam  = seam;
     res.qnt_x = X;
-    res.cfn_d = std::move(rp.cfn);
     res.q_ports = std::move(q_ports);
     res.q_edges = std::move(q_edges);
     res.q_faces = std::move(q_faces);

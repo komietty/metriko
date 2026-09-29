@@ -25,17 +25,6 @@ inline Row3d conversion_2d_3d(const Face& f, const VecXc& cf, const complex uv) 
         uv);
 }
 
-inline complex lerp_uv(const Half h, const VecXc& cfn, double ratio) {
-    return lerp(cfn(h.crnr_t().id), cfn(h.crnr_h().id), ratio);
-}
-
-inline bool is_inside_face(const Face f, const VecXc& cf, const complex uv) {
-    auto uv1 = cf(f.id * 3 + 0);
-    auto uv2 = cf(f.id * 3 + 1);
-    auto uv3 = cf(f.id * 3 + 2);
-    return is_inside_triangle(uv1, uv2, uv3, uv);
-}
-
 inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
     Face f = hm.faces[fid];
     Vert v = hm.verts[vid];
@@ -52,74 +41,13 @@ inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
     return std::nullopt;
 }
 
-inline std::optional<Half> try_get_opposite_half_from_half(
-    const Half h0,   // half came in
-    const VecXc &cf, // corner function
-    const complex o, // origin in 2d
-    const complex d, // direction in 2d
-    const double tol // tolerance to eliminate
-) {
-    for (Half h: h0.face().adjHalfs()) {
-        if (h.id == h0.id) continue;
-        auto a = cf(h.next().crnr().id);
-        auto b = cf(h.prev().crnr().id);
-        if (is_points_into(o, a, b, o + d, tol)) return h;
-    }
-    return std::nullopt;
-}
-
-inline std::optional<Crnr> try_get_opposite_crnr_from_half(
-    const Half h0,   // half came in
-    const VecXc &cf, // corner function
-    const complex o, // origin in 2d
-    const complex d, // direction in 2d
-    const double tol // tolerance to include
-) {
-    Crnr c = h0.crnr();
-    auto b = cf(c.id);
-    auto v = b - o;
-    if (abs(v) > tol && dot(v, d) > 0 && is_collinear(o, o + d, b, tol)) return c;
-    return std::nullopt;
-}
-
-inline std::optional<Half> try_get_opposite_half_from_crnr(
-    const Crnr c,    // crnr came in
-    const VecXc &cf, // corner function
-    const complex d, // direction in 2d
-    const double tol // tolerance to include
-) {
-    auto o = cf(c.id);
-    auto h = c.half();
-    auto a = cf(h.next().crnr().id);
-    auto b = cf(h.prev().crnr().id);
-    if (is_points_into(o, a, b, o + d, tol)) return h;
-    return std::nullopt;
-}
-
-inline std::optional<Crnr> try_get_opposite_crnr_from_crnr(
-    const Crnr c,    // crnr came in
-    const VecXc &cf, // corner function
-    const complex d, // direction in 2d
-    const double tol // tolerance to include
-) {
-    auto o = cf(c.id);
-    auto h  = c.half();
-    auto c1 = h.next().crnr();
-    auto c2 = h.prev().crnr();
-    if (is_collinear(o, o + d, cf(c1.id), tol)) return c1;
-    if (is_collinear(o, o + d, cf(c2.id), tol)) return c2;
-    return std::nullopt;
-}
-
-inline complex get_face_uv(const HmLoc& loc, int fid, const Hmesh& hm, const VecXc& cf) {
+inline complex get_face_uv(const HmLoc& loc, int fid, const Hmesh& hm) {
     return std::visit(overloaded {
         [&](const HmLocOnP& f) -> complex { return f.uv; },
-        [&](const HmLocOnV& v) -> complex { return cf[try_get_crnr(hm, v.id, fid).value().id]; },
+        [&](const HmLocOnV& v) -> complex { return hm.cfn[try_get_crnr(hm, v.id, fid).value().id]; },
         [&](const HmLocOnE& e) -> complex {
-            auto h  = try_get_half(hm, e.id, fid).value();
-            auto p0 = cf[h.next().crnr().id];
-            auto p1 = cf[h.prev().crnr().id];
-            return lerp(p0, p1, h.isCanonical() ? e.r : 1 - e.r);
+            auto h = try_get_half(hm, e.id, fid).value();
+            return h.lerp_uv(h.isCanonical() ? e.r : 1 - e.r);
         },
         [&](const auto& _) -> complex { METRIKO_FAIL("no impl"); },
     }, loc);

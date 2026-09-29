@@ -92,14 +92,13 @@ struct Emesh {
     // thalfs. r is the length of the tedge in the parameter domain (used by the quantization); x stays -1 until
     // set_x() is called with the quantization result
     explicit Emesh(const Mgrph& mg): hm(mg.hm) {
-        const VecXc& cf = mg.cf;
         tnodes.reserve(mg.mnodes.size());
         for (const Mnode& mn : mg.mnodes) {
             tnodes.push_back(std::visit(overloaded{
                 [&](const auto&     _) -> HmLoc { METRIKO_FAIL("no impl"); },
                 [&](const HmLocOnV& v) -> HmLoc { return HmLocOnV{v.id}; },
                 [&](const HmLocOnE& e) -> HmLoc { return HmLocOnE{.id = e.id, .r = e.r}; },
-                [&](const HmLocOnP& l) -> HmLoc { Face f = hm.faces[l.id]; return HmLocOnF{.id = l.id, .xy = f.to_local(conversion_2d_3d(f, cf, l.uv))}; },
+                [&](const HmLocOnP& l) -> HmLoc { Face f = hm.faces[l.id]; return HmLocOnF{.id = l.id, .xy = f.to_local(conversion_2d_3d(f, hm.cfn, l.uv))}; },
             }, mn.loc));
         }
 
@@ -115,7 +114,7 @@ struct Emesh {
             vec<int> nids  = {bgn_nid};
             for (size_t i = 0; i < mc.sgmts.size(); ++i) {
                 const Msgmt& sg = mc.sgmts[i];
-                len += std::abs(get_face_uv(mg.mnodes[sg.to_nid].loc, sg.face_id, hm, cf) - get_face_uv(mg.mnodes[sg.fr_nid].loc, sg.face_id, hm, cf));
+                len += std::abs(get_face_uv(mg.mnodes[sg.to_nid].loc, sg.face_id, hm) - get_face_uv(mg.mnodes[sg.fr_nid].loc, sg.face_id, hm));
                 nids.push_back(sg.to_nid);
                 if (mg.mnodes[sg.to_nid].jt == JunctionType::None) continue;
 
@@ -165,7 +164,7 @@ struct Emesh {
             int side = 0;
             do {
                 if (visited[thid]) break;
-                tq.data.push_back({thid, side});
+                tq.data.emplace_back(thid, side);
                 visited[thid] = true;
                 const int next = nxid[thid];
                 if (crv[thalfs[thid].teid] != crv[thalfs[next].teid]) side = (side + 1) % 4;

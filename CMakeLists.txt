@@ -75,7 +75,6 @@ add_library(${PROJECT_NAME} STATIC
         include/metriko/tmesh/emesh_collapse_tq_prepare.cpp
         include/metriko/tmesh/emesh_collapse_tq_execute.cpp
         include/metriko/tmesh/emesh_postprocess.cpp
-        include/metriko/quantization/quantization.h
 )
 
 #target_compile_definitions(${PROJECT_NAME} PUBLIC NOMINMAX _USE_MATH_DEFINES METRIKO_DEBUG)
