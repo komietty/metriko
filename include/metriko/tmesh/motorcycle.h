@@ -15,8 +15,6 @@
 #include "metriko/hmesh/utilities.h"
 
 namespace metriko {
-constexpr double TOLERANCE_HALF = 1e-6;    //
-constexpr double TOLERANCE_CRNR = 2e-6;    //
 constexpr double TOLERANCE_EDGE_AB = 1e-6; // tolerance on two curvs crash close to an edge
 constexpr double TOLERANCE_EDGE_CD = 1e-6; // tolerance on two curvs crash close to an edge
 
@@ -49,7 +47,7 @@ struct Msgmt {
 
 struct Mbuff {
     HmLoc loc  = {}; // curve front, chart-aware (OnC or OnH)
-    complex dr = {}; // direction in the chart of get_chart_face(loc)
+    complex dir = {}; // direction in the chart of get_chart_face(loc)
     bool bgn = false;
     bool end = false;
 };
@@ -72,20 +70,20 @@ inline void update_to_twin(const Hmesh& hm, const VecXc& cf, const VecXi& matchi
         [&](const HmLocOnC& l) -> Mbuff {
             auto c = hm.crnrs[l.id];
             auto v = c.vert();
-            auto d = buff.dr;
+            auto d = buff.dir;
             for (Half h: v.adjHalfs(c.half().next().twin())) {
                 d *= std::polar(1., PI / 2 * get_m(h));
                 auto c1  = h.next().crnr();
                 auto uv0 = cf(c1.id);
                 auto uv1 = cf(c1.half().crnr_t().id);
                 auto uv2 = cf(c1.half().crnr_h().id);
-                if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {.loc = HmLocOnC{c1.id}, .dr = d};
+                if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {.loc = HmLocOnC{c1.id}, .dir = d};
             }
             METRIKO_FAIL("no face around vert {} admits the curve direction", v.id);
         },
         [&](const HmLocOnH& l) -> Mbuff {
             auto h = hm.halfs[l.id].twin();
-            return {.loc = HmLocOnH{h.id, 1. - l.r}, .dr = std::polar(1., PI / 2 * get_m(h)) * buff.dr};
+            return {.loc = HmLocOnH{h.id, 1. - l.r}, .dir = std::polar(1., PI / 2 * get_m(h)) * buff.dir};
         },
         [&](const auto& _) -> Mbuff { METRIKO_FAIL("not implemented"); },
     }, buff.loc);
@@ -112,7 +110,7 @@ struct  Mgrph {
         // 1: Add the first segment for each curve
         mcurvs.reserve(mports.size());
         for (const auto& p : mports) {
-            mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.loc = HmLocOnC{p.crnr_id}, .dr = p.dr, .bgn = true}});
+            mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.loc = HmLocOnC{p.crnr_id}, .dir = p.dr, .bgn = true}});
             mcurvs.back().add_segment(hm, cf);
         }
 

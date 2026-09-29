@@ -82,7 +82,7 @@ void Mgrph::sort_node_adjacency() {
 
         std::visit(overloaded {
             [&](const HmLocOnV& v) {
-                std::unordered_map<int, int> ccw_rank;
+                umap<int, int> ccw_rank;
                 int rank = 0;
                 for (Half h : hm.verts[v.id].adjHalfs()) ccw_rank[h.face().id] = rank++;
                 rg::sort(mn.adj, [&](auto& a, auto& b) {
@@ -131,7 +131,7 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     auto bgn = buff.bgn;
     auto uv0 = get_chart_uv(hm, cf, fr);
     auto fid = get_chart_face(hm, fr).id;
-    buff = {.loc = find_ray_intersection(hm, buff.loc, cf, buff.dr), .dr = buff.dr};
+    buff = {.loc = find_ray_intersection(hm, buff.loc, cf, buff.dir), .dir = buff.dir};
     auto uv3 = get_chart_uv(hm, cf, buff.loc);
 
     vec<std::tuple<double, double, Msgmt>> candidates;
