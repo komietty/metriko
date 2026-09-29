@@ -156,5 +156,34 @@ inline auto loc_str(const HmLoc& l) {
         [](const HmLocOnP& p){ return std::format("P(id={}, uv=({},{}))", p.id, p.uv.real(), p.uv.imag()); },
     }, l);
 }
+
+// face whose chart a chart-aware location lives in
+inline Face get_chart_face(const Hmesh& hm, const HmLoc& loc) {
+    return std::visit(overloaded{
+        [&](const HmLocOnC& l) -> Face { return hm.crnrs[l.id].face(); },
+        [&](const HmLocOnH& l) -> Face { return hm.halfs[l.id].face(); },
+        [&](const HmLocOnP& l) -> Face { return hm.faces[l.id]; },
+        [&](const auto& _)     -> Face { METRIKO_FAIL("{} has no chart", loc_str(loc)); },
+    }, loc);
+}
+
+// chart-free counterpart of a chart-aware location: OnC -> OnV, OnH -> OnE
+inline HmLoc to_chart_free(const Hmesh& hm, const HmLoc& loc) {
+    return std::visit(overloaded{
+        [&](const HmLocOnC& l) -> HmLoc { return HmLocOnV{hm.crnrs[l.id].vert().id}; },
+        [&](const HmLocOnH& l) -> HmLoc { auto [e, r] = try_get_edge_ratio(hm, l).value(); return HmLocOnE{e.id, r}; },
+        [&](const auto& l)     -> HmLoc { return l; },
+    }, loc);
+}
+
+// uv of a chart-aware location in the chart of get_chart_face(loc)
+inline complex get_chart_uv(const Hmesh& hm, const VecXc& cfn, const HmLoc& loc) {
+    return std::visit(overloaded{
+        [&](const HmLocOnC& l) -> complex { return cfn(l.id); },
+        [&](const HmLocOnH& l) -> complex { auto h = hm.halfs[l.id]; return lerp(cfn(h.crnr_t().id), cfn(h.crnr_h().id), l.r); },
+        [&](const HmLocOnP& l) -> complex { return l.uv; },
+        [&](const auto& _)     -> complex { METRIKO_FAIL("{} has no chart", loc_str(loc)); },
+    }, loc);
+}
 }
 #endif

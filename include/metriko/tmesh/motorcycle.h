@@ -48,11 +48,8 @@ struct Msgmt {
 };
 
 struct Mbuff {
-    complex uv = {0, 0};
-    complex dr = {0, 0};
-    int  cid = -1; // crnr_id; better using variant
-    int  hid = -1; // half_id; better using variant
-    double r = -1; // ratio.
+    HmLoc loc  = {}; // curve front, chart-aware (OnC or OnH)
+    complex dr = {}; // direction in the chart of get_chart_face(loc)
     bool bgn = false;
     bool end = false;
 };
@@ -65,45 +62,33 @@ struct Mcurv {
 
     bool operator==(const Mcurv &c) const { return id == c.id; }
     void add_segment(const Hmesh& hm, const VecXc& cf);
-    int resolve_bgn_node(const Hmesh& hm, bool bgn, int cid) const;
+    int resolve_bgn_node(const Hmesh& hm, bool bgn, const HmLoc& fr) const;
 };
 
 inline void update_to_twin(const Hmesh& hm, const VecXc& cf, const VecXi& matching, Mbuff& buff) {
     auto get_m = [&](Half h) { return (h.isCanonical() ? -1 : 1) * matching[h.edge().id]; };
 
-    if (buff.cid != -1) {
-        auto c = hm.crnrs[buff.cid];
-        auto v = c.vert();
-        auto d = buff.dr;
-        for (Half h: v.adjHalfs(c.half().next().twin())) {
-            d *= std::polar(1., PI / 2 * get_m(h));
-            auto c1  = h.next().crnr();
-            auto uv0 = cf(c1.id);
-            auto uv1 = cf(c1.half().crnr_t().id);
-            auto uv2 = cf(c1.half().crnr_h().id);
-            if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) { buff = Mbuff{.uv = uv0, .dr = d, .cid = c1.id}; return; }
-        }
-    }
-    if (buff.hid != -1) {
-        auto h = hm.halfs[buff.hid].twin();
-        auto r = 1. - buff.r;
-        auto uv = lerp(cf(h.next().crnr().id), cf(h.prev().crnr().id), r);
-        auto dr = std::polar(1., PI / 2 * get_m(h)) * buff.dr;
-        buff = Mbuff{.uv = uv, .dr = dr, .hid = h.id, .r = r};
-        return;
-    }
-
-    METRIKO_FAIL("not implemented");
-}
-
-inline void update_to_oppo(const Hmesh& hm, const VecXc& cf, Mbuff& buff) {
-    auto fr = buff.cid != -1 ? HmLoc{HmLocOnC{buff.cid}} : HmLoc{HmLocOnH{buff.hid, buff.r}};
-    auto it = find_ray_intersection(hm, fr, cf, buff.dr);
-    std::visit(overloaded{
-        [&](const HmLocOnC& l) { buff = Mbuff{.uv = cf(l.id), .dr = buff.dr, .cid = l.id}; },
-        [&](const HmLocOnH& l) { buff = Mbuff{.uv = lerp(cf(hm.halfs[l.id].crnr_t().id), cf(hm.halfs[l.id].crnr_h().id), l.r), .dr = buff.dr, .hid = l.id, .r = l.r}; },
-        [&](const auto&) { METRIKO_FAIL("unexpected exit location"); },
-    }, it);
+    buff = std::visit(overloaded{
+        [&](const HmLocOnC& l) -> Mbuff {
+            auto c = hm.crnrs[l.id];
+            auto v = c.vert();
+            auto d = buff.dr;
+            for (Half h: v.adjHalfs(c.half().next().twin())) {
+                d *= std::polar(1., PI / 2 * get_m(h));
+                auto c1  = h.next().crnr();
+                auto uv0 = cf(c1.id);
+                auto uv1 = cf(c1.half().crnr_t().id);
+                auto uv2 = cf(c1.half().crnr_h().id);
+                if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {.loc = HmLocOnC{c1.id}, .dr = d};
+            }
+            METRIKO_FAIL("no face around vert {} admits the curve direction", v.id);
+        },
+        [&](const HmLocOnH& l) -> Mbuff {
+            auto h = hm.halfs[l.id].twin();
+            return {.loc = HmLocOnH{h.id, 1. - l.r}, .dr = std::polar(1., PI / 2 * get_m(h)) * buff.dr};
+        },
+        [&](const auto& _) -> Mbuff { METRIKO_FAIL("not implemented"); },
+    }, buff.loc);
 }
 
 struct  Mgrph {
@@ -127,7 +112,7 @@ struct  Mgrph {
         // 1: Add the first segment for each curve
         mcurvs.reserve(mports.size());
         for (const auto& p : mports) {
-            mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.uv = p.uv, .dr = p.dr, .cid = p.crnr_id, .bgn = true}});
+            mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.loc = HmLocOnC{p.crnr_id}, .dr = p.dr, .bgn = true}});
             mcurvs.back().add_segment(hm, cf);
         }
 

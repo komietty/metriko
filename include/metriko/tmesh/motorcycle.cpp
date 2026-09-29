@@ -118,22 +118,21 @@ void Mgrph::sort_node_adjacency() {
     }
 }
 
-int Mcurv::resolve_bgn_node(const Hmesh& hm, const bool bgn, const int cid) const {
+int Mcurv::resolve_bgn_node(const Hmesh& hm, const bool bgn, const HmLoc& fr) const {
     if (!bgn) return sgmts.back().to_nid;
-    auto l = HmLoc{HmLocOnV{hm.crnrs[cid].vert().id}};
+    auto l = to_chart_free(hm, fr);
     auto i = rg::find(mg->mnodes, l, &Mnode::loc);
     METRIKO_CHECK(i != mg->mnodes.end(), "start node of the curve must exist");
     return std::distance(mg->mnodes.begin(), i);
 }
 
 void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
-    auto uv0 = buff.uv;
-    auto cid = buff.cid;
-    auto hid = buff.hid;
+    auto fr  = buff.loc;
     auto bgn = buff.bgn;
-    auto fid = cid != -1 ? hm.crnrs[cid].face().id : hm.halfs[hid].face().id;
-    update_to_oppo(hm, cf, buff);
-    auto uv3 = buff.uv;
+    auto uv0 = get_chart_uv(hm, cf, fr);
+    auto fid = get_chart_face(hm, fr).id;
+    buff = {.loc = find_ray_intersection(hm, buff.loc, cf, buff.dr), .dr = buff.dr};
+    auto uv3 = get_chart_uv(hm, cf, buff.loc);
 
     vec<std::tuple<double, double, Msgmt>> candidates;
 
@@ -155,20 +154,17 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     }
 
     Msgmt sg{
-        .fr_nid  = resolve_bgn_node(hm, bgn, cid),
+        .fr_nid  = resolve_bgn_node(hm, bgn, fr),
         .curv_id = id,
         .face_id = fid
     };
 
     // determine to_nid
     if (candidates.empty()) {
-        // if hit to crnr
-        if (buff.cid != -1) {
-            auto c1 = hm.crnrs[buff.cid];
-            auto v1 = c1.vert();
-            auto ml = HmLoc{HmLocOnV{v1.id}};
+        auto ml = to_chart_free(hm, buff.loc); // OnC -> OnV, OnH -> OnE
 
-            // if hit to other Mnode, return
+        // if hit to other Mnode on a vert, return
+        if (std::holds_alternative<HmLocOnV>(ml)) {
             for (int i = 0; i < mg->mnodes.size(); ++i) {
                 auto& mn = mg->mnodes[i];
                 if (mn.loc == ml) {
@@ -179,24 +175,12 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
                     return;
                 }
             }
+        }
 
-            // otherwise
-            auto n = Mnode{.loc = HmLocOnV{v1.id}};
-            mg->mnodes.push_back(n);
-            sg.to_nid = mg->mnodes.size() - 1;
-            sgmts.push_back(sg);
-        }
-        // otherwise it must hit half
-        else {
-            auto n = Mnode {};
-            if (buff.hid != -1) {
-                auto h = hm.halfs[buff.hid];
-                n.loc = HmLocOnE{h.edge().id, h.isCanonical() ? buff.r : 1. - buff.r};
-            }
-            mg->mnodes.push_back(n);
-            sg.to_nid = mg->mnodes.size() - 1;
-            sgmts.push_back(sg);
-        }
+        // otherwise
+        mg->mnodes.push_back(Mnode{.loc = ml});
+        sg.to_nid = mg->mnodes.size() - 1;
+        sgmts.push_back(sg);
     }
     // intersection happens
     else {
