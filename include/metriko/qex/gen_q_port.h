@@ -13,7 +13,6 @@
 namespace metriko::qex {
     inline void generate_eqvert_qport(
         const Hmesh &mesh,
-        const VecXc &cfn,
         const vec<Qvert> &eqverts,
         vec<Qport> &qports
     ) {
@@ -23,10 +22,10 @@ namespace metriko::qex {
             for (const Half h: vec{e.half(), e.half().twin()}) {
                 auto c1  = h.next().crnr();
                 auto c2  = h.prev().crnr();
-                auto uv1 = cfn(c1.id);
-                auto uv2 = cfn(c2.id);
-                Row3d p1 = c1.vert().pos();
-                Row3d p2 = c2.vert().pos();
+                auto uv1 = c1.uv();
+                auto uv2 = c2.uv();
+                Row3d p1 = c1.pos();
+                Row3d p2 = c2.pos();
                 auto uv  = lerp(uv1, uv2, (qv.pos - p1).norm() / (p2 - p1).norm());
 
                 for (int i = 0; i < 4; i++) {
@@ -76,7 +75,6 @@ namespace metriko::qex {
 
     inline void generate_vqvert_qport(
         const Hmesh &mesh,
-        const VecXc &cfn,
         const vec<Qvert> &vqverts,
         vec<Qport> &qports
     ) {
@@ -85,9 +83,9 @@ namespace metriko::qex {
             auto acc = 0.;
             auto v = mesh.verts[qv.sid];
             for (Half h: v.adjHalfs()) {
-                auto uv1 = cfn(h.next().crnr().id);
-                auto uv2 = cfn(h.prev().crnr().id);
-                auto uv3 = cfn(h.crnr().id);
+                auto uv1 = h.cr_t().uv();
+                auto uv2 = h.cr_h().uv();
+                auto uv3 = h.crnr().uv();
                 for (int i = 0; i < 4; i++) {
                     auto d  = get_quater_rot(i);
                     bool f1 = is_points_into(uv1, uv2, uv3, uv1 + d);

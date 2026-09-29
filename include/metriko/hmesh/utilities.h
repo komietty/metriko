@@ -13,18 +13,6 @@
 #include "hmloc.h"
 
 namespace metriko {
-inline Row3d conversion_2d_3d(const Face& f, const VecXc& cf, const complex uv) {
-    auto [c1, c2, c3] = f.crnrs();
-    return conversion_2d_3d(
-        cf(c1.id),
-        cf(c2.id),
-        cf(c3.id),
-        c1.vert().pos(),
-        c2.vert().pos(),
-        c3.vert().pos(),
-        uv);
-}
-
 inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
     Face f = hm.faces[fid];
     Vert v = hm.verts[vid];

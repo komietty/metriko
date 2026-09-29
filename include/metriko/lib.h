@@ -137,22 +137,23 @@ inline RemeshResult compute_remesh(
     //slim_solve(sData, 50);
 
     // ------ qex on the slim result ------
-    VecXc cfn(hm_emb->nF * 3);
+    // per-corner uv of the cut mesh from the per-vertex slim result: hm_cut and hm_emb share the face matrix
+    hm_emb->cfn = VecXc(hm_emb->nF * 3);
     for (int i = 0; i < hm_cut->nF; ++i) {
     for (int j = 0; j < 3; ++j) {
         int k = hm_cut->idx(i, j);
-        cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
+        hm_emb->cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
     }}
 
-    qex::sanitization(*hm_emb, matching1, singular1, 4, cfn);
+    qex::sanitization(*hm_emb, matching1, singular1, 4);
 
     vec<qex::Qport> q_ports;
     vec<qex::Qvert> vqvs, eqvs, fqvs;
-    qex::generate_q_vert(*hm_emb, cfn, vqvs, eqvs, fqvs);
-    qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
-    qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
+    qex::generate_q_vert(*hm_emb, vqvs, eqvs, fqvs);
+    qex::generate_vqvert_qport(*hm_emb, vqvs, q_ports);
+    qex::generate_eqvert_qport(*hm_emb, eqvs, q_ports);
     qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
-    auto q_edges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
+    auto q_edges = qex::generate_q_edge(*hm_emb, matching1, q_ports);
     auto q_faces = qex::generate_q_faces(q_ports, q_edges);
     std::tie(res.q_pos, res.q_idx) = extract_quad_mesh(*hm, q_faces, refine);
     res.q_patch = label_quad_patches(*tm, cmbf->singular, q_faces, res.q_idx);

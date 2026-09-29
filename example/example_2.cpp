@@ -30,7 +30,6 @@
 using namespace metriko;
 static MatXd V;
 static MatXi F;
-static VecXc uv2;
 static VecXi matching;
 static VecXi singular;
 static vec<bool> seam;
@@ -42,7 +41,7 @@ int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     //cleanup::decimate_and_clean(V, F,  100000);
     Hmesh hm(V, F);
-    if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam)) throw std::runtime_error("the cache does not exist");
+    if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), hm.cfn, matching, singular, seam)) throw std::runtime_error("the cache does not exist");
 
     ///--- load the collapsed t-mesh produced by example_1 ---///
     Emesh em(hm);
@@ -116,8 +115,8 @@ int main(int argc, char** argv) {
     }
 
     visualizer::visualize_init();
-    auto* base = visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
-    auto* embd = visualizer::visualize_mesh(hm_emb->pos, hm_emb->idx, false, "embd mesh");
+    auto* base = visualizer::visualize_mesh(hm, false, "base mesh");
+    auto* embd = visualizer::visualize_mesh(*hm_emb, false, "embd mesh");
     visualizer::visualize_seam(*hm_emb, seam1, VecXi(), "cut seam", false);
     visualizer::visualize_unsnapped_tnodes(hm, em, false);
     visualizer::visualize_tedges(hm, em, "tedges collapsed", false);
@@ -190,31 +189,31 @@ int main(int argc, char** argv) {
         {
             // per-corner uv from the per-vertex slim result: hm_cut and hm2
             // share the face matrix, so corner (i, j) <-> vertex hm2->idx(i, j)
-            VecXc cfn(hm_emb->nF * 3);
+            hm_emb->cfn = VecXc(hm_emb->nF * 3);
             for (int i = 0; i < hm_cut->nF; ++i) {
             for (int j = 0; j < 3; ++j) {
                 int k = hm_cut->idx(i, j);
-                cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
+                hm_emb->cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
             }}
 
-            qex::sanitization(*hm_emb, matching1, singular1, 4, cfn);
+            qex::sanitization(*hm_emb, matching1, singular1, 4);
             lap("qex sanitization");
 
             vec<qex::Qport> q_ports;
             vec<qex::Qvert> vqvs, eqvs, fqvs;
-            qex::generate_q_vert(*hm_emb, cfn, vqvs, eqvs, fqvs);
+            qex::generate_q_vert(*hm_emb, vqvs, eqvs, fqvs);
             lap("qex q_vert");
 
             //visualizer::visualize_qverts(vqvs, eqvs, fqvs, 0.001, false);
 
-            qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
-            qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
+            qex::generate_vqvert_qport(*hm_emb, vqvs, q_ports);
+            qex::generate_eqvert_qport(*hm_emb, eqvs, q_ports);
             qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
             lap("qex q_port");
 
-            //visualizer::visualize_qports(*hm_emb, cfn, q_ports, 0.001, false);
+            //visualizer::visualize_qports(*hm_emb, q_ports, 0.001, false);
 
-            auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
+            auto qedges = qex::generate_q_edge(*hm_emb, matching1, q_ports);
             lap("qex q_edge");
             auto qfaces = qex::generate_q_faces(q_ports, qedges);
             lap("qex q_face");

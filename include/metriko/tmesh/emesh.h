@@ -98,7 +98,7 @@ struct Emesh {
                 [&](const auto&     _) -> HmLoc { METRIKO_FAIL("no impl"); },
                 [&](const HmLocOnV& v) -> HmLoc { return HmLocOnV{v.id}; },
                 [&](const HmLocOnE& e) -> HmLoc { return HmLocOnE{.id = e.id, .r = e.r}; },
-                [&](const HmLocOnP& l) -> HmLoc { Face f = hm.faces[l.id]; return HmLocOnF{.id = l.id, .xy = f.to_local(conversion_2d_3d(f, hm.cfn, l.uv))}; },
+                [&](const HmLocOnP& l) -> HmLoc { Face f = hm.faces[l.id]; return HmLocOnF{.id = l.id, .xy = f.to_local(f.uv2pos(l.uv))}; },
             }, mn.loc));
         }
 

@@ -73,7 +73,6 @@ public:
 
 inline void compute_trs_matrix(
     const Hmesh &hm,
-    const VecXc &cf,
     const VecXi &matching,
     const int rosyN,
     VecXc &heR,
@@ -84,8 +83,8 @@ inline void compute_trs_matrix(
     for (Half h: hm.halfs) {
         Crnr c1 = h.next().crnr();
         Crnr c2 = h.twin().prev().crnr();
-        auto uv1 = cf(c1.id);
-        auto uv2 = cf(c2.id);
+        auto uv1 = c1.uv();
+        auto uv2 = c2.uv();
         int m = (h.isCanonical() ? 1 : -1) * matching[h.edge().id];
         m = m < 0 ? (rosyN + m % rosyN) % rosyN : m % rosyN;
         auto r = get_quater_rot(m);

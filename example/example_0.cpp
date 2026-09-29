@@ -16,7 +16,6 @@
 
 using namespace metriko;
 static int N = 4;
-static VecXc uv2;
 static MatXd V;
 static MatXi F;
 
@@ -46,21 +45,20 @@ int main(int argc, char** argv) {
     rp.setup();
     rp.integ();
 
-    uv2.resize(hm.nF * 3);
+    hm.cfn.resize(hm.nF * 3);
     for (const Face f: hm.faces) {
-        uv2(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
-        uv2(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
-        uv2(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
+        hm.cfn(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
+        hm.cfn(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
+        hm.cfn(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
     }
 
     const std::string cache = std::format("{}.{}.cache", argv[1], argv[2]);
-    save_cache(cache, uv2, cmbf->matching, cmbf->singular, seam);
+    save_cache(cache, hm.cfn, cmbf->matching, cmbf->singular, seam);
     std::println("saved cache: {}", cache);
     /* */
 
     visualizer::visualize_init();
-    auto surf = visualizer::visualize_mesh_with_uv(hm.pos, hm.idx, uv2);
-    //auto surf = visualizer::visualize_mesh(hm.pos, hm.idx);
+    auto surf = visualizer::visualize_mesh(hm);
     visualizer::visualize_frosy_field(surf, rawf, *cmbf);
     visualizer::visualize_seam(hm, seam);
 

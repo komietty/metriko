@@ -14,14 +14,14 @@ inline std::optional<HmLoc> find_ray_intersection(
     const complex d,
     const double tol
 ) {
-    auto a = h.crnr_t().uv();
-    auto b = h.crnr_h().uv();
+    auto a = h.cr_t().uv();
+    auto b = h.cr_h().uv();
     auto s = 0.;
     auto t = 0.;
     if (!find_extended_intersection(a, b, o, o + d, s, t)) return std::nullopt;
     if (t <= tol || s < -tol || s > 1 + tol) return std::nullopt;
-    if (s < tol)     return HmLocOnC{.id = h.crnr_t().id};
-    if (s > 1 - tol) return HmLocOnC{.id = h.crnr_h().id};
+    if (s < tol)     return HmLocOnC{.id = h.cr_t().id};
+    if (s > 1 - tol) return HmLocOnC{.id = h.cr_h().id};
     return HmLocOnH{.id = h.id, .r = s};
 }
 
@@ -71,8 +71,8 @@ inline std::pair<HmLoc, complex> cross_to_twin(
                 d *= std::polar(1., PI / 2 * get_m(h));
                 auto c1  = h.next().crnr();
                 auto uv0 = c1.uv();
-                auto uv1 = c1.half().crnr_t().uv();
-                auto uv2 = c1.half().crnr_h().uv();
+                auto uv1 = c1.half().cr_t().uv();
+                auto uv2 = c1.half().cr_h().uv();
                 if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {HmLocOnC{c1.id}, d};
             }
             METRIKO_FAIL("no face around vert {} admits the ray direction", v.id);

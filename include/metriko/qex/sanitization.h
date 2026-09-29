@@ -12,19 +12,20 @@
 namespace metriko::qex {
     inline void fix_singular_point() { }
 
+    // snaps the corner uv of the mesh (mesh.cfn) onto the grid around every vertex, in place
     inline void sanitization(
-        const Hmesh& mesh,
+        Hmesh& mesh,
         const VecXi& matching,
         const VecXi& singular,
-        const int rosyN,
-        VecXc& cfn
+        const int rosyN
     ) {
+        VecXc& cfn = mesh.cfn;
 #if METRIKO_DEBUG
         VecXc buk = cfn;
 #endif
         VecXc heR;
         VecXc heT;
-        compute_trs_matrix(mesh, cfn, matching, rosyN, heR, heT);
+        compute_trs_matrix(mesh, matching, rosyN, heR, heT);
         for (Vert v: mesh.verts) {
             double max = 0;
             for (Half h: v.adjHalfs()) {

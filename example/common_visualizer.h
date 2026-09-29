@@ -75,23 +75,19 @@ struct Points {
 // mesh, field, seam
 //------------------------------------------------------------------------------
 
-template <typename PType, typename IType>
-polyscope::SurfaceMesh* visualize_mesh(const PType& pos, const IType& idx, const bool show = true, const std::string& name = "mesh") {
-    auto* surf = polyscope::registerSurfaceMesh(name, pos, idx);
+// the mesh, with its corner uv (hm.cfn) as a checker when the mesh carries one
+inline polyscope::SurfaceMesh* visualize_mesh(const Hmesh& hm, const bool show = true, const std::string& name = "mesh", const bool show_uv = true) {
+    auto* surf = polyscope::registerSurfaceMesh(name, hm.pos, hm.idx);
     surf->setEdgeWidth(0.7);
     surf->setEnabled(show);
     surf->setMaterial("flat");
     surf->setSurfaceColor(glm::vec3(0.3, 0.3, 0.3));
-    return surf;
-}
-
-template <typename PType, typename IType, typename UType>
-polyscope::SurfaceMesh* visualize_mesh_with_uv(const PType& pos, const IType& idx, const UType& uv, const bool show_hm = true, const bool show_uv = true, const std::string& name = "mesh") {
-    auto* surf = visualize_mesh(pos, idx, show_hm, name);
-    auto* prms = surf->addParameterizationQuantity("uv_param", uv);
-    prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
-    prms->setCheckerSize(1.);
-    prms->setEnabled(show_uv);
+    if (hm.cfn.size() == hm.nF * 3) {
+        auto* prms = surf->addParameterizationQuantity("uv_param", hm.cfn);
+        prms->setStyle(polyscope::ParamVizStyle::LOCAL_CHECK);
+        prms->setCheckerSize(1.);
+        prms->setEnabled(show_uv);
+    }
     return surf;
 }
 
@@ -266,11 +262,11 @@ inline void visualize_qverts(const vec<qex::Qvert>& vqvs, const vec<qex::Qvert>&
 }
 
 // every port slightly offset along its direction, with the ids needed to follow the tracer log
-inline void visualize_qports(const Hmesh& hm, const VecXc& uv, const vec<qex::Qport>& ports, const double scale = 0.001, const bool show = true) {
+inline void visualize_qports(const Hmesh& hm, const vec<qex::Qport>& ports, const double scale = 0.001, const bool show = true) {
     auto dir_index = [](complex d) { return d.real() > 0.5 ? 0 : d.imag() > 0.5 ? 1 : d.real() < -0.5 ? 2 : 3; };
     Points pts;
     for (const auto& q: ports) {
-        pts.add(conversion_2d_3d(hm.faces[q.fid], uv, q.uv + q.dir * 0.15));
+        pts.add(hm.faces[q.fid].uv2pos(q.uv + q.dir * 0.15));
         pts.scalar("idx", q.idx);
         pts.scalar("dir", dir_index(q.dir));
         pts.scalar("vid", q.vid);

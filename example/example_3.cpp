@@ -57,16 +57,15 @@ int main(int argc, char** argv) {
     rp.integ();
     lap("parameterization");
 
-    VecXc uv2(hm.nF * 3);
+    hm.cfn.resize(hm.nF * 3);
     for (const Face f: hm.faces) {
-        uv2(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
-        uv2(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
-        uv2(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
+        hm.cfn(f.id * 3 + 0) = complex{rp.cfn(f.id, 0), rp.cfn(f.id, 1)};
+        hm.cfn(f.id * 3 + 1) = complex{rp.cfn(f.id, 4), rp.cfn(f.id, 5)};
+        hm.cfn(f.id * 3 + 2) = complex{rp.cfn(f.id, 8), rp.cfn(f.id, 9)};
     }
     const VecXi& matching = cmbf->matching;
     const VecXi& singular = cmbf->singular;
-    save_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam);
-    hm.cfn = uv2;
+    save_cache(std::format("{}.{}.cache", argv[1], argv[2]), hm.cfn, matching, singular, seam);
 
     ///--- stage 1: quantization + t-mesh collapse / snap ---///
     auto mg = Mgrph(hm, matching, singular);
@@ -81,7 +80,7 @@ int main(int argc, char** argv) {
     auto show_failure = [&](const char* stage, const std::exception& ex) {
         std::println("[fail] {} (tqid {}): {}", stage, cur_tqid, ex.what());
         visualizer::visualize_init();
-        visualizer::visualize_mesh(hm.pos, hm.idx, true, "base mesh");
+        visualizer::visualize_mesh(hm, true, "base mesh");
         visualizer::visualize_tedges(hm, tm, "tedges", true);
         visualizer::visualize_unsnapped_tnodes(hm, tm, false);
         if (cur_tqid != -1 && tm.tquads[cur_tqid].id != -1) {
@@ -162,21 +161,21 @@ int main(int argc, char** argv) {
     lap("slim");
 
     // per-corner uv from the per-vertex slim result: hm_cut and hm_emb share the face matrix
-    VecXc cfn(hm_emb->nF * 3);
+    hm_emb->cfn = VecXc(hm_emb->nF * 3);
     for (int i = 0; i < hm_cut->nF; ++i)
-    for (int j = 0; j < 3; ++j) cfn(i * 3 + j) = complex(sData.V_o(hm_cut->idx(i, j), 0), sData.V_o(hm_cut->idx(i, j), 1));
-    qex::sanitization(*hm_emb, matching1, singular1, N, cfn);
+    for (int j = 0; j < 3; ++j) hm_emb->cfn(i * 3 + j) = complex(sData.V_o(hm_cut->idx(i, j), 0), sData.V_o(hm_cut->idx(i, j), 1));
+    qex::sanitization(*hm_emb, matching1, singular1, N);
     lap("qex sanitization");
 
     vec<qex::Qport> q_ports;
     vec<qex::Qvert> vqvs, eqvs, fqvs;
-    qex::generate_q_vert(*hm_emb, cfn, vqvs, eqvs, fqvs);
+    qex::generate_q_vert(*hm_emb, vqvs, eqvs, fqvs);
     lap("qex q_vert");
-    qex::generate_vqvert_qport(*hm_emb, cfn, vqvs, q_ports);
-    qex::generate_eqvert_qport(*hm_emb, cfn, eqvs, q_ports);
+    qex::generate_vqvert_qport(*hm_emb, vqvs, q_ports);
+    qex::generate_eqvert_qport(*hm_emb, eqvs, q_ports);
     qex::generate_fqvert_qport(*hm_emb, fqvs, q_ports);
     lap("qex q_port");
-    auto qedges = qex::generate_q_edge(*hm_emb, cfn, matching1, q_ports);
+    auto qedges = qex::generate_q_edge(*hm_emb, matching1, q_ports);
     lap("qex q_edge");
     auto qfaces = qex::generate_q_faces(q_ports, qedges);
     lap("qex q_face");
@@ -184,7 +183,7 @@ int main(int argc, char** argv) {
 
     ///--- visualize ---///
     visualizer::visualize_init();
-    visualizer::visualize_mesh(hm.pos, hm.idx, false, "base mesh");
+    visualizer::visualize_mesh(hm, false, "base mesh");
     visualizer::visualize_tedges(hm, tm, "tedges snapped", false);
     auto [qv, qidx] = extract_quad_mesh(hm, qfaces, true);
     visualizer::visualize_quad_patch(qv, qidx, label_quad_patches(tm, singular, qfaces, qidx));

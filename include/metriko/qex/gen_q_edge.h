@@ -20,8 +20,8 @@ namespace metriko::qex {
     }
 
     // closed point-in-triangle test (points on an edge or a vertex count as inside)
-    inline bool is_inside_face_closed(const Face f, const VecXc &cf, const complex p) {
-        auto a = cf(f.id * 3), b = cf(f.id * 3 + 1), c = cf(f.id * 3 + 2);
+    inline bool is_inside_face_closed(const Face f, const complex p) {
+        auto a = f.m->cfn(f.id * 3), b = f.m->cfn(f.id * 3 + 1), c = f.m->cfn(f.id * 3 + 2);
         auto s = orient_sign(a, b, c);
         if (s == 0) return false;
         return orient_sign(a, b, p) * s >= 0 &&
@@ -48,11 +48,11 @@ namespace metriko::qex {
 
     // p's outgoing direction is the reverse of the ray (a, d) traced in face f, compared in 3d so that
     // ports living in a neighbouring chart can be matched without accumulating transitions
-    inline bool is_reverse_port(const Hmesh &hm, const VecXc &cf, const complex a, const complex d, const Face f, const Qport &p) {
-        Row3d pb1 = conversion_2d_3d(f, cf, a);
-        Row3d pb2 = conversion_2d_3d(f, cf, a + d);
-        Row3d pa1 = conversion_2d_3d(hm.faces[p.fid], cf, p.uv);
-        Row3d pa2 = conversion_2d_3d(hm.faces[p.fid], cf, p.uv + p.dir);
+    inline bool is_reverse_port(const Hmesh &hm, const complex a, const complex d, const Face f, const Qport &p) {
+        Row3d pb1 = f.uv2pos(a);
+        Row3d pb2 = f.uv2pos(a + d);
+        Row3d pa1 = hm.faces[p.fid].uv2pos(p.uv);
+        Row3d pa2 = hm.faces[p.fid].uv2pos(p.uv + p.dir);
         Row3d da = (pa2 - pa1).normalized();
         Row3d db = (pb2 - pb1).normalized();
         return std::abs(1. + da.dot(db)) < 1e-7;
@@ -62,7 +62,6 @@ namespace metriko::qex {
     // meets (a,b]. if two edges meet it (the ray passes through a vertex or runs along an edge), take the one
     // with fewer endpoints on the ray line, which steps around the vertex until the ray leaves properly
     inline std::optional<Half> pick_next_half(
-        const VecXc &cf,
         const complex a,
         const complex b,
         const Face f,
@@ -72,8 +71,8 @@ namespace metriko::qex {
         int best = 3;
         for (Half h: f.adjHalfs()) {
             if (h.id == skip_hid) continue;
-            const complex p = cf(h.next().crnr().id);
-            const complex q = cf(h.prev().crnr().id);
+            const complex p = h.cr_t().uv();
+            const complex q = h.cr_h().uv();
             if (!meets_half_open(a, b, p, q)) continue;
             const int on_line = (orient_sign(a, b, p) == 0) + (orient_sign(a, b, q) == 0);
             if (on_line < best) { best = on_line; pick = h; }
@@ -83,14 +82,13 @@ namespace metriko::qex {
 
     inline vec<Qedge> generate_q_edge(
         const Hmesh &hm,
-        const VecXc &cfn,
         const VecXi &matching,
         vec<Qport> &qports
     ) {
         vec<Qedge> qedges;
         VecXc heR;
         VecXc heT;
-        compute_trs_matrix(hm, cfn, matching, 4, heR, heT);
+        compute_trs_matrix(hm, matching, 4, heR, heT);
 
         // ports grouped by carrier for the arrival lookup
         std::map<int, vec<Qport*>> byV, byE, byF;
@@ -115,21 +113,21 @@ namespace metriko::qex {
             for (int step = 0; step < 1000; ++step) {
                 Face f = hm.faces[fid];
 
-                if (is_inside_face_closed(f, cfn, b)) {
+                if (is_inside_face_closed(f, b)) {
                     // the target grid point lies in the closure of f: find its q-vertex (vertex, edge, then face)
                     Qport* hit = nullptr;
                     for (Half h: f.adjHalfs()) {
-                        if (std::abs(cfn(h.next().crnr().id) - b) >= EPS || !byV.contains(h.tail().id)) continue;
+                        if (std::abs(h.cr_t().uv() - b) >= EPS || !byV.contains(h.tail().id)) continue;
                         for (Qport* p: byV[h.tail().id])
-                            if (!p->isConnected && p != &pfr && is_reverse_port(hm, cfn, a, d, f, *p)) { hit = p; break; }
+                            if (!p->isConnected && p != &pfr && is_reverse_port(hm, a, d, f, *p)) { hit = p; break; }
                         if (hit) break;
                     }
                     if (!hit) {
-                        Row3d pb = conversion_2d_3d(f, cfn, b);
+                        Row3d pb = f.uv2pos(b);
                         for (Half h: f.adjHalfs()) {
-                            if (orient_sign(cfn(h.next().crnr().id), cfn(h.prev().crnr().id), b) != 0 || !byE.contains(h.edge().id)) continue;
+                            if (orient_sign(h.cr_t().uv(), h.cr_h().uv(), b) != 0 || !byE.contains(h.edge().id)) continue;
                             for (Qport* p: byE[h.edge().id])
-                                if (!p->isConnected && p != &pfr && (p->pos - pb).norm() < 1e-6 && is_reverse_port(hm, cfn, a, d, f, *p)) { hit = p; break; }
+                                if (!p->isConnected && p != &pfr && (p->pos - pb).norm() < 1e-6 && is_reverse_port(hm, a, d, f, *p)) { hit = p; break; }
                             if (hit) break;
                         }
                     }
@@ -145,7 +143,7 @@ namespace metriko::qex {
                     break; // reached b: paired, or left dangling
                 }
 
-                auto nh = pick_next_half(cfn, a, b, f, e_in);
+                auto nh = pick_next_half(a, b, f, e_in);
                 if (!nh) break; // numerically inconsistent chart: leave dangling
                 METRIKO_CHECK(!nh->twin().isBoundary(), "a q-edge reaches the mesh boundary (not handled yet)");
                 auto r = heR(nh->id);

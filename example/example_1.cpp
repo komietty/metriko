@@ -14,7 +14,6 @@
 using namespace metriko;
 static MatXd V;
 static MatXi F;
-static VecXc uv2;
 static VecXi matching;
 static VecXi singular;
 static vec<bool> seam;
@@ -42,11 +41,10 @@ int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
     cleanup::cleanup_mesh(V, F);
     Hmesh hm(V, F);
-    if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), uv2, matching, singular, seam))
+    if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), hm.cfn, matching, singular, seam))
         throw std::runtime_error("the cache does not exist");
 
     ///--- gen mport, medge ---///
-    hm.cfn = uv2;
     auto mg = Mgrph(hm, matching, singular);
     Emesh tm(mg);
     auto X  = compute_quantization(tm, mg);
@@ -187,7 +185,7 @@ int main(int argc, char** argv) {
 
     if (validate_no_crossing(tm, "after repair") > 0) {
         // TODO TEMP: show the surviving contacts before aborting
-        visualizer::visualize_mesh(hm.pos, hm.idx, true, "base mesh");
+        visualizer::visualize_mesh(hm, true, "base mesh");
         for (auto& c: find_tedge_contacts(tm)) {
             for (int teid: {c.te_seg, c.te_ndp}) {
                 const auto& nids = tm.tedges[teid].nids;
@@ -243,7 +241,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    visualizer::visualize_mesh(hm.pos, hm.idx);
+    visualizer::visualize_mesh(hm);
     visualizer::visualize_unsnapped_tnodes(hm, tm, false);
     visualizer::visualize_tedges(hm, tm, "tedges snapped", true);
     visualizer::visualize_tedges(hm, tm, "tedges collapsed", false);

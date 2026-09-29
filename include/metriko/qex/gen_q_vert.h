@@ -13,15 +13,13 @@
 namespace metriko::qex {
     inline void generate_q_vert(
         const Hmesh &mesh,
-        const VecXc &cfn,
         vec<Qvert> &vqvs,
         vec<Qvert> &eqvs,
         vec<Qvert> &fqvs
     ) {
         // vert_q_vert
         for (Vert v: mesh.verts) {
-            auto c = v.half().next().crnr(); // checks only one corner
-            auto uv = cfn(c.id);
+            auto uv = v.half().next().crnr().uv(); // checks only one corner
             auto x = std::fmod(std::abs(uv.real()), 1.);
             auto y = std::fmod(std::abs(uv.imag()), 1.);
             if ((x < EPS || 1 - x < EPS) && (y < EPS || 1 - y < EPS)) vqvs.emplace_back(complex(x, y), v.pos(), v.id);
@@ -29,8 +27,8 @@ namespace metriko::qex {
 
         // edge_q_vert
         for (Edge e: mesh.edges) {
-            auto uv1 = cfn(e.half().next().crnr().id);
-            auto uv2 = cfn(e.half().prev().crnr().id);
+            auto uv1 = e.half().cr_t().uv();
+            auto uv2 = e.half().cr_h().uv();
             auto [minX, minY, maxX, maxY] = get_minmax_int({uv1, uv2});
             for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
@@ -42,17 +40,12 @@ namespace metriko::qex {
 
         // face_q_vert
         for (Face f: mesh.faces) {
-            Row3d p1 = mesh.verts[mesh.idx(f.id, 0)].pos();
-            Row3d p2 = mesh.verts[mesh.idx(f.id, 1)].pos();
-            Row3d p3 = mesh.verts[mesh.idx(f.id, 2)].pos();
-            auto uv1 = cfn(f.id * 3 + 0);
-            auto uv2 = cfn(f.id * 3 + 1);
-            auto uv3 = cfn(f.id * 3 + 2);
-            auto [minX, minY, maxX, maxY] = get_minmax_int({uv1, uv2, uv3});
+            auto [c1, c2, c3] = f.crnrs();
+            auto [minX, minY, maxX, maxY] = get_minmax_int({c1.uv(), c2.uv(), c3.uv()});
             for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 auto c = complex(x, y);
-                if (is_inside_triangle(uv1, uv2, uv3, c)) fqvs.emplace_back(c, conversion_2d_3d(uv1, uv2, uv3, p1, p2, p3, c), f.id);
+                if (is_inside_triangle(c1.uv(), c2.uv(), c3.uv(), c)) fqvs.emplace_back(c, f.uv2pos(c), f.id);
             }}
         }
     }

@@ -37,7 +37,8 @@ struct Face : Elem {
     [[nodiscard]] Row3d normal() const;
     [[nodiscard]] Row3d center() const;
     [[nodiscard]] double area() const;
-    [[nodiscard]] Row3d to_world(const complex& v) const;
+    [[nodiscard]] Row3d uv2pos(complex uv) const;
+    [[nodiscard]] Row3d to_world(complex v) const;
     [[nodiscard]] complex to_local(const Row3d& v) const;
     [[nodiscard]] AdjIter<AdjFH> adjHalfs(bool ccw = true) const;
     [[nodiscard]] AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true) const;
@@ -79,6 +80,7 @@ struct Crnr : Elem {
     [[nodiscard]] Half half() const;
     [[nodiscard]] Vert vert() const;
     [[nodiscard]] Face face() const;
+    [[nodiscard]] Row3d pos() const;
     [[nodiscard]] complex uv() const;
 };
 
@@ -88,16 +90,16 @@ struct Loop : Elem {
 };
 
 struct Half : Elem {
-    [[nodiscard]] Half next()   const;
-    [[nodiscard]] Half prev()   const;
-    [[nodiscard]] Half twin()   const;
-    [[nodiscard]] Vert tail()   const;
-    [[nodiscard]] Vert head()   const;
-    [[nodiscard]] Edge edge()   const;
-    [[nodiscard]] Face face()   const;
-    [[nodiscard]] Crnr crnr()   const;
-    [[nodiscard]] Crnr crnr_t() const;
-    [[nodiscard]] Crnr crnr_h() const;
+    [[nodiscard]] Half next() const;
+    [[nodiscard]] Half prev() const;
+    [[nodiscard]] Half twin() const;
+    [[nodiscard]] Vert tail() const;
+    [[nodiscard]] Vert head() const;
+    [[nodiscard]] Edge edge() const;
+    [[nodiscard]] Face face() const;
+    [[nodiscard]] Crnr crnr() const;
+    [[nodiscard]] Crnr cr_t() const;
+    [[nodiscard]] Crnr cr_h() const;
     [[nodiscard]] double len()  const;
     [[nodiscard]] double cot()  const;
     [[nodiscard]] double varg() const;
@@ -209,16 +211,16 @@ struct AdjIter {
 
 // ipp
 namespace metriko {
-inline Half Half::next()   const { return {m->next[id], m}; }
-inline Half Half::prev()   const { return {m->prev[id], m}; }
-inline Half Half::twin()   const { return {m->twin[id], m}; }
-inline Vert Half::tail()   const { return {m->tail[id], m}; }
-inline Vert Half::head()   const { return {m->head[id], m}; }
-inline Edge Half::edge()   const { return {m->edge[id], m}; }
-inline Face Half::face()   const { return {m->face[id], m}; }
-inline Crnr Half::crnr()   const { return {m->crnr[id], m}; }
-inline Crnr Half::crnr_t() const { return next().crnr(); }
-inline Crnr Half::crnr_h() const { return prev().crnr(); }
+inline Half Half::next() const { return {m->next[id], m}; }
+inline Half Half::prev() const { return {m->prev[id], m}; }
+inline Half Half::twin() const { return {m->twin[id], m}; }
+inline Vert Half::tail() const { return {m->tail[id], m}; }
+inline Vert Half::head() const { return {m->head[id], m}; }
+inline Edge Half::edge() const { return {m->edge[id], m}; }
+inline Face Half::face() const { return {m->face[id], m}; }
+inline Crnr Half::crnr() const { return {m->crnr[id], m}; }
+inline Crnr Half::cr_t() const { return next().crnr(); }
+inline Crnr Half::cr_h() const { return prev().crnr(); }
 
 inline Half Vert::half() const { return {m->vert2half[id], m}; }
 inline Half Edge::half() const { return {m->edge2half[id], m}; }
@@ -256,6 +258,7 @@ inline Row3d Half::nml() const { Row3d d = face().normal() + twin().face().norma
 inline Row3d Edge::nml() const { Row3d d = face0().normal() + face1().normal();      return d.norm() > 0 ? d.normalized() : Row3d::Zero(); }
 inline Row3d Edge::vec() const { return vert1().pos() - vert0().pos(); }
 inline Row3d Vert::pos() const { return m->pos.row(id); }
+inline Row3d Crnr::pos() const { return vert().pos(); }
 inline Row3d Vert::basisX() const { return m->vertBasisX.row(id); }
 inline Row3d Vert::basisY() const { return m->vertBasisY.row(id); }
 inline Row3d Vert::normal() const { return m->vertNormal.row(id); }
@@ -267,10 +270,11 @@ inline Row3d Edge::lerp(double r) const { return vert0().pos() * (1 - r) + vert1
 inline Row3d Half::lerp(double r) const { return tail().pos()  * (1 - r) + head().pos()  * r; }
 
 inline complex Crnr::uv() const { return m->cfn(id); }
-inline complex Half::uv(double r) const { return metriko::lerp(crnr_t().uv(), crnr_h().uv(), r); }
+inline complex Half::uv(double r) const { return metriko::lerp(cr_t().uv(), cr_h().uv(), r); }
 
 inline complex Face::to_local(const Row3d& v) const { Row3d d = v - half().tail().pos(); return {d.dot(basisX()), d.dot(basisY())}; }
-inline Row3d Face::to_world(const complex& v) const { return half().tail().pos() + basisX() * v.real() + basisY() * v.imag(); }
+inline Row3d Face::to_world(complex v) const { return half().tail().pos() + basisX() * v.real() + basisY() * v.imag(); }
+inline Row3d Face::uv2pos(complex uv) const { auto [a, b, c] = crnrs(); return conversion_2d_3d(a.uv(), b.uv(), c.uv(), a.pos(), b.pos(), c.pos(), uv); }
 
 inline std::array<Half, 3> Face::halfs() const { Half h = half(); return {h, h.next(), h.prev()}; }
 inline std::array<Vert, 3> Face::verts() const { auto [h0, h1, h2] = halfs(); return {h0.tail(), h1.tail(), h2.tail()}; }
