@@ -48,15 +48,16 @@ int main(int argc, char** argv) {
     ///--- gen mport, medge ---///
     auto mg = Mgrph(hm, uv2, matching, singular);
     auto tm = Tmesh(mg);
-    auto X  = compute_quantization(tm, mg);
-    validate_quantization(tm, X);
+    Emesh em(mg, tm);
+    auto X  = compute_quantization(em, mg);
+    validate_quantization(em, X);
+    em.set_x(X);
     assert(tm.check_non_zero_tquad(X));
 
     visualizer::visualize_init();
     visualizer::visualize_tedge(tm, mg, uv2, &X);
     visualizer::visualize_pinched_tquads(tm, mg, uv2);
 
-    Emesh em(mg, tm, X);
 
     auto count_zero = [&] { return rg::count_if(em.thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; }); };
     auto n_zero     = count_zero();

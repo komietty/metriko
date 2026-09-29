@@ -8,21 +8,21 @@
 #ifndef METRIKO_QUANTIZATION_VALIDATION_H
 #define METRIKO_QUANTIZATION_VALIDATION_H
 #include <queue>
-#include "metriko/tmesh/tmesh.h"
+#include "metriko/tmesh/emesh.h"
 
 namespace metriko {
 inline bool compute_validation(
     const Mgrph &mg,
-    const Tmesh &tm,
+    const Emesh &tm,
     const VecXd &X
 ) {
     if ((X.array() < 0).any()) return false;
 
     vec<vec<int>> adjs(mg.mnodes.size());
-    for (auto& te : tm.tedges)
-        if (X[te.id] == 0) {
-            adjs[te.fr_nid].push_back(te.to_nid);
-            adjs[te.to_nid].push_back(te.fr_nid);
+    for (const auto& [teid, nids] : tm.live_tedges())
+        if (X[teid] == 0) {
+            adjs[nids.front()].push_back(nids.back());
+            adjs[nids.back()].push_back(nids.front());
         }
 
     vec visited(mg.mnodes.size(), false);

@@ -70,11 +70,10 @@ inline RemeshResult compute_remesh(
 
     auto mg = std::make_unique<Mgrph>(*hm, cfn_c, cmbf->matching, cmbf->singular);
     auto tm = std::make_unique<Tmesh>(*mg);
-    auto X  = compute_quantization(*tm, *mg);
-    validate_quantization(*tm, X);
-
-
-    auto em = std::make_unique<Emesh>(*mg, *tm, X);
+    auto em = std::make_unique<Emesh>(*mg, *tm);
+    auto X  = compute_quantization(*em, *mg);
+    validate_quantization(*em, X);
+    em->set_x(X);
 
     for (int i = 0; i < 100; ++i) {
         // collapse thalf

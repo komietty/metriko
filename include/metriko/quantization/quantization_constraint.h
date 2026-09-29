@@ -7,17 +7,16 @@
 //
 #ifndef METRIKO_QUANTIZATION_CONSTRAINT_H
 #define METRIKO_QUANTIZATION_CONSTRAINT_H
-#include "metriko/tmesh/tmesh.h"
+#include "metriko/tmesh/emesh.h"
 
 namespace metriko {
-    inline MatXd compute_constraint(const Tmesh &tmesh) {
-        MatXd M = MatXd::Zero(tmesh.nTQ * 2, tmesh.nTE);
-        for (int iq = 0; iq < tmesh.nTQ; iq++) {
-            const auto &tq = tmesh.tquads[iq];
+    inline MatXd compute_constraint(const Emesh &tm) {
+        MatXd M = MatXd::Zero(tm.tquads.size() * 2, tm.tedges.size());
+        for (int iq = 0; iq < tm.tquads.size(); iq++) {
+            const auto &tq = tm.tquads[iq];
             for (int ih = 0; ih < tq.data.size(); ih++) {
-                const auto &th = tmesh.thalfs[tq.data[ih].thid];
                 const int side = tq.data[ih].side;
-                const int teid = th.edge().id;
+                const int teid = tm.thalfs[tq.data[ih].thid].teid;
                 switch (side) {
                     case 0: { M(iq * 2 + 0, teid) += 1; break; }
                     case 2: { M(iq * 2 + 0, teid) -= 1; break; }

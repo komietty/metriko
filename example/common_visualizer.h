@@ -178,14 +178,14 @@ inline void visualize_pinched_tquads(const Tmesh& tm, const Mgrph& mg, const Vec
 // collapsed / snapped t-mesh (Emesh)
 //------------------------------------------------------------------------------
 
-// allowed corridor of a shortest-path query: the admissible sub-segment [r0, r1] of every edge
-inline void visualize_allowed_range(const Hmesh& hm, const vec<std::tuple<int, double, double>>& allowed, const std::string& name = "allowed range", const bool show = true, const double scale = 0.0015) {
+// allowed corridor of a shortest-path query: the admissible sub-segment [fr, to] of every edge
+inline void visualize_allowed_range(const Hmesh& hm, const vec<Erng>& allowed, const std::string& name = "allowed range", const bool show = true, const double scale = 0.0015) {
     Segments sg;
-    for (auto& [eid, r0, r1]: allowed) {
-        Edge e = hm.edges[eid];
-        sg.add(e.lerp(r0), e.lerp(r1));
-        sg.scalar("eid", eid);
-        sg.scalar("span", r1 - r0);
+    for (const Erng& rng: allowed) {
+        Edge e = hm.edges[rng.id];
+        sg.add(e.lerp(rng.fr), e.lerp(rng.to));
+        sg.scalar("eid", rng.id);
+        sg.scalar("span", rng.span());
     }
     sg.show(name, scale, show, "eid");
 }

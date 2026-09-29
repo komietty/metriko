@@ -13,24 +13,25 @@
 namespace metriko {
     template <typename Func>
     SprsD construct_generating_vectors(
-        const Tmesh& tmesh,
+        const Emesh& tm,
+        const VecXi& th2side,
         const VecXd& R,
         Func compare
     ) {
-        vec<const Thalf*> canos;
-        for (auto& th: tmesh.thalfs) if (th.cano) canos.push_back(&th);
+        vec<const Ehalf*> canos;
+        for (auto& th: tm.thalfs) if (th.cano) canos.push_back(&th);
         vec<vec<int>> loops(canos.size());
 
         #pragma omp parallel for schedule(dynamic)
         for (int i = 0; i < canos.size(); ++i)
-            loops[i] = gen_basis_loop(tmesh.tquads, tmesh.thalfs, tmesh.th2quad, tmesh.th2side, R, *canos[i], compare);
+            loops[i] = gen_basis_loop(tm, th2side, R, *canos[i], compare);
 
         vec<TripD> T;
         for (int i = 0; i < loops.size(); ++i)
         for (int thid: loops[i])
-            T.emplace_back(i, tmesh.thalfs[thid].teid, 1);
+            T.emplace_back(i, tm.thalfs[thid].teid, 1);
 
-        SprsD G(tmesh.tedges.size(), tmesh.tedges.size());
+        SprsD G(tm.tedges.size(), tm.tedges.size());
         G.setFromTriplets(T.begin(), T.end());
 
         for (int k = 0; k < G.outerSize(); ++k)

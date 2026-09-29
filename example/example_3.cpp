@@ -70,8 +70,9 @@ int main(int argc, char** argv) {
     ///--- stage 1: quantization + t-mesh collapse / snap ---///
     auto mg = Mgrph(hm, uv2, matching, singular);
     auto tm = Tmesh(mg);
-    auto X  = compute_quantization(tm, mg);
-    Emesh em(mg, tm, X);
+    Emesh em(mg, tm);
+    auto X  = compute_quantization(em, mg);
+    em.set_x(X);
     lap("motorcycle + quantization");
 
     // TEMP debug: on a throw in stage 1, stop there and show the t-mesh reached so far. the tquad being

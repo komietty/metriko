@@ -87,11 +87,8 @@ struct Emesh {
 
     explicit Emesh(const Hmesh& hm): hm(hm) {}
 
-    explicit Emesh(
-        const Mgrph& mg,
-        const Tmesh& tm,
-        const VecXd& X
-    ): hm(mg.hm) {
+    // x stays -1 until set_x() is called with the quantization result
+    Emesh(const Mgrph& mg, const Tmesh& tm): hm(mg.hm) {
         const VecXc& cf = mg.cf;
         tnodes.reserve(mg.mnodes.size());
         tedges.reserve(tm.tedges.size());
@@ -126,7 +123,6 @@ struct Emesh {
                 .cano = th.cano,
                 .bgn  = th.cano && tm.tedges[th.teid].isBgn,
                 .end  = th.cano && tm.tedges[th.teid].isEnd,
-                .x    = X[th.teid],
                 .r    = tm.tedges[th.teid].len
             });
         }
@@ -139,6 +135,8 @@ struct Emesh {
             tquads.push_back(std::move(tqm));
         }
     }
+
+    void set_x(const VecXd& X) { for (Ehalf& th: thalfs) if (th.id != -1) th.x = X[th.teid]; }
 
     int step_next(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step next failed"); return circular_next(d, it)->thid; };
     int step_prev(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step prev failed"); return circular_prev(d, it)->thid; };

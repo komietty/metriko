@@ -15,15 +15,13 @@
 #include "metriko/solver/matrix_ops.h"
 
 namespace metriko {
-    inline void validate_quantization(const Tmesh &tmesh, const VecXd &X) {
-        for (const Tquad &tquad: tmesh.tquads) {
+    inline void validate_quantization(const Emesh &tm, const VecXd &X) {
+        for (const Equad &tquad: tm.live_tquads()) {
             for (int i = 0; i < 2; i++) {
-                auto thidsA = tquad.thids_by_side(i);
-                auto thidsB = tquad.thids_by_side(i + 2);
                 int sumA = 0;
                 int sumB = 0;
-                for (int thid: thidsA) { sumA += (int) X[tmesh.thalfs[thid].edge().id]; }
-                for (int thid: thidsB) { sumB += (int) X[tmesh.thalfs[thid].edge().id]; }
+                for (int thid: tquad.thids(i))     { sumA += (int) X[tm.thalfs[thid].teid]; }
+                for (int thid: tquad.thids(i + 2)) { sumB += (int) X[tm.thalfs[thid].teid]; }
                 METRIKO_CHECK(sumA == sumB, "tquad {} side {}: {} vs {}", tquad.id, i, sumA, sumB);
             }
         }
@@ -34,21 +32,15 @@ namespace metriko {
     // loop passes the tedge of `to`.
     struct StripArc { int fr; int to; int teid; };
 
-    inline vec<StripArc> build_strip_arcs(
-        const vec<Tquad>& tquads,
-        const vec<Thalf>& thalfs,
-        const VecXi& th2quad,
-        const VecXi& th2side
-    ) {
+    inline vec<StripArc> build_strip_arcs(const Emesh& tm, const VecXi& th2side) {
         vec<StripArc> arcs;
-        for (const Thalf& th: thalfs) {
-            const auto& tq = tquads[th2quad[th.id]];
-            for (const auto& d: tq.data)
-                if (d.side == (th2side[th.id] + 2) % 4) {
-                    const Thalf& to = thalfs[d.thid].twin();
-                    arcs.push_back({th.id, to.id, to.teid});
-                }
-        }
+        for (const Ehalf& th: tm.thalfs) {
+        for (const auto& d: tm.tquads[th.tqid].data) {
+            if (d.side == (th2side[th.id] + 2) % 4) {
+                const Ehalf& to = tm.thalfs[tm.thalfs[d.thid].twid];
+                arcs.push_back({th.id, to.id, to.teid});
+            }
+        }}
         return arcs;
     }
 
@@ -101,14 +93,16 @@ namespace metriko {
         return cycle_in_pred(); // still relaxing after n passes: the pred graph must contain a cycle
     }
 
-    inline VecXd compute_quantization(const Tmesh& tm, const Mgrph& mg) {
-        VecXd R(tm.nTE);
-        for (int i = 0; i < tm.nTE; i++) R[i] = tm.tedges[i].len;
+    inline VecXd compute_quantization(const Emesh& tm, const Mgrph& mg) {
+        const int nte = (int)tm.tedges.size();
+        VecXd R(nte);
+        for (const Ehalf& th: tm.thalfs) R[th.teid] = th.r; // both thalfs of a tedge carry its (uv) length
+        const VecXi th2side = thalf_sides(tm);
 
-        VecXd X = VecXd::Zero(tm.tedges.size());
+        VecXd X = VecXd::Zero(nte);
         MatXd C = compute_constraint(tm);
-        VecXd I = VecXd::Ones(tm.tedges.size());
-        SprsD G = construct_generating_vectors(tm, R, [](const Comparator& c1, const Comparator& c2) {
+        VecXd I = VecXd::Ones(nte);
+        SprsD G = construct_generating_vectors(tm, th2side, R, [](const Comparator& c1, const Comparator& c2) {
                 return c1.length / std::max(c1.weight, 1e-9)
                      < c2.length / std::max(c2.weight, 1e-9);
         });
@@ -118,14 +112,14 @@ namespace metriko {
        while ((X.array() == 0).any()) {
            double min = 1e+9;
            int thid = 0;
-           for (auto &th: tm.thalfs | vw::filter([&](auto &th_) { return X[th_.edge().id] == 0; })) {
-               auto w = compute_weight(R[th.edge().id], X[th.edge().id], tm.tedges.size());
+           for (auto &th: tm.thalfs | vw::filter([&](auto &th_) { return X[th_.teid] == 0; })) {
+               auto w = compute_weight(R[th.teid], X[th.teid], nte);
                if (w < min) { min = w; thid = th.id; }
            }
 
-           if (auto& col_idcs = teid2clid[tm.thalfs[thid].edge().id]; !col_idcs.empty()) X += G.col(col_idcs.front());
+           if (auto& col_idcs = teid2clid[tm.thalfs[thid].teid]; !col_idcs.empty()) X += G.col(col_idcs.front());
            // todo: latter code might be better to reflect my intention...
-           //const auto& ks = teid2clid[tm.thalfs[thid].edge().id];
+           //const auto& ks = teid2clid[tm.thalfs[thid].teid];
            //auto k = rg::min_element(ks, {}, [&](int k) { return G.col(k).nonZeros(); });
            //if (k != ks.end()) X += G.col(*k);
 
@@ -142,8 +136,7 @@ namespace metriko {
         // apply negative-cost loops until none exists. the pricing searches ALL
         // strip loops, not a precomputed basis, so the result is locally optimal
         // w.r.t. every single-loop +-1 move.
-        auto arcs = build_strip_arcs(tm.tquads, tm.thalfs, tm.th2quad, tm.th2side);
-        const int nte = (int)tm.tedges.size();
+        auto arcs = build_strip_arcs(tm, th2side);
         auto energy = [&](const VecXd& x) { return (x.cwiseQuotient(R) - I).norm(); };
 
         //double e = energy(X);
@@ -177,7 +170,7 @@ namespace metriko {
         while (counter < 30) {
             double prev_e = e;
             vec<std::tuple<int, int, bool>> es;
-            int l = tm.tedges.size();
+            int l = nte;
             for (int j = 0; j < l; j++) {
                 es.emplace_back(compute_weight(R[j], X[j], l, false), j, false);
                 es.emplace_back(compute_weight(R[j], X[j], l, true),  j, true);
