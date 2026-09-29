@@ -7,6 +7,7 @@
 //
 #ifndef METRIKO_SPARSE_SOLVER_H
 #define METRIKO_SPARSE_SOLVER_H
+#include <random>
 #include <Eigen/Sparse>
 #include "metriko/common/typedef.h"
 #ifdef GC_HAVE_SUITESPARSE
@@ -41,6 +42,18 @@ inline VecXc solve_smallest_eig(const SprsC& L, const SprsC& M, int nIter = 50) 
     if (ldlt.info() != Eigen::Success) {
         METRIKO_FAIL("failed to factorize the connection Laplacian (info {}): the mesh is likely degenerate, too coarsely tessellated, or contains sharp features / bad triangles", static_cast<int>(ldlt.info()));
     }
+
+    // fixed-seed start vector: the result must not depend on what else consumed std::rand in the process.
+    // real and imaginary parts are drawn in separate statements to keep the draw order defined
+    //std::mt19937 rng(0);
+    //std::uniform_real_distribution<double> uni(-1., 1.);
+    //VecXc x(L.rows());
+    //for (int i = 0; i < x.size(); i++) {
+    //    double re = uni(rng);
+    //    double im = uni(rng);
+    //    x(i) = complex(re, im);
+    //}
+
     VecXc x = VecXc::Random(L.rows());
     for (int i = 0; i < nIter; i++) {
         x = ldlt.solve(M * x);
