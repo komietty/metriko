@@ -157,7 +157,6 @@ inline auto loc_str(const HmLoc& l) {
     }, l);
 }
 
-// face whose chart a chart-aware location lives in
 inline Face get_chart_face(const Hmesh& hm, const HmLoc& loc) {
     return std::visit(overloaded{
         [&](const HmLocOnC& l) -> Face { return hm.crnrs[l.id].face(); },
@@ -167,7 +166,6 @@ inline Face get_chart_face(const Hmesh& hm, const HmLoc& loc) {
     }, loc);
 }
 
-// chart-free counterpart of a chart-aware location: OnC -> OnV, OnH -> OnE
 inline HmLoc to_chart_free(const Hmesh& hm, const HmLoc& loc) {
     return std::visit(overloaded{
         [&](const HmLocOnC& l) -> HmLoc { return HmLocOnV{hm.crnrs[l.id].vert().id}; },
@@ -176,7 +174,6 @@ inline HmLoc to_chart_free(const Hmesh& hm, const HmLoc& loc) {
     }, loc);
 }
 
-// uv of a chart-aware location in the chart of get_chart_face(loc)
 inline complex get_chart_uv(const Hmesh& hm, const VecXc& cfn, const HmLoc& loc) {
     return std::visit(overloaded{
         [&](const HmLocOnC& l) -> complex { return cfn(l.id); },

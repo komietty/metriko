@@ -56,5 +56,37 @@ inline HmLoc find_ray_intersection(
         [&](const auto& _) -> HmLoc { METRIKO_FAIL("no impl"); },
     }, loc);
 }
+
+inline std::pair<HmLoc, complex> cross_to_twin(
+    const Hmesh& hm,
+    const HmLoc& loc,
+    const VecXc& cfn,
+    const VecXi& matching,
+    const complex dir
+) {
+    auto get_m = [&](Half h) { return (h.isCanonical() ? -1 : 1) * matching[h.edge().id]; };
+
+    return std::visit(overloaded{
+        [&](const HmLocOnC& l) -> std::pair<HmLoc, complex> {
+            auto c = hm.crnrs[l.id];
+            auto v = c.vert();
+            auto d = dir;
+            for (Half h: v.adjHalfs(c.half().next().twin())) {
+                d *= std::polar(1., PI / 2 * get_m(h));
+                auto c1  = h.next().crnr();
+                auto uv0 = cfn(c1.id);
+                auto uv1 = cfn(c1.half().crnr_t().id);
+                auto uv2 = cfn(c1.half().crnr_h().id);
+                if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {HmLocOnC{c1.id}, d};
+            }
+            METRIKO_FAIL("no face around vert {} admits the ray direction", v.id);
+        },
+        [&](const HmLocOnH& l) -> std::pair<HmLoc, complex> {
+            auto h = hm.halfs[l.id].twin();
+            return {HmLocOnH{h.id, 1. - l.r}, std::polar(1., PI / 2 * get_m(h)) * dir};
+        },
+        [&](const auto& _) -> std::pair<HmLoc, complex> { METRIKO_FAIL("no impl"); },
+    }, loc);
+}
 }
 #endif

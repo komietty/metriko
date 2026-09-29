@@ -21,8 +21,7 @@ constexpr double TOLERANCE_EDGE_CD = 1e-6; // tolerance on two curvs crash close
 struct Mgrph;
 
 struct Mport {
-    complex uv;
-    complex dr;
+    complex dir;
     int crnr_id = -1;
     int this_id = -1;
     int next_id = -1;
@@ -46,9 +45,8 @@ struct Msgmt {
 };
 
 struct Mbuff {
-    HmLoc loc  = {}; // curve front, chart-aware (OnC or OnH)
+    HmLoc   loc = {}; // curve front, chart-aware (OnC or OnH)
     complex dir = {}; // direction in the chart of get_chart_face(loc)
-    bool bgn = false;
     bool end = false;
 };
 
@@ -60,34 +58,8 @@ struct Mcurv {
 
     bool operator==(const Mcurv &c) const { return id == c.id; }
     void add_segment(const Hmesh& hm, const VecXc& cf);
-    int resolve_bgn_node(const Hmesh& hm, bool bgn, const HmLoc& fr) const;
+    int resolve_fr_node(const Hmesh& hm, const HmLoc& fr) const;
 };
-
-inline void update_to_twin(const Hmesh& hm, const VecXc& cf, const VecXi& matching, Mbuff& buff) {
-    auto get_m = [&](Half h) { return (h.isCanonical() ? -1 : 1) * matching[h.edge().id]; };
-
-    buff = std::visit(overloaded{
-        [&](const HmLocOnC& l) -> Mbuff {
-            auto c = hm.crnrs[l.id];
-            auto v = c.vert();
-            auto d = buff.dir;
-            for (Half h: v.adjHalfs(c.half().next().twin())) {
-                d *= std::polar(1., PI / 2 * get_m(h));
-                auto c1  = h.next().crnr();
-                auto uv0 = cf(c1.id);
-                auto uv1 = cf(c1.half().crnr_t().id);
-                auto uv2 = cf(c1.half().crnr_h().id);
-                if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {.loc = HmLocOnC{c1.id}, .dir = d};
-            }
-            METRIKO_FAIL("no face around vert {} admits the curve direction", v.id);
-        },
-        [&](const HmLocOnH& l) -> Mbuff {
-            auto h = hm.halfs[l.id].twin();
-            return {.loc = HmLocOnH{h.id, 1. - l.r}, .dir = std::polar(1., PI / 2 * get_m(h)) * buff.dir};
-        },
-        [&](const auto& _) -> Mbuff { METRIKO_FAIL("not implemented"); },
-    }, buff.loc);
-}
 
 struct  Mgrph {
     const Hmesh &hm;
@@ -110,7 +82,7 @@ struct  Mgrph {
         // 1: Add the first segment for each curve
         mcurvs.reserve(mports.size());
         for (const auto& p : mports) {
-            mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.loc = HmLocOnC{p.crnr_id}, .dir = p.dr, .bgn = true}});
+            mcurvs.push_back({.mg = this, .id = p.this_id, .buff = {.loc = HmLocOnC{p.crnr_id}, .dir = p.dir}});
             mcurvs.back().add_segment(hm, cf);
         }
 
@@ -118,7 +90,8 @@ struct  Mgrph {
         while (rg::any_of(mcurvs, [](auto &c) { return !c.buff.end; })) {
             for (auto &mc: mcurvs) {
                 if (mc.buff.end) continue;
-                update_to_twin(hm, cf, matching, mc.buff);
+                std::tie(mc.buff.loc, mc.buff.dir) =
+                    cross_to_twin(hm, mc.buff.loc, cf, matching, mc.buff.dir);
                 mc.add_segment(hm, cf);
             }
         }

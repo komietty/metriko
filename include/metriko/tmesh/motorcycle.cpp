@@ -36,10 +36,10 @@ void Mgrph::gen_ports(const VecXi &singular) {
                 if (is_points_into(a, b, c, a + d) ||
                     std::arg(d) == std::arg(ab) ||
                     std::arg(d) == std::arg(ac)
-                ) buff1.push_back({.uv = a, .dr = d, .crnr_id = h.next().crnr().id});
+                ) buff1.push_back({.dir = d, .crnr_id = h.next().crnr().id});
             }
 
-            rg::sort(buff1, [&](auto &p0, auto &p1) { return dot(p0.dr, ab) > dot(p1.dr, ab); });
+            rg::sort(buff1, [&](auto &p0, auto &p1) { return dot(p0.dir, ab) > dot(p1.dir, ab); });
             buff0.insert(buff0.end(), buff1.begin(), buff1.end());
         }
 
@@ -73,41 +73,34 @@ void Mgrph::sort_node_adjacency() {
         auto get_fid = [&](const Row2i& ad) { return mcurvs[ad.x()].sgmts[ad.y()].face_id; };
         auto get_dir = [&](const Row2i& ad) {
             auto& s  = mcurvs[ad.x()].sgmts[ad.y()];
-            auto fr  = s.fr_nid == nid;
             auto uvA = get_face_uv(mnodes[s.fr_nid].loc, s.face_id, hm, cf);
             auto uvB = get_face_uv(mnodes[s.to_nid].loc, s.face_id, hm, cf);
             METRIKO_CHECK(abs(uvA - uvB) > 1e-8, "zero-length segment at node {}", nid);
-            return fr ? uvB - uvA : uvA - uvB;
+            return s.fr_nid == nid ? uvB - uvA : uvA - uvB;
+        };
+
+        auto sort_by_rank = [&](auto rank) {
+            rg::sort(mn.adj, [&](auto& a, auto& b) {
+                int rA = rank(get_fid(a));
+                int rB = rank(get_fid(b));
+                if (rA != rB) return rA < rB;
+                return cross(get_dir(a), get_dir(b)) > 0;
+            });
         };
 
         std::visit(overloaded {
-            [&](const HmLocOnV& v) {
+            [&](const HmLocOnV& l) {
+                int r = 0;
                 umap<int, int> ccw_rank;
-                int rank = 0;
-                for (Half h : hm.verts[v.id].adjHalfs()) ccw_rank[h.face().id] = rank++;
-                rg::sort(mn.adj, [&](auto& a, auto& b) {
-                    int rA = ccw_rank.at(get_fid(a));
-                    int rB = ccw_rank.at(get_fid(b));
-                    if (rA != rB) return rA < rB;
-                    return cross(get_dir(a), get_dir(b)) > 0;
-                });
+                for (Half h : hm.verts[l.id].adjHalfs()) ccw_rank[h.face().id] = r++;
+                sort_by_rank([&](int fid) { return ccw_rank.at(fid); });
             },
-            [&](const HmLocOnE& e) {
-                Half h = hm.edges[e.id].half();
-                int f0 = h.face().id;
-                int f1 = h.twin().face().id;
-
-                auto edge_rank = [&](int fid) {
-                    if (fid == f0) return 0;
-                    if (fid == f1) return 1;
+            [&](const HmLocOnE& l) {
+                auto e = hm.edges[l.id];
+                sort_by_rank([&](int fid) {
+                    if (fid == e.face0().id) return 0;
+                    if (fid == e.face1().id) return 1;
                     return 2;
-                };
-
-                rg::sort(mn.adj, [&](auto& a, auto& b) {
-                    int rA = edge_rank(get_fid(a));
-                    int rB = edge_rank(get_fid(b));
-                    if (rA != rB) return rA < rB;
-                    return cross(get_dir(a), get_dir(b)) > 0;
                 });
             },
             [&](const HmLocOnP& _) {
@@ -118,8 +111,8 @@ void Mgrph::sort_node_adjacency() {
     }
 }
 
-int Mcurv::resolve_bgn_node(const Hmesh& hm, const bool bgn, const HmLoc& fr) const {
-    if (!bgn) return sgmts.back().to_nid;
+int Mcurv::resolve_fr_node(const Hmesh& hm, const HmLoc& fr) const {
+    if (!sgmts.empty()) return sgmts.back().to_nid;
     auto l = to_chart_free(hm, fr);
     auto i = rg::find(mg->mnodes, l, &Mnode::loc);
     METRIKO_CHECK(i != mg->mnodes.end(), "start node of the curve must exist");
@@ -128,10 +121,10 @@ int Mcurv::resolve_bgn_node(const Hmesh& hm, const bool bgn, const HmLoc& fr) co
 
 void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
     auto fr  = buff.loc;
-    auto bgn = buff.bgn;
+    auto bgn = sgmts.empty(); // add_segment always appends one, so only the first call sees it empty
     auto uv0 = get_chart_uv(hm, cf, fr);
     auto fid = get_chart_face(hm, fr).id;
-    buff = {.loc = find_ray_intersection(hm, buff.loc, cf, buff.dir), .dir = buff.dir};
+    buff.loc = find_ray_intersection(hm, fr, cf, buff.dir);
     auto uv3 = get_chart_uv(hm, cf, buff.loc);
 
     vec<std::tuple<double, double, Msgmt>> candidates;
@@ -144,17 +137,14 @@ void Mcurv::add_segment(const Hmesh &hm, const VecXc& cf) {
                vw::filter([&](const auto &s) { return s.face_id == fid; });
 
     for (auto &s: sgs) {
-        auto ab  = 0.;
-        auto cd  = 0.;
+        double ab, cd;
         auto uvA = get_face_uv(mg->mnodes[s.fr_nid].loc, fid, hm, cf);
         auto uvB = get_face_uv(mg->mnodes[s.to_nid].loc, fid, hm, cf);
-        auto f1  = find_extended_intersection(uv0, uv3, uvA, uvB, ab, cd);
-        auto f2  = ab >= 0. && cd >= 0. && ab <= 1. && cd <= 1.;
-        if (f1 && f2) candidates.emplace_back(ab, cd, s);
+        if (find_strict_intersection(uv0, uv3, uvA, uvB, ab, cd, 0.)) candidates.emplace_back(ab, cd, s); // closed segments
     }
 
     Msgmt sg{
-        .fr_nid  = resolve_bgn_node(hm, bgn, fr),
+        .fr_nid  = resolve_fr_node(hm, fr),
         .curv_id = id,
         .face_id = fid
     };
