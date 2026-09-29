@@ -71,8 +71,8 @@ inline std::pair<HmLoc, complex> cross_to_twin(
                 d *= std::polar(1., PI / 2 * get_m(h));
                 auto c1  = h.next().crnr();
                 auto uv0 = c1.uv();
-                auto uv1 = c1.half().cr_t().uv();
-                auto uv2 = c1.half().cr_h().uv();
+                auto uv1 = c1.next().uv();
+                auto uv2 = c1.prev().uv();
                 if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {HmLocOnC{c1.id}, d};
             }
             METRIKO_FAIL("no face around vert {} admits the ray direction", v.id);

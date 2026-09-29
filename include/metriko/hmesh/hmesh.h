@@ -20,6 +20,7 @@ struct Edge;
 struct Face;
 struct Crnr;
 struct AdjVH; // Adjacency iterator for verts and halfs
+struct AdjVC; // Adjacency iterator for verts and crnrs
 struct AdjFH; // Adjacency iterator for faces and halfs
 struct AdjLH; // Adjacency iterator for loops and halfs
 template<typename N> struct AdjIter;
@@ -74,12 +75,15 @@ struct Vert : Elem {
     [[nodiscard]] double circArea() const;
     [[nodiscard]] AdjIter<AdjVH> adjHalfs(bool ccw = true) const;
     [[nodiscard]] AdjIter<AdjVH> adjHalfs(Half h, bool ccw = true) const;
+    [[nodiscard]] AdjIter<AdjVC> adjCrnrs(bool ccw = true) const; // crnrs of adjHalfs, one per half
 };
 
 struct Crnr : Elem {
     [[nodiscard]] Half half() const;
     [[nodiscard]] Vert vert() const;
     [[nodiscard]] Face face() const;
+    [[nodiscard]] Crnr next() const; // next crnr of the same face in ccw
+    [[nodiscard]] Crnr prev() const; // prev crnr of the same face in ccw
     [[nodiscard]] Row3d pos() const;
     [[nodiscard]] complex uv() const;
 };
@@ -186,6 +190,14 @@ struct AdjVH : AdjBase {
     AdjVH  operator++(int) { auto t = *this; ++*this; return t; }
 };
 
+struct AdjVC : AdjVH {
+    using value_type = Crnr;
+    using AdjVH::AdjVH;
+    Crnr operator*() const { return h.cr_t(); }
+    AdjVC& operator++() { AdjVH::operator++(); return *this; }
+    AdjVC  operator++(int) { auto t = *this; ++*this; return t; }
+};
+
 struct AdjFH: AdjBase {
     AdjFH() = default;
     AdjFH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
@@ -230,6 +242,8 @@ inline Half Loop::half() const { return {m->loop2half[id], m}; }
 inline Half Crnr::half() const { return Half{m->crnr2half[id], m}; }
 inline Vert Crnr::vert() const { return Half{m->crnr2half[id], m}.prev().tail(); }
 inline Face Crnr::face() const { return Half{m->crnr2half[id], m}.face(); }
+inline Crnr Crnr::next() const { return half().cr_t(); }
+inline Crnr Crnr::prev() const { return half().cr_h(); }
 
 inline Vert Edge::vert0() const { return {m->edge2vert(id, 0), m}; }
 inline Vert Edge::vert1() const { return {m->edge2vert(id, 1), m}; }
@@ -284,6 +298,7 @@ inline std::array<Crnr, 3> Face::crnrs() const { auto [h0, h1, h2] = halfs(); re
 inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) const { return {m, m->vert2half[id], ccw}; }
 inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) const { return {m, m->face2half[id], ccw}; }
 inline AdjIter<AdjLH> Loop::adjHalfs(bool ccw) const { return {m, m->loop2half[id], ccw}; }
+inline AdjIter<AdjVC> Vert::adjCrnrs(bool ccw) const { return {m, m->vert2half[id], ccw}; }
 inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) const { METRIKO_CHECK(h.tail().id == id, "half {} is not on vert {}", h.id, id); return {m, h.id, ccw}; }
 inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) const { METRIKO_CHECK(h.face().id == id, "half {} is not on face {}", h.id, id); return {m, h.id, ccw}; }
 

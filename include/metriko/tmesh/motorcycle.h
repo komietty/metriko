@@ -121,11 +121,11 @@ inline void Mgrph::gen_ports(const VecXi &singular) {
         vec<Mport> buff0 {}; // the outer scope buffer to assign next/prev
         vec<Mport> buff1 {}; // the inner scope buffer
 
-        for (Half h: v.adjHalfs()) {
+        for (Crnr cr: v.adjCrnrs()) {
             buff1.clear();
-            auto a = h.cr_t().uv();
-            auto b = h.cr_h().uv();
-            auto c = h.crnr().uv();
+            auto a = cr.uv();
+            auto b = cr.next().uv();
+            auto c = cr.prev().uv();
             auto o = orientation(a, b, c);
             auto ab = b - a;
             auto ac = c - a;
@@ -142,7 +142,7 @@ inline void Mgrph::gen_ports(const VecXi &singular) {
                 if (is_points_into(a, b, c, a + d) ||
                     std::arg(d) == std::arg(ab) ||
                     std::arg(d) == std::arg(ac)
-                ) buff1.push_back({.dir = d, .crnr_id = h.next().crnr().id});
+                ) buff1.push_back({.dir = d, .crnr_id = cr.id});
             }
 
             rg::sort(buff1, [&](auto &p0, auto &p1) { return dot(p0.dir, ab) > dot(p1.dir, ab); });

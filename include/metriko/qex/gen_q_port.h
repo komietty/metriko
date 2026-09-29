@@ -82,10 +82,10 @@ namespace metriko::qex {
             vec<std::pair<double, Qport>> ps;
             auto acc = 0.;
             auto v = mesh.verts[qv.sid];
-            for (Half h: v.adjHalfs()) {
-                auto uv1 = h.cr_t().uv();
-                auto uv2 = h.cr_h().uv();
-                auto uv3 = h.crnr().uv();
+            for (Crnr c: v.adjCrnrs()) {
+                auto uv1 = c.uv();
+                auto uv2 = c.next().uv();
+                auto uv3 = c.prev().uv();
                 for (int i = 0; i < 4; i++) {
                     auto d  = get_quater_rot(i);
                     bool f1 = is_points_into(uv1, uv2, uv3, uv1 + d);
@@ -94,7 +94,7 @@ namespace metriko::qex {
                     if (f1 || (f2 && f3)) {
                         ps.emplace_back(
                             acc + std::arg(d / (uv2 - uv1)),
-                            Qport{-1, v.id, -1, h.face().id, uv1, d, qv.pos}
+                            Qport{-1, v.id, -1, c.face().id, uv1, d, qv.pos}
                         );
                     }
                 }
