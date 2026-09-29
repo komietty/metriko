@@ -79,6 +79,7 @@ struct Crnr : Elem {
     [[nodiscard]] Half half() const;
     [[nodiscard]] Vert vert() const;
     [[nodiscard]] Face face() const;
+    [[nodiscard]] complex uv() const;
 };
 
 struct Loop : Elem {
@@ -107,7 +108,7 @@ struct Half : Elem {
     [[nodiscard]] Row3d vec() const;
     [[nodiscard]] Row3d nml() const;
     [[nodiscard]] Row3d lerp(double r) const;
-    [[nodiscard]] complex lerp_uv(double r) const;
+    [[nodiscard]] complex uv(double r) const;
 };
 
 struct Hmesh {
@@ -264,7 +265,10 @@ inline Row3d Face::normal() const { return m->faceNormal.row(id); }
 inline Row3d Face::center() const { return m->baryCenter.row(id); }
 inline Row3d Edge::lerp(double r) const { return vert0().pos() * (1 - r) + vert1().pos() * r; }
 inline Row3d Half::lerp(double r) const { return tail().pos()  * (1 - r) + head().pos()  * r; }
-inline complex Half::lerp_uv(double r) const { return metriko::lerp(m->cfn(crnr_t().id), m->cfn(crnr_h().id), r); }
+
+inline complex Crnr::uv() const { return m->cfn(id); }
+inline complex Half::uv(double r) const { return metriko::lerp(crnr_t().uv(), crnr_h().uv(), r); }
+
 inline complex Face::to_local(const Row3d& v) const { Row3d d = v - half().tail().pos(); return {d.dot(basisX()), d.dot(basisY())}; }
 inline Row3d Face::to_world(const complex& v) const { return half().tail().pos() + basisX() * v.real() + basisY() * v.imag(); }
 

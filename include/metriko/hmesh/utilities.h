@@ -44,10 +44,10 @@ inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
 inline complex get_face_uv(const HmLoc& loc, int fid, const Hmesh& hm) {
     return std::visit(overloaded {
         [&](const HmLocOnP& f) -> complex { return f.uv; },
-        [&](const HmLocOnV& v) -> complex { return hm.cfn[try_get_crnr(hm, v.id, fid).value().id]; },
+        [&](const HmLocOnV& v) -> complex { return try_get_crnr(hm, v.id, fid).value().uv(); },
         [&](const HmLocOnE& e) -> complex {
             auto h = try_get_half(hm, e.id, fid).value();
-            return h.lerp_uv(h.isCanonical() ? e.r : 1 - e.r);
+            return h.uv(h.isCanonical() ? e.r : 1 - e.r);
         },
         [&](const auto& _) -> complex { METRIKO_FAIL("no impl"); },
     }, loc);

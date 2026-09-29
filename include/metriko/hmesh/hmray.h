@@ -14,8 +14,8 @@ inline std::optional<HmLoc> find_ray_intersection(
     const complex d,
     const double tol
 ) {
-    auto a = h.m->cfn(h.crnr_t().id);
-    auto b = h.m->cfn(h.crnr_h().id);
+    auto a = h.crnr_t().uv();
+    auto b = h.crnr_h().uv();
     auto s = 0.;
     auto t = 0.;
     if (!find_extended_intersection(a, b, o, o + d, s, t)) return std::nullopt;
@@ -34,14 +34,13 @@ inline HmLoc find_ray_intersection(
 
     return std::visit(overloaded{
         [&](const HmLocOnC& l) -> HmLoc {
-            if (auto x = find_ray_intersection(hm.crnrs[l.id].half(), hm.cfn(l.id), dir, tol)) return *x;
+            if (auto x = find_ray_intersection(hm.crnrs[l.id].half(), hm.crnrs[l.id].uv(), dir, tol)) return *x;
             METRIKO_FAIL("no intersection");
         },
         [&](const HmLocOnH& l) -> HmLoc {
             auto h = hm.halfs[l.id];
-            auto o = h.lerp_uv(l.r);
-            if (auto x = find_ray_intersection(h.next(), o, dir, tol)) return *x;
-            if (auto x = find_ray_intersection(h.prev(), o, dir, tol)) return *x;
+            if (auto x = find_ray_intersection(h.next(), h.uv(l.r), dir, tol)) return *x;
+            if (auto x = find_ray_intersection(h.prev(), h.uv(l.r), dir, tol)) return *x;
             METRIKO_FAIL("no intersection");
         },
         [&](const HmLocOnP& l) -> HmLoc {
@@ -71,9 +70,9 @@ inline std::pair<HmLoc, complex> cross_to_twin(
             for (Half h: v.adjHalfs(c.half().next().twin())) {
                 d *= std::polar(1., PI / 2 * get_m(h));
                 auto c1  = h.next().crnr();
-                auto uv0 = hm.cfn(c1.id);
-                auto uv1 = hm.cfn(c1.half().crnr_t().id);
-                auto uv2 = hm.cfn(c1.half().crnr_h().id);
+                auto uv0 = c1.uv();
+                auto uv1 = c1.half().crnr_t().uv();
+                auto uv2 = c1.half().crnr_h().uv();
                 if (is_points_into(uv0, uv1, uv2, uv0 + d, 0) && c1 != c) return {HmLocOnC{c1.id}, d};
             }
             METRIKO_FAIL("no face around vert {} admits the ray direction", v.id);

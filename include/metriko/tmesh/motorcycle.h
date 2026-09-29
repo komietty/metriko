@@ -123,9 +123,9 @@ inline void Mgrph::gen_ports(const VecXi &singular) {
 
         for (Half h: v.adjHalfs()) {
             buff1.clear();
-            auto a = hm.cfn(h.next().crnr().id);
-            auto b = hm.cfn(h.prev().crnr().id);
-            auto c = hm.cfn(h.crnr().id);
+            auto a = h.crnr_t().uv();
+            auto b = h.crnr_h().uv();
+            auto c = h.crnr().uv();
             auto o = orientation(a, b, c);
             auto ab = b - a;
             auto ac = c - a;
