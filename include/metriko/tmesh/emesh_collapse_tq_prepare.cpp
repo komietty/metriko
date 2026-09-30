@@ -98,7 +98,7 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         double base = oft;
         double rt = 0;
         double rb = 0;
-        int    span   = sumX(thids_t);
+        double span   = sumX(thids_t);
         double rt_sum = sumR(thids_t);
         double rb_sum = sumR(thids_b);
         for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (f(th.nid_fr(), th.id))   chain.pts.push_back({ .nid = th.nid_fr(), .val = oft, .ord = base + rt / rt_sum * span, .top = true  }); }

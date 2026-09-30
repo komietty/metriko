@@ -68,6 +68,12 @@ struct Equad {
     auto find_of(this auto& self, int thid) { return rg::find(self.data, thid, &Edata::thid); }
     int  side_of(const Ehalf& th) const { return rg::find(data, th.id, &Edata::thid)->side; }
 
+    // every side keeps at least one thalf: a tquad that lost a side is no longer a quad
+    bool is_valid() const {
+        for (int side = 0; side < 4; ++side) if (rg::none_of(data, [&](const Edata& d) { return d.side == side; })) return false;
+        return true;
+    }
+
     vec<int> thids(int side) const {
         return data | vw::filter([&](auto& d) { return d.side == side; })
                     | vw::transform([](auto& d) { return d.thid; })
@@ -213,6 +219,7 @@ struct Emesh {
     bool reroute_tedge(int teid);
 
     void collapse_thalf(int thid);
+    bool collapse_point_tquad(int tqid);
     bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;
     void collapse_tquad_chain_execute(Tqchain& chain);
 
