@@ -14,7 +14,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     if (tq.id == -1) return false;
 
     auto zero = [&](int thid) { return thalfs[thid].x == 0; };
-    auto sum  = [&](const vec<int>& thids) { double x = 0; for (int t: thids) x += thalfs[t].x; return x; };
+    auto sumX = [&](const vec<int>& thids) { double s = 0; for (int t: thids) s += thalfs[t].x; return s; };
+    auto sumR = [&](const vec<int>& thids) { double s = 0; for (int t: thids) s += thalfs[t].r; return s; };
 
     auto find_simple_chain = [&](vec<int>& seq) {
         while (true) {
@@ -32,7 +33,7 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
             if (thids_0.size() > 1 || thids_2.size() > 1) return true; // stop caz tq_curr has split chain
             if (count_adj_tquads(th_curr.id)   == 4)      return true; // stop caz cannot go father
             if (count_adj_tquads(th_curr.twid) == 4)      return true; // stop caz cannot go father
-            if (sum(thids_1) == 0 || sum(thids_3) == 0)   return true; // stop caz tq_curr's all sides are x == zero
+            if (sumX(thids_1) == 0 || sumX(thids_3) == 0) return true; // stop caz tq_curr's all sides are x == zero
             METRIKO_CHECK(!thids_2.empty(), "tquad {}: no thalf on the side opposite to thalf {} (side sizes {} {} {} {})", tq_curr.id, th_curr.id, thids_0.size(), thids_1.size(), thids_2.size(), thids_3.size());
             seq.push_back(thids_2.front());
         }
@@ -43,8 +44,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
     if (tq.thids(1).size() == 1 && tq.thids(3).size() == 1 && zero(tq.thids(1).front())) side = 1;
     if (side == -1) return false;
 
-    if (sum(tq.thids(side == 0 ? 3 : 0)) == 0) return false;
-    if (sum(tq.thids(side == 0 ? 1 : 2)) == 0) return false;
+    if (sumX(tq.thids(side == 0 ? 3 : 0)) == 0) return false;
+    if (sumX(tq.thids(side == 0 ? 1 : 2)) == 0) return false;
 
     vec seq_l = {tq.thids(side == 0 ? 2 : 3)[0]};
     vec seq_r = {tq.thids(side == 0 ? 0 : 1)[0]};
@@ -84,23 +85,28 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         chain.thids_b.insert(chain.thids_b.end(), thids_b.begin(), thids_b.end());
 
         auto f = [&](int nid, int thid_at) {
-            return !rg::contains(std::array{th_l.nid_fr(), th_l.nid_to(), th_r.nid_fr(), th_r.nid_to()}, nid) &&
-                   count_adj_tquads(thid_at) != 2; // adjacency around the pushed node
+            return !rg::contains(
+                std::array{
+                th_l.nid_fr(),
+                th_l.nid_to(),
+                th_r.nid_fr(),
+                th_r.nid_to()
+            }, nid) && count_adj_tquads(thid_at) != 2; // adjacency around the pushed node
         };
 
         auto   btm  = oft;
         double base = oft;
         double rt = 0;
         double rb = 0;
-        int    span   = 0; for (int t: thids_t) span   += thalfs[t].x;
-        double rt_sum = 0; for (int t: thids_t) rt_sum += thalfs[t].r;
-        double rb_sum = 0; for (int t: thids_b) rb_sum += thalfs[t].r;
+        int    span   = sumX(thids_t);
+        double rt_sum = sumR(thids_t);
+        double rb_sum = sumR(thids_b);
         for (int thid: thids_t | vw::reverse) { auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (f(th.nid_fr(), th.id))   chain.pts.push_back({ .nid = th.nid_fr(), .val = oft, .ord = base + rt / rt_sum * span, .top = true  }); }
         for (int thid: thids_b)               { auto& th = thalfs[thid]; btm += th.x; rb += th.r; if (f(th.nid_to(), th.twid)) chain.pts.push_back({ .nid = th.nid_to(), .val = btm, .ord = base + rb / rb_sum * span, .top = false }); }
 
         chain.bounds.push_back(oft);
 
-        // push ladder thalf points
+        // push ladder thalf points (right side of tquad)
         if (i == chain.thids_z.size() - 1) break;
         if      (th_r.bgn) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .top = false });
         else if (th_t.bgn) chain.pts.push_back({.nid = n0, .val = oft, .ord = (double)oft, .top = true  });
