@@ -114,6 +114,13 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
         else if (th_t.end) chain.pts.push_back({.nid = n1, .val = oft, .ord = (double)oft, .top = false });
     }
 
+    // the band folds onto itself around a tedge (a hairpin): both halves of that tedge are lateral thalfs of the
+    // chain, and the merge would rewrite a tquad of the chain as if it were an outer one. not handled yet
+    // for (const auto* thids: { &chain.thids_t, &chain.thids_b })
+    // for (int thid: *thids)
+    //     if (rg::contains(chain.thids_t, thalfs[thid].twid) ||
+    //         rg::contains(chain.thids_b, thalfs[thid].twid)) return false;
+
     // 2: push the edge pts
     auto [nid_bgn, side_bgn] = find_terminal(chain.thid_l, true, false);
     auto [nid_end, side_end] = find_terminal(chain.thid_r, false, true);

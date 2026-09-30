@@ -12,14 +12,6 @@
      ]
    },
   {
-    "gridscale": "0.05",
-    "vectorfield": "curvature_aligned",
-    "meshes": [
-      "icosphere_3",
-      "icosphere_4"
-    ]
-  },
-  {
     "gridscale": "0.03",
     "vectorfield": "smoothest",
     "meshes": [
@@ -30,29 +22,24 @@
     "gridscale": "0.02",
     "vectorfield": "smoothest",
     "meshes": [
-      "fandisk",
+      "spot",
+      "holes3",
       "bunny",
-      "spot"
+      "fandisk"
     ]
   },
   {
     "gridscale": "0.01",
     "vectorfield": "smoothest",
     "meshes": [
+      "spot",
+      "bunny",
+      "holes3",
+      "fandisk",
       "gargoyle",
       "fertility",
       "rocker-arm",
-      "fandisk",
-      "bunny",
-      "spot"
-    ]
-  },
-  {
-    "gridscale": "0.01",
-    "vectorfield": "curvature_aligned",
-    "meshes": [
-      "rocker-arm",
-      "spot"
+      "soccerball"
     ]
   },
   {
@@ -66,6 +53,37 @@
       "elephant",
       "soccerball",
       "rolling_stage_100k"
+    ]
+  },
+  {
+    "gridscale": "0.05",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "icosphere_3",
+      "icosphere_4"
+    ]
+  },
+  {
+    "gridscale": "0.03",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "holes3"
+    ]
+  },
+  {
+    "gridscale": "0.02",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "holes3"
+    ]
+  },
+  {
+    "gridscale": "0.01",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "spot",
+      "holes3",
+      "rocker-arm"
     ]
   }
 ]

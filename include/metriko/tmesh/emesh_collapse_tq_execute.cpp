@@ -201,12 +201,18 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
             auto& tq_twn  = tquads[th_twn.tqid];
             auto& th2_twn = thalfs[th2.twid];
             std::erase_if(tq_twn.data, [&](const auto& d) { return d.thid == th_twn.id; });
+
+            if (th2.teid == th.teid) return; // when concave tquad attached, this case happens...
             tedges[th2.teid].insert_locs(nids);
 
             // the zero thalf closed th2 into a loop (a band around a tube): both attachments were valid, so make
             // sure the loop's endpoint is the node where the other tedges meet, not the node being absorbed
             if (auto& loop = tedges[th2.teid].nids; loop.front() == loop.back()) {
-                auto deg = [&](int n) { int c = 0; for (const auto& [id, ns]: live_tedges()) if (id != th2.teid && (ns.front() == n || ns.back() == n)) ++c; return c; };
+                auto deg = [&](int n) {
+                    int c = 0;
+                    for (auto& [id, ns]: live_tedges()) if (id != th2.teid && (ns.front() == n || ns.back() == n)) ++c;
+                    return c;
+                };
                 const int crnr = deg(nids.front()) >= deg(nids.back()) ? nids.front() : nids.back();
                 if (loop.front() != crnr) {
                     loop.pop_back();
@@ -227,7 +233,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     const auto& th_l = thalfs[chain.thid_l];
     const auto& th_r = thalfs[chain.thid_r];
 
-    auto keep_twin = [&](const Ehalf& th) {
+    auto consume_creates_invalid_tq = [&](const Ehalf& th) {
         Equad copy = tquads[thalfs[th.twid].tqid];
         std::erase_if(copy.data, [&](const Edata& d) { return d.thid == th_l.twid; });
         std::erase_if(copy.data, [&](const Edata& d) { return d.thid == th_r.twid; });
@@ -238,8 +244,8 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     bool cfr_l  = count_adj_tquads(th_l.id) == 4   && !on_chain(th_l.nid_fr());
     bool cto_r  = count_adj_tquads(th_r.twid) == 4 && !on_chain(th_r.nid_to());
     bool cto_l  = count_adj_tquads(th_l.twid) == 4 && !on_chain(th_l.nid_to());
-    bool keep_l = keep_twin(th_l);
-    bool keep_r = keep_twin(th_r);
+    bool keep_l = consume_creates_invalid_tq(th_l);
+    bool keep_r = consume_creates_invalid_tq(th_r);
 
     if (!thids_bgn.empty() && thids_end.empty()) {
         METRIKO_CHECK(is_top_bgn == is_top_end, "chain ends on diff sides");
