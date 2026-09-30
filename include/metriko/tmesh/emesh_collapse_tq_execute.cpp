@@ -226,25 +226,35 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
     auto op = [&](int n0, int n1) { return thids_from_remainning_side(n0, n1) | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>(); };
     const auto& th_l = thalfs[chain.thid_l];
     const auto& th_r = thalfs[chain.thid_r];
-    bool cfr_r = count_adj_tquads(th_r.id) == 4   && !on_chain(th_r.nid_fr());
-    bool cto_r = count_adj_tquads(th_r.twid) == 4 && !on_chain(th_r.nid_to());
-    bool cfr_l = count_adj_tquads(th_l.id) == 4   && !on_chain(th_l.nid_fr());
-    bool cto_l = count_adj_tquads(th_l.twid) == 4 && !on_chain(th_l.nid_to());
+
+    auto keep_twin = [&](const Ehalf& th) {
+        Equad copy = tquads[thalfs[th.twid].tqid];
+        std::erase_if(copy.data, [&](const Edata& d) { return d.thid == th_l.twid; });
+        std::erase_if(copy.data, [&](const Edata& d) { return d.thid == th_r.twid; });
+        return !copy.is_valid();
+    };
+
+    bool cfr_r  = count_adj_tquads(th_r.id) == 4   && !on_chain(th_r.nid_fr());
+    bool cfr_l  = count_adj_tquads(th_l.id) == 4   && !on_chain(th_l.nid_fr());
+    bool cto_r  = count_adj_tquads(th_r.twid) == 4 && !on_chain(th_r.nid_to());
+    bool cto_l  = count_adj_tquads(th_l.twid) == 4 && !on_chain(th_l.nid_to());
+    bool keep_l = keep_twin(th_l);
+    bool keep_r = keep_twin(th_r);
 
     if (!thids_bgn.empty() && thids_end.empty()) {
         METRIKO_CHECK(is_top_bgn == is_top_end, "chain ends on diff sides");
         METRIKO_CHECK(thids_bgn.size() == chain.pts.size() - 1, "chain error");
         bool ahd_l = th_l.nid_fr() == nid_bgn;
         bool ahd_r = th_r.nid_fr() == nid_end;
-        extend(th_l, ahd_l, cfr_l || cto_l);
-        extend(th_r, ahd_r, cfr_r || cto_r);
+        extend(th_l, ahd_l, cfr_l || cto_l || keep_l);
+        extend(th_r, ahd_r, cfr_r || cto_r || keep_r);
         int n0 = ahd_l ? th_l.nid_to() : th_l.nid_fr();
         int n1 = ahd_r ? th_r.nid_to() : th_r.nid_fr();
         replace(op(n0, n1), thids_bgn);
     } else {
         { // leftmost
             bool ahd = th_l.nid_fr() == nid_bgn;
-            extend(th_l, ahd, cfr_l || cto_l);
+            extend(th_l, ahd, cfr_l || cto_l || keep_l);
             auto n0 = ahd ? th_l.nid_to() : th_l.nid_fr();
             auto na = thalfs[thids_bgn.back()].nid_to();
             auto nb = thalfs[thids_bgn.front()].nid_fr();
@@ -253,7 +263,7 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         }
         { // rightmost
             bool ahd = th_r.nid_fr() == nid_end;
-            extend(th_r, ahd, cfr_r || cto_r);
+            extend(th_r, ahd, cfr_r || cto_r || keep_r);
             auto n0 = ahd ? th_r.nid_to() : th_r.nid_fr();
             auto na = thalfs[thids_end.back()].nid_to();
             auto nb = thalfs[thids_end.front()].nid_fr();
