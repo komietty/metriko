@@ -96,7 +96,7 @@ inline SprsD embedding_tutte_for_tquad(
         reps[fid * 3 + j] = reps[cid];
     }}
 
-    MatXd V  = hm.pos(gids, Eigen::all);
+    MatXd V  = hm.pos(gids, Eigen::indexing::all);
     MatXi F  = MatXi(fids.size(), 3);
     MatXd UV = MatXd::Zero(gids.size(), 2);
     for (int i = 0; i < F.rows(); ++i) {

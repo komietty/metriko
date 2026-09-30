@@ -387,7 +387,7 @@ inline bool decimate_and_clean(MatXd& V, MatXi& F, const size_t target_faces, co
     MatXd U;
     MatXi G;
     VecXi J, I;
-    if (!igl::qslim(V, F, target_faces, U, G, J, I)) return false;
+    if (!igl::qslim(V, F, (int)target_faces, false, U, G, J, I)) return false;
     V = U;
     F = G;
 
