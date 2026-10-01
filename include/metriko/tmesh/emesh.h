@@ -33,6 +33,17 @@ struct Tqchain {
     int      thid_l  = -1;
 };
 
+// a zero-width band about to be collapsed on its own: its two zero sides (l at val 0, r at val = length), its
+// two lateral sides, and the points the merged line passes, sorted along it
+struct Tqaux {
+    int      tqid    = -1;
+    int      thid_l  = -1;
+    int      thid_r  = -1;
+    vec<int> thids_t = {};
+    vec<int> thids_b = {};
+    vec<Tqpoint> pts = {};
+};
+
 struct Eedge {
     int id = -1;
     vec<int> nids = {};
@@ -222,6 +233,8 @@ struct Emesh {
     bool collapse_point_tquad(int tqid);
     bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;
     void collapse_tquad_chain_execute(Tqchain& chain);
+    bool collapse_tquad_prepare(int tqid, Tqaux& aux) const;
+    void collapse_tquad_execute(Tqaux& aux);
 
     vec<int> add_new_path(const vec<HmLoc>& path, int nid0, int nid1) {
         vec<int> nids;

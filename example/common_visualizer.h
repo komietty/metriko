@@ -14,6 +14,7 @@
 namespace metriko::visualizer {
 
 inline void visualize_init() {
+    polyscope::options::buildGui = false;
     polyscope::options::verbosity = 0;
     polyscope::init();
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};

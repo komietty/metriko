@@ -80,20 +80,16 @@ int main(int argc, char** argv) {
 
         // collapse tquad
         for (const auto& [tqid, data] : tm.live_tquads()) {
-            Tqchain chain;
-            if (tm.collapse_tquad_chain_prepare(tqid, chain)) {
+            Tqaux chain;
+            if (tm.collapse_tquad_prepare(tqid, chain)) {
                 std::cout << "tq collapse: " << tqid << std::endl;
 
                 // TODO TEMP: dump the chain when execute fails, then rethrow
                 try {
-                    tm.collapse_tquad_chain_execute(chain);
+                    tm.collapse_tquad_execute(chain);
                 } catch (const std::exception& ex) {
                     std::println("[debug] execute failed at tqid {}: {}", tqid, ex.what());
-                    std::print  ("[debug] tqids:");
-                    for (int t: chain.tqids)  std::print(" {}", t);
-                    std::print  ("  bounds:");
-                    for (int b: chain.bounds) std::print(" {}", b);
-                    std::println("");
+                    std::println("[debug] tqid: {}", chain.tqid);
                     for (size_t k = 0; k < chain.pts.size(); ++k) {
                         const auto& p = chain.pts[k];
                         std::println("[debug] pt[{}]: loc {} val {} ord {:.4f} top {}", k, loc_str(tm.tnodes[p.nid]), p.val, p.ord, p.top);
@@ -106,7 +102,6 @@ int main(int argc, char** argv) {
                     };
                     dump_side("thids_t", chain.thids_t);
                     dump_side("thids_b", chain.thids_b);
-                    dump_side("thids_z", chain.thids_z);
                     for (int t: {chain.thid_l, chain.thid_r}) {
                         const auto& th = tm.thalfs[t];
                         std::println("[debug] {} thid {}: {} -> {}", t == chain.thid_l ? "thid_l" : "thid_r", t, loc_str(th.loc_fr()), loc_str(th.loc_to()));

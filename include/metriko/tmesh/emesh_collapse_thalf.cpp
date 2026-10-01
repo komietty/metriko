@@ -5,6 +5,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
+#include <set>
 #include "emesh.h"
 using namespace metriko;
 
@@ -85,4 +86,62 @@ void Emesh::collapse_thalf(int thid) {
     th_crr = {};
     th_twn = {};
     te_crr = {};
+}
+
+// a point tquad: every side is a single zero thalf, so its four corners are one point of the integer grid. contract
+// them into one tnode: the tedges ending at the other corners are extended to it (along the zero tedge to an adjacent
+// corner, through the tquad from the opposite one), then the four zero tedges and the tquad are removed. every far
+// side must keep another thalf (a zero one is fine: the side stays the ladder of a band that collapses afterwards),
+// and at most one other tedge may end at each moved corner, since more would be extended along the same path
+bool Emesh::collapse_point_tquad(int tqid) {
+    auto& tq = tquads[tqid];
+    if (tq.id == -1 || tq.data.size() != 4) return false;
+
+    vec<int> zs;
+    for (const Edata& d: tq.data) zs.push_back(d.thid);
+    for (int k = 0; k < 4; ++k) {
+        const auto& th = thalfs[zs[k]];
+        if (th.x != 0 || th.nid_to() != thalfs[zs[(k + 1) % 4]].nid_fr()) return false;
+        const auto& tw   = thalfs[th.twid];
+        const auto& tq_f = tquads[tw.tqid];
+        if (tq_f.thids(tq_f.side_of(tw)).size() < 2) return false;
+    }
+
+    vec<int> cs;
+    std::set<int> zteids;
+    for (int z: zs) { cs.push_back(thalfs[z].nid_fr()); zteids.insert(thalfs[z].teid); }
+    auto ends_at = [&](int nid) {
+        vec<int> res;
+        for (const auto& te: live_tedges()) if (!zteids.contains(te.id) && (te.nids.front() == nid || te.nids.back() == nid)) res.push_back(te.id);
+        return res;
+    };
+    vec<vec<int>> inc;
+    for (int c: cs) inc.push_back(ends_at(c));
+    const int keep = (int)std::distance(inc.begin(), rg::max_element(inc, {}, &vec<int>::size));
+    for (int i = 0; i < 4; ++i) if (i != keep && inc[i].size() > 1) return false;
+
+    for (int i = 0; i < 4; ++i) {
+        if (i == keep || inc[i].empty()) continue;
+        vec<int> route;
+        if      ((i + 1) % 4 == keep) route = tedges[thalfs[zs[i]].teid].nids;    // zs[i] runs cs[i] -> cs[keep]
+        else if ((keep + 1) % 4 == i) route = tedges[thalfs[zs[keep]].teid].nids; // zs[keep] runs cs[keep] -> cs[i]
+        else route = add_new_path(approx_shortest_path(30, hm, tnodes[cs[i]], tnodes[cs[keep]], allowed_range_tquads({tqid})), cs[i], cs[keep]);
+        METRIKO_CHECK(route.size() >= 2, "point tquad {}: no path from corner {} to corner {}", tqid, cs[i], cs[keep]);
+        auto& te = tedges[inc[i].front()];
+        te.insert_locs(route);
+        const double r = path_length(te.nids);
+        for (auto& th: thalfs) if (th.id != -1 && th.teid == te.id) th.r = r;
+    }
+
+    for (int z: zs) {
+        const int twid = thalfs[z].twid;
+        const int teid = thalfs[z].teid;
+        std::erase_if(tquads[thalfs[twid].tqid].data, [&](const Edata& d) { return d.thid == twid; });
+        thalfs[twid] = {};
+        thalfs[z]    = {};
+        tedges[teid] = {};
+    }
+    tq.data.clear();
+    tq.id = -1;
+    return true;
 }

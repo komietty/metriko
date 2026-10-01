@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
             }
             for (const auto& [tqid, _] : tm.live_tquads()) {
                 cur_tqid = tqid;
-                if (Tqchain c; tm.collapse_tquad_chain_prepare(tqid, c)) tm.collapse_tquad_chain_execute(c);
+                if (Tqaux a; tm.collapse_tquad_prepare(tqid, a)) tm.collapse_tquad_execute(a);
             }
             if (rg::none_of(tm.thalfs, [](const Ehalf& th) { return th.id != -1 && th.x == 0; })) break;
         }
