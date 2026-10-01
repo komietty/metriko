@@ -10,8 +10,16 @@
 using namespace metriko;
 
 // a zero-width band is collapsed one tquad at a time: its two lateral sides merge into one line that runs from
-// the zero side at val 0 (thid_l) to the zero side at val = length (thid_r). the junctions on the lateral sides
-// are the points the merged line passes, in quantized order
+// the zero side at val 0 (thid_l) to the zero side at val = length (thid_r)
+//
+// - a band has two opposite sides of one zero thalf each, the other two carry the length. a tquad whose lateral
+//   sides are zero as well is a point tquad and is contracted elsewhere
+// - the merged line ends at a zero side on the node the singularity / junction sits on (find_terminal)
+// - the junctions on the lateral sides are the points the merged line passes: val is the quantized position along
+//   the band, ord the arc-length position to break ties. the corners are left out, they are the terminals
+// - a zero thalf on a lateral side (the end of another band) stays as it is on the merged line, which needs its
+//   two end points next to each other on one side. the band is skipped when an end point was not pushed, when
+//   something falls between them, or when the other side has a point at the same position
 bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
     const auto& tq = tquads[tqid];
     if (tq.id == -1) return false;
@@ -20,7 +28,6 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
     auto sumX = [&](const vec<int>& thids) { double s = 0; for (int t: thids) s += thalfs[t].x; return s; };
     auto sumR = [&](const vec<int>& thids) { double s = 0; for (int t: thids) s += thalfs[t].r; return s; };
 
-    // a band: two opposite sides of one zero thalf each, the other two carry the length
     int side = -1;
     if (tq.thids(0).size() == 1 && tq.thids(2).size() == 1 && zero(tq.thids(0).front())) side = 0;
     if (tq.thids(1).size() == 1 && tq.thids(3).size() == 1 && zero(tq.thids(1).front())) side = 1;
@@ -41,7 +48,6 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
     const auto& th_l = thalfs[aux.thid_l];
     const auto& th_r = thalfs[aux.thid_r];
 
-    // the end of the merged line at a zero side: the node the singularity / junction sits on
     auto find_terminal = [&](int thid, bool s0, bool s1) -> std::pair<int, bool> {
         const auto& th0 = thalfs[thid];
         const auto& th1 = thalfs[th0.twid];
@@ -52,8 +58,6 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
         METRIKO_FAIL("zero thalf {} has no terminal node", thid);
     };
 
-    // the junctions on the lateral sides: val is the quantized position along the band, ord the arc-length
-    // position to break ties. the corners are left out, they are the terminals
     auto is_junction = [&](int nid, int thid_at) {
         return !rg::contains(std::array{ th_l.nid_fr(), th_l.nid_to(), th_r.nid_fr(), th_r.nid_to() }, nid)
             && count_adj_tquads(thid_at) != 2;
@@ -72,9 +76,6 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
     aux.pts.push_back({ .nid = nid_end, .val = oft, .ord = (double)oft, .top = side_end });
     rg::stable_sort(aux.pts, {}, [](const Tqpoint& p) { return std::pair(p.val, p.ord); });
 
-    // a zero thalf on a lateral side (the end of another band) stays as it is on the merged line, which needs its
-    // two end points next to each other on one side. give up when an end point was not pushed, when something
-    // falls between them, or when the other side has a point at the same position
     for (const auto* thids: { &aux.thids_t, &aux.thids_b })
         for (int thid: *thids | vw::filter([&](int i){return zero(i); })) {
             auto p0 = rg::find(aux.pts, thalfs[thid].nid_fr(), &Tqpoint::nid);

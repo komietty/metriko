@@ -7,6 +7,7 @@
 //
 #ifndef METRIKO_EMESH_H
 #define METRIKO_EMESH_H
+#include <set>
 #include "motorcycle.h"
 #include "metriko/hmesh/hmloc.h"
 #include "metriko/hmesh/hpath.h"
@@ -268,5 +269,20 @@ inline void Eedge::insert_locs(const vec<int>& locs) {
     else if (nids.back()  == b) { vec<int> s(locs.begin(), locs.end() - 1); rg::reverse(s); nids.insert(nids.end(),   s.begin(), s.end()); } // append  reverse([f..b-1])
     else METRIKO_FAIL("merge_into: the chains share no end node");
 }
+
+inline int compute_eular(const Hmesh& hm, const vec<Erng>& rngs) {
+    std::set<int> fs, vs, es;
+    for (auto& [eid, r0, r1]: rngs) {
+        fs.insert(hm.edges[eid].face0().id);
+        fs.insert(hm.edges[eid].face1().id);
+    }
+    for (auto fid: fs)
+        for (auto h: hm.faces[fid].adjHalfs()) {
+            vs.insert(h.tail().id);
+            es.insert(h.edge().id);
+        }
+    return (int)vs.size() - (int)es.size() + (int)fs.size();
+}
+
 }
 #endif
