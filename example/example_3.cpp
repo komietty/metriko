@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     MatXd V;
     MatXi F;
     igl::readOBJ(argv[1], V, F);
-    //cleanup::cleanup_mesh(V, F);
+    cleanup::cleanup_mesh(V, F);
     Hmesh hm(V, F);
     lap("load");
 

@@ -27,13 +27,25 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
         s_l = side + 2,
         s_b = (side + 3) % 4;
 
-    if (sumX(tq.thids(s_t)) == 0 || sumX(tq.thids(s_b)) == 0) return false;
+    const auto& thids_r = tq.thids(s_r);
+    const auto& thids_l = tq.thids(s_l);
+    const auto& thids_t = tq.thids(s_t);
+    const auto& thids_b = tq.thids(s_b);
+    int sum_x_r = sumX(thids_r);
+    int sum_x_l = sumX(thids_l);
+    int sum_x_t = sumX(thids_t);
+    int sum_x_b = sumX(thids_b);
+    bool point  = thids_r.size() == 1 && sum_x_r == 0 &&
+                  thids_l.size() == 1 && sum_x_l == 0 &&
+                  thids_t.size() == 1 && sum_x_t == 0 &&
+                  thids_b.size() == 1 && sum_x_b == 0;
+    if (!point && (sum_x_t == 0 || sum_x_b == 0)) return false;
 
     aux.tqid    = tqid;
-    aux.thid_r  = tq.thids(s_r).front();
-    aux.thid_l  = tq.thids(s_l).front();
-    aux.thids_t = tq.thids(s_t);
-    aux.thids_b = tq.thids(s_b);
+    aux.thid_r  = thids_r.front();
+    aux.thid_l  = thids_l.front();
+    aux.thids_t = thids_t;
+    aux.thids_b = thids_b;
     const auto& th_l = thalfs[aux.thid_l];
     const auto& th_r = thalfs[aux.thid_r];
 
@@ -44,7 +56,8 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
         if (th1.bgn) return { th1.nid_fr(), s1 };
         if (th0.end) return { th0.nid_to(), s1 };
         if (th1.end) return { th1.nid_to(), s0 };
-        METRIKO_FAIL("zero thalf {} has no terminal node", thid);
+        // a zero tedge drawn by an earlier collapse carries no flag: keep the node where more tquads meet
+        return count_adj_tquads(th0.id) >= count_adj_tquads(th0.twid) ? std::pair{ th0.nid_fr(), s0 } : std::pair{ th0.nid_to(), s1 };
     };
 
     auto is_junction = [&](int nid, int thid_at) {
@@ -65,7 +78,8 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
     aux.pts.push_back({ .nid = nid_end, .val = oft, .ord = (double)oft, .top = side_end });
     rg::stable_sort(aux.pts, {}, [](const Tqpoint& p) { return std::pair(p.val, p.ord); });
 
-    for (const auto* thids: { &aux.thids_t, &aux.thids_b })
+    if (!point) {
+        for (const auto* thids: { &aux.thids_t, &aux.thids_b })
         for (int thid: *thids | vw::filter([&](int i){return zero(i); })) {
             auto p0 = rg::find(aux.pts, thalfs[thid].nid_fr(), &Tqpoint::nid);
             auto p1 = rg::find(aux.pts, thalfs[thid].nid_to(), &Tqpoint::nid);
@@ -73,5 +87,7 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
             if (std::abs(p0 - p1) != 1) return false;
             if (rg::any_of(aux.pts, [&](auto& p) { return p.val == p0->val && p.top != p0->top; })) return false;
         }
+    }
+
     return true;
 }

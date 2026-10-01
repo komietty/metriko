@@ -231,9 +231,6 @@ struct Emesh {
     bool reroute_tedge(int teid);
 
     void collapse_thalf(int thid);
-    bool collapse_point_tquad(int tqid);
-    bool collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const;
-    void collapse_tquad_chain_execute(Tqchain& chain);
     bool collapse_tquad_prepare(int tqid, Tqaux& aux) const;
     void collapse_tquad_execute(Tqaux& aux);
 
