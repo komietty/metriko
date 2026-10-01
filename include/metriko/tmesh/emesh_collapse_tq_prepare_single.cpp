@@ -9,17 +9,6 @@
 #include "emesh.h"
 using namespace metriko;
 
-// a zero-width band is collapsed one tquad at a time: its two lateral sides merge into one line that runs from
-// the zero side at val 0 (thid_l) to the zero side at val = length (thid_r)
-//
-// - a band has two opposite sides of one zero thalf each, the other two carry the length. a tquad whose lateral
-//   sides are zero as well is a point tquad and is contracted elsewhere
-// - the merged line ends at a zero side on the node the singularity / junction sits on (find_terminal)
-// - the junctions on the lateral sides are the points the merged line passes: val is the quantized position along
-//   the band, ord the arc-length position to break ties. the corners are left out, they are the terminals
-// - a zero thalf on a lateral side (the end of another band) stays as it is on the merged line, which needs its
-//   two end points next to each other on one side. the band is skipped when an end point was not pushed, when
-//   something falls between them, or when the other side has a point at the same position
 bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
     const auto& tq = tquads[tqid];
     if (tq.id == -1) return false;

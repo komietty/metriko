@@ -11,27 +11,6 @@
 #include "emesh.h"
 using namespace metriko;
 
-// the band of aux is collapsed: its lateral sides are replaced by one merged line, the outer tquads along it are
-// rewritten, and its zero sides are absorbed or handed on
-//
-// 1. pieces: the merged line between consecutive points is a lateral thalf when both points lie on the same side,
-//    a new tedge across the band when the line switches sides. a band that closes into a loop around a tube (the
-//    euler characteristic of its region is 0) follows the band instead of a shortest path, which would jump the
-//    seam: along n0's side to its far end and over the zero side to n1 (along_band, empty when n0 is not at the
-//    end of its side or the walk does not reach n1)
-// 2. runs: the pieces are grouped into runs, each replacing the thalfs of one outer tquad along the band. a run
-//    walks from a node piece by piece and stops once it reaches the side it was told to stop at. when the whole
-//    line is taken from the left end, one outer stretch spans the band and both ends extend it
-// 3. replace: each old thalf of an outer tquad across a lateral side is replaced by the part of a run that spans it
-// 4. extend: the zero thalfs at the two ends. absorbed: the twin leaves its tquad and the tedge continuing past the
-//    corner is extended along the zero path, so the corner moves to the merged line. when the tquad across the
-//    corner also lies across the zero side, the thalf following th1 is th's own twin: there is no tedge to extend,
-//    dropping the twin is all that is needed. when the zero thalf closed that tedge into a loop (a band around a
-//    tube), the loop's endpoint is moved to the node where the other tedges meet. kept instead: the zero thalf is
-//    handed to the tquad across the corner as a zero-length thalf, to be dealt with later, when the corner is a
-//    full junction or when absorbing would leave the tquad across the zero side without a valid quad (both
-//    terminals are absorbed here, so both twins are taken away before checking)
-// 5. the band itself is removed
 void Emesh::collapse_tquad_execute(Tqaux& aux) {
     const auto& th_l = thalfs[aux.thid_l];
     const auto& th_r = thalfs[aux.thid_r];
@@ -43,13 +22,13 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
             int c = a;
             while (c != b) {
                 auto it = rg::find_if(*s, [&](int t) { return thalfs[t].nid_fr() == c; });
-                if (it == s->end()) break; // this side cannot continue, try the other one
+                if (it == s->end()) break;
                 res.push_back(*it);
                 c = thalfs[*it].nid_to();
             }
             if (c == b) { if (a != fr) rg::reverse(res); return res; }
         }}
-        METRIKO_FAIL("no thalf run on a lateral side from node {} to node {}", fr, to);
+        return {};
     };
 
     auto lateral_btn = [&](int n0, int n1) -> int {
@@ -64,10 +43,10 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
     auto along_band = [&](int n0, int n1) -> vec<HmLoc> {
         const auto& tz  = thalfs[rg::contains(std::array{ th_l.nid_fr(), th_l.nid_to() }, n1) ? aux.thid_l : aux.thid_r];
         const int   end = tz.nid_fr() == n1 ? tz.nid_to() : tz.nid_fr();
-        vec<int> thids;
-        vec<int> nids = {n0};
-        try { thids = lateral_run(n0, end); } catch (const std::runtime_error&) { return {}; }
+        auto thids = lateral_run(n0, end);
+        if (thids.empty()) return {};
         thids.push_back(tz.id);
+        vec<int> nids = { n0 };
         for (int t: thids) {
             auto ns = tedges[thalfs[t].teid].nids;
             if (ns.back()  == nids.back()) rg::reverse(ns);
@@ -81,6 +60,7 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
     };
 
     const auto rngs = allowed_range_tquads({ aux.tqid });
+    const bool tube = compute_eular(hm, rngs) == 0; // a band around a tube
 
     struct Piece { int thid; bool t_fr; bool t_to; };
     vec<Piece> pieces;
@@ -89,7 +69,7 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
         const auto& [n1, v1, ord1, s1] = aux.pts[i + 1];
         if (s0 == s1) { pieces.emplace_back(lateral_btn(n0, n1), s0, s1); continue; }
 
-        auto path = compute_eular(hm, rngs) == 0 ? along_band(n0, n1) : vec<HmLoc>{};
+        auto path = tube ? along_band(n0, n1) : vec<HmLoc>{};
         if (path.empty()) path = approx_shortest_path(30, hm, tnodes[n0], tnodes[n1], rngs);
         METRIKO_CHECK(path.size() >= 2, "no path within the allowed region: tqid {}", aux.tqid);
 
@@ -99,9 +79,9 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
         const int    thid1 = thalfs.size() + 1;
         const double x     = std::abs(v1 - v0);
         const double r     = path_length(nids);
-        tedges.push_back({ .id = teid, .nids = nids });
-        thalfs.push_back({ .tm = this, .id = thid0, .twid = thid1, .teid = teid, .cano = true,  .x = x, .r = r });
-        thalfs.push_back({ .tm = this, .id = thid1, .twid = thid0, .teid = teid, .cano = false, .x = x, .r = r });
+        tedges.emplace_back(teid, nids);
+        thalfs.emplace_back(this, thid0, thid1, teid, -1, true,  false, false, x, r);
+        thalfs.emplace_back(this, thid1, thid0, teid, -1, false, false, false, x, r);
         pieces.emplace_back(thid0, s0, s1);
         pieces.emplace_back(thid1, s1, s0);
     }
@@ -138,8 +118,8 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
     auto replace = [&](const vec<int>& olds, const vec<int>& run) {
         size_t ri = 0;
         for (int old: olds) {
-            const int e0 = thalfs[old].nid_fr();
-            const int e1 = thalfs[old].nid_to();
+            int e0 = thalfs[old].nid_fr();
+            int e1 = thalfs[old].nid_to();
             vec<int> seg;
             while (ri < run.size()) {
                 seg.push_back(run[ri]);
@@ -149,14 +129,17 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
             auto& [id, data] = tquads[thalfs[old].tqid];
             auto it = rg::find(data, old, &Edata::thid);
             METRIKO_CHECK(it != data.end(), "thalf {} not on its tquad", old);
-            const auto si = it->side;
+            int side = it->side;
             it = data.erase(it);
-            vec<Edata> repl;
-            for (int t: seg) { thalfs[t].tqid = id; repl.push_back({ t, si }); }
-            data.insert(it, repl.begin(), repl.end());
+            for (int t: seg) { thalfs[t].tqid = id; it = data.insert(it, Edata{ t, side }) + 1; }
         }
     };
-    auto outer = [&](int n0, int n1) { return lateral_run(n0, n1) | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>(); };
+
+    auto outer = [&](int n0, int n1) {
+        auto run = lateral_run(n0, n1);
+        METRIKO_CHECK(!run.empty(), "no thalf run on a lateral side from node {} to node {}", n0, n1);
+        return run | vw::transform([&](int t) { return thalfs[t].twid; }) | rg::to<vec<int>>();
+    };
 
     auto extend = [&](const Ehalf& th, bool ahd, bool keep) {
         auto step = [&](int thid) { return ahd ? step_next(thid) : step_prev(thid); };
@@ -165,9 +148,8 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
         auto& [id, data] = tquads[th2.tqid];
         if (keep) {
             auto it = rg::find(data, th2.id, &Edata::thid);
-            const auto si = it->side;
             thalfs[th.id].tqid = id;
-            data.insert(ahd ? it : it + 1, Edata{ th.id, si });
+            data.insert(ahd ? it : it + 1, Edata{ th.id, it->side });
             return;
         }
         auto& nids    = tedges[th.teid].nids;
@@ -198,14 +180,13 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
         else if (th_twn.end) { (th2.nid_to() == th_twn.nid_to() ? th2 : th2_twn).end = true; }
     };
 
+    auto on_line = [&](int nid) { return rg::any_of(aux.pts, [&](auto& p) { return p.nid == nid; }); };
     auto keep_of = [&](const Ehalf& th) {
-        Equad copy = tquads[thalfs[th.twid].tqid];
-        std::erase_if(copy.data, [&](auto& d) { return d.thid == th_l.twid; });
-        std::erase_if(copy.data, [&](auto& d) { return d.thid == th_r.twid; });
-        auto on_line = [&](int nid) { return rg::any_of(aux.pts, [&](auto& p) { return p.nid == nid; }); };
-        bool full_fr = count_adj_tquads(th.id)   == 4 && !on_line(th.nid_fr());
-        bool full_to = count_adj_tquads(th.twid) == 4 && !on_line(th.nid_to());
-        return full_fr || full_to || !copy.is_valid();
+        if (count_adj_tquads(th.id)   == 4 && !on_line(th.nid_fr())) return true;
+        if (count_adj_tquads(th.twid) == 4 && !on_line(th.nid_to())) return true;
+        Equad across = tquads[thalfs[th.twid].tqid];
+        std::erase_if(across.data, [&](auto& d) { return d.thid == th_l.twid || d.thid == th_r.twid; });
+        return !across.is_valid();
     };
 
     bool keep_l = keep_of(th_l);
@@ -241,9 +222,9 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
     for (const auto& [thid, _]: data) {
         auto& th0 = thalfs[thid];
         if (th0.tqid != id) continue;
-        auto& th1 = thalfs[th0.twid];
-        auto& te  = tedges[th0.teid];
-        th0 = {}; th1 = {}; te = {};
+        thalfs[th0.twid] = {};
+        tedges[th0.teid] = {};
+        th0 = {};
     }
     data.clear();
     id = -1;
