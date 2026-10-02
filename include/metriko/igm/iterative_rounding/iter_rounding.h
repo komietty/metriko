@@ -16,40 +16,83 @@
 #include "iter_rounding_loop.h"
 
 namespace metriko {
-    class CholeskyWrapper {
-        // compute() redoes the symbolic analysis every time, but inside one LM run only the
-        // values of J'J change, never its sparsity. remember the pattern that was analysed
-        // last and reuse that analysis while it still matches
-        vec<int> outer;
-        vec<int> inner;
+class CholeskyWrapper {
+    vec<int> outer;
+    vec<int> inner;
 
-        bool same_pattern(const SprsD &A) const {
-            return A.isCompressed()
-                && std::ssize(outer) == A.outerSize() + 1
-                && std::ssize(inner) == A.nonZeros()
-                && std::equal(outer.begin(), outer.end(), A.outerIndexPtr())
-                && std::equal(inner.begin(), inner.end(), A.innerIndexPtr());
+    template <class M>
+    bool same_pattern(const M &A) const {
+        return A.isCompressed()
+            && std::ssize(outer) == A.outerSize() + 1
+            && std::ssize(inner) == A.nonZeros()
+            && std::equal(outer.begin(), outer.end(), A.outerIndexPtr())
+            && std::equal(inner.begin(), inner.end(), A.innerIndexPtr());
+    }
+
+
+#ifdef GC_HAVE_SUITESPARSE
+    cholmod_common c;
+    cholmod_factor* L = nullptr;
+    Eigen::SparseMatrix<double, Eigen::RowMajor> Jt;   // J row-major: the column-compressed storage of J'
+
+    cholmod_sparse view() {   // J' as a cholmod matrix (unknowns x residuals), unsymmetric: cholmod factorizes A A'
+        cholmod_sparse A{};
+        A.nrow = Jt.cols(); A.ncol = Jt.rows(); A.nzmax = Jt.nonZeros();
+        A.p = Jt.outerIndexPtr(); A.i = Jt.innerIndexPtr(); A.x = Jt.valuePtr();
+        A.stype = 0; A.itype = CHOLMOD_INT; A.xtype = CHOLMOD_REAL; A.dtype = CHOLMOD_DOUBLE; A.sorted = 1; A.packed = 1;
+        return A;
+    }
+
+public:
+    CholeskyWrapper() { cholmod_start(&c); c.supernodal = CHOLMOD_SUPERNODAL; }
+    ~CholeskyWrapper() { if (L) cholmod_free_factor(&L, &c); cholmod_finish(&c); }
+    CholeskyWrapper(const CholeskyWrapper&) = delete;
+    CholeskyWrapper& operator=(const CholeskyWrapper&) = delete;
+
+    bool factorize(const SprsD &J) {
+        Jt = J;
+        Jt.makeCompressed();
+        cholmod_sparse A = view();
+        if (!L || !same_pattern(Jt)) {
+            if (L) cholmod_free_factor(&L, &c);
+            L = cholmod_analyze(&A, &c);
+            if (!L) { outer.clear(); inner.clear(); return false; }
+            outer.assign(Jt.outerIndexPtr(), Jt.outerIndexPtr() + Jt.outerSize() + 1);
+            inner.assign(Jt.innerIndexPtr(), Jt.innerIndexPtr() + Jt.nonZeros());
         }
+        cholmod_factorize(&A, L, &c);
+        return c.status == CHOLMOD_OK && L->minor == L->n;   // minor < n: not positive definite
+    }
 
-    public:
-        SparseLLT<SprsD> llt;   // CHOLMOD: 64-bit indices inside; eigen's AMD (fallback) overflows int on ~2M unknowns
+    bool solve(const VecXd &rhs, VecXd &x) {
+        cholmod_dense b{};
+        b.nrow = rhs.size(); b.ncol = 1; b.nzmax = rhs.size(); b.d = rhs.size();
+        b.x = const_cast<double*>(rhs.data()); b.xtype = CHOLMOD_REAL; b.dtype = CHOLMOD_DOUBLE;
+        cholmod_dense* y = cholmod_solve(CHOLMOD_A, L, &b, &c);
+        if (!y) return false;
+        x = Eigen::Map<VecXd>((double*)y->x, y->nrow);
+        cholmod_free_dense(&y, &c);
+        return true;
+    }
+#else
+    SparseLLT<SprsD> llt;
 
-        bool factorize(const SprsD &A) {
-            if (!same_pattern(A)) {
-                llt.analyzePattern(A);
-                if (llt.info() != Eigen::Success) { outer.clear(); inner.clear(); return false; }
-                outer.assign(A.outerIndexPtr(), A.outerIndexPtr() + A.outerSize() + 1);
-                inner.assign(A.innerIndexPtr(), A.innerIndexPtr() + A.nonZeros());
-            }
-            llt.factorize(A);
-            return llt.info() == Eigen::Success;
+public:
+    bool factorize(const SprsD &J) {
+        SprsD A = J.transpose() * J;
+        if (!same_pattern(A)) {
+            llt.analyzePattern(A);
+            if (llt.info() != Eigen::Success) { outer.clear(); inner.clear(); return false; }
+            outer.assign(A.outerIndexPtr(), A.outerIndexPtr() + A.outerSize() + 1);
+            inner.assign(A.innerIndexPtr(), A.innerIndexPtr() + A.nonZeros());
         }
+        llt.factorize(A);
+        return llt.info() == Eigen::Success;
+    }
 
-        bool solve(const VecXd &rhs, VecXd &x) const {
-            x = llt.solve(rhs);
-            return true;
-        }
-    };
+    bool solve(const VecXd &rhs, VecXd &x) const { x = llt.solve(rhs); return true; }
+#endif
+};
 
     inline bool iterative_rounding(
         const VecXi &fixedIdcs,

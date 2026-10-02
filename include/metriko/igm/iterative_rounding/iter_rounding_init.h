@@ -202,14 +202,51 @@ namespace metriko {
             VecXd bigRhs(f.size() + fixedVals.size());
             bigRhs << f, fixedVals;
 
-            Eigen::SparseLU<SprsD> solver;
-            solver.compute(bigMat);
-            if (solver.info() != Eigen::Success) {
-                METRIKO_FAIL("initial Poisson solve (SparseLU) failed: the mesh is likely degenerate, too coarsely tessellated, or has sharp features");
-            }
+            // the fixed values are constraints C x = v on a few variables only: write x = x0 + Z y, with Z the identity
+            // on the untouched variables and the (dense, small) kernel of C on the touched ones. E restricted to y is
+            // symmetric positive definite and is solved by cholesky; the LU of the full KKT system is the fallback
+            VecXd XSmall;
+            {
+                const int nx = UFull.cols();
+                vec<int> cols;   // the variables the constraints touch
+                for (int k = 0; k < constMat.outerSize(); ++k)
+                    for (SprsD::InnerIterator it(constMat, k); it; ++it) cols.push_back(it.col());
+                rg::sort(cols);
+                cols.erase(rg::unique(cols).begin(), cols.end());
+                VecXi loc = VecXi::Constant(nx, -1);
+                for (int j = 0; j < cols.size(); ++j) loc(cols[j]) = j;
+                MatXd Cd = MatXd::Zero(constMat.rows(), cols.size());
+                for (int k = 0; k < constMat.outerSize(); ++k) for (SprsD::InnerIterator it(constMat, k); it; ++it) Cd(it.row(), loc(it.col())) = it.value();
 
-            VecXd XSmallFull = solver.solve(bigRhs);
-            VecXd XSmall = XSmallFull.head(UFull.cols());
+                Eigen::FullPivLU<MatXd> lu(Cd);
+                VecXd x0 = VecXd::Zero(nx);
+                const VecXd xc = lu.solve(fixedVals);
+                for (int j = 0; j < cols.size(); ++j) x0(cols[j]) = xc(j);
+
+                vec<TripD> zT;
+                int ny = 0;
+                for (int i = 0; i < nx; ++i) if (loc(i) == -1) zT.emplace_back(i, ny++, 1.);
+                if (lu.dimensionOfKernel() > 0) {
+                    const MatXd K = lu.kernel();
+                    for (int k = 0; k < K.cols(); ++k, ++ny) for (int j = 0; j < K.rows(); ++j) if (K(j, k) != 0) zT.emplace_back(cols[j], ny, K(j, k));
+                }
+                SprsD Z(nx, ny);
+                Z.setFromTriplets(zT.begin(), zT.end());
+
+                const SprsD Ey  = Z.transpose() * E * Z;
+                const VecXd rhs = Z.transpose() * (f - E * x0);
+                SparseLLT llt(Ey);
+                const VecXd y = llt.solve(rhs);
+                // a (nearly) singular E passes the factorization but not the solve
+                if (llt.info() == Eigen::Success && y.allFinite() && (Ey * y - rhs).norm() <= 1e-8 * std::max(rhs.norm(), 1.)) {
+                    XSmall = x0 + Z * y;
+                } else {
+                    Eigen::SparseLU solver(bigMat);
+                    if (solver.info() != Eigen::Success) METRIKO_FAIL("initial Poisson solve (SparseLU) failed");
+                    VecXd XSmallFull = solver.solve(bigRhs);
+                    XSmall = XSmallFull.head(UFull.cols());
+                }
+            }
 
             x0 = UFull * XSmall;
             XF_Small.resize(XSmall.size() + F2.size());

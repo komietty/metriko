@@ -17,76 +17,37 @@ namespace metriko {
     public:
         double currLambda;
 
-        void init(
-            const Eigen::SparseMatrix<double> &J,
-            const Eigen::VectorXd &initSolution,
-            const bool verbose,
-            Eigen::SparseMatrix<double> &dampJ
-        ) {
-            //collecting the diagonal values
-            Eigen::VectorXd dampVector = Eigen::VectorXd::Zero(initSolution.size());
-            vec<Eigen::Triplet<double> > dampJTris;
-            for (int k = 0; k < J.outerSize(); ++k) {
-                for (Eigen::SparseMatrix<double>::InnerIterator it(J, k); it; ++it) {
-                    dampVector(it.col()) += currLambda * it.value() * it.value();
+
+        void build_damped_matrix(const SprsD& J, SprsD& dampJ) const {
+            VecXd dampVec = VecXd::Zero(J.cols());
+            vec<TripD> dampJTris;
+            for (int k = 0; k < J.outerSize(); ++k)
+                for (SprsD::InnerIterator it(J, k); it; ++it) {
+                    dampVec(it.col()) += currLambda * it.value() * it.value();
                     dampJTris.emplace_back(it.row(), it.col(), it.value());
                 }
-            }
-            for (int i = 0; i < dampVector.size(); i++)
-                dampJTris.emplace_back(J.rows() + i, i, sqrt(dampVector(i)));
+            for (int i = 0; i < dampVec.size(); i++)
+                dampJTris.emplace_back(J.rows() + i, i, std::sqrt(dampVec(i)));
 
-            dampJ.conservativeResize(J.rows() + dampVector.size(), J.cols());
+            dampJ.resize(J.rows() + J.cols(), J.cols());
             dampJ.setFromTriplets(dampJTris.begin(), dampJTris.end());
-
-            if (verbose)
-                std::cout << "Initial Lambda: " << currLambda << std::endl;
         }
 
-        bool update(
-            SolverTraits &ST,
-            const Eigen::SparseMatrix<double> &J,
-            const Eigen::VectorXd &currSolution,
-            const Eigen::VectorXd &direction,
-            const bool verbose,
-            Eigen::SparseMatrix<double> &dampJ
+        void init( const SprsD& J, SprsD& dampJ) const { build_damped_matrix(J, dampJ); }
+
+        void update(
+            const SprsD& J,
+            double prvEnergy2,
+            double newEnergy2,
+            SprsD& dampJ
         ) {
-            Eigen::VectorXd EVec;
-            Eigen::SparseMatrix<double> stubJ;
-            ST.objective_jacobian(currSolution, EVec, stubJ, false);
-            double prevEnergy2 = EVec.squaredNorm();
-            ST.objective_jacobian(currSolution + direction, EVec, stubJ, false);
-            double newEnergy2 = EVec.squaredNorm();
-
-            if ((prevEnergy2 > newEnergy2) &&
-                (newEnergy2 != std::numeric_limits<double>::infinity())) //progress; making it more gradient descent
-                currLambda /= 10.;
-            else
-                currLambda *= 10.;
-
-            if (verbose)
-                std::cout << "Current Lambda: " << currLambda << std::endl;
-            //collecting the diagonal values
-            Eigen::VectorXd dampVector = Eigen::VectorXd::Zero(currSolution.size());
-            vec<Eigen::Triplet<double> > dampJTris;
-            for (int k = 0; k < J.outerSize(); ++k) {
-                for (Eigen::SparseMatrix<double>::InnerIterator it(J, k); it; ++it) {
-                    dampVector(it.col()) += currLambda * it.value() * it.value();
-                    dampJTris.emplace_back(it.row(), it.col(), it.value());
-                }
-            }
-            for (int i = 0; i < dampVector.size(); i++)
-                dampJTris.emplace_back(J.rows() + i, i, sqrt(dampVector(i)));
-
-            dampJ.conservativeResize(J.rows() + dampVector.size(), J.cols());
-            dampJ.setFromTriplets(dampJTris.begin(), dampJTris.end());
-
-            return prevEnergy2 > newEnergy2;
-            //this preconditioner always approves new direction
+            bool f = prvEnergy2 > newEnergy2 && newEnergy2 != std::numeric_limits<double>::infinity();
+            if (f) currLambda /= 10.;
+            else   currLambda *= 10.;
+            build_damped_matrix(J, dampJ);
         }
 
         DiagonalDamping(double _currLambda = 0.01) : currLambda(_currLambda) { }
-        ~DiagonalDamping() {
-        }
     };
 
     template<class LinearSolver, class SolverTraits, class DampingTraits>
@@ -103,16 +64,15 @@ namespace metriko {
         SolverTraits *ST;
         DampingTraits *DT;
 
-        int maxIterations;
         double funcTolerance;
         double fooTolerance;
 
         //always updated to the current iteration
         double energy;
         double fooOptimality;
-        int currIter;
+        int maxIter;
+        int curIter;
 
-    public:
         LMSolver() { }
 
         void init(
@@ -126,9 +86,9 @@ namespace metriko {
             LS = _LS;
             ST = _ST;
             DT = _DT;
-            maxIterations = _maxIterations;
+            maxIter = _maxIterations;
             funcTolerance = _funcTolerance;
-            fooTolerance = _fooTolerance;
+            fooTolerance  = _fooTolerance;
 
             d.resize(ST->xSize);
             x.resize(ST->xSize);
@@ -144,86 +104,55 @@ namespace metriko {
             prevx << x0;
 
             VectorXd rhs(ST->xSize);
-            VectorXd direction;
-            if (verbose)
-                std::cout << "******Beginning Optimization******" << std::endl;
+            VectorXd dir;
+            if (verbose) std::cout << "******Beginning Optimization******" << std::endl;
 
             //estimating initial miu
-            SparseMatrix<double> dampJ;
-            VectorXd EVec;
-            SparseMatrix<double> J;
+            SprsD dampJ;
+            VecXd ECur;
+            VecXd Eprv;
+            SprsD J;
 
-            currIter = 0;
-            ST->objective_jacobian(prevx, EVec, J, true);
-            DT->init(J, prevx, verbose, dampJ);
+            curIter = 0;
+            ST->objective_jacobian(prevx, ECur, J, true);
+            DT->init(J, dampJ);
 
             do {
                 ST->pre_iteration(prevx);
+                double prvEnergy2 = ECur.squaredNorm();
+                rhs = -(J.transpose() * ECur);
 
-                if (verbose) std::cout << "Initial objective for Iteration " << currIter << ": " << EVec.squaredNorm() << std::endl;
-
-                //multiply_adjoint_vector(ST->JRows, ST->JCols, JVals, -EVec, rhs);
-                rhs = -(J.transpose() * EVec);
-
-                fooOptimality = rhs.template lpNorm<Infinity>();
-                if (verbose) std::cout << "firstOrderOptimality: " << fooOptimality << std::endl;
-
-                if (fooOptimality < fooTolerance) {
-                    x = prevx;
-                    if (verbose) std::cout << "First-order optimality has been reached" << std::endl;
-                    break;
-                }
-
-                //trying to do A'*A manually
-                //SparseMatrix<double,RowMajor> Jt=dampJ.transpose();
-                //SparseMatrix<double> JtJ = Jt*dampJ;
+                fooOptimality = rhs.lpNorm<Infinity>();
+                if (fooOptimality < fooTolerance) { x = prevx; break; }
 
                 //solving to get the LM direction
-                if (!LS->factorize(dampJ.transpose() * dampJ)) {
-                    std::cout << "Solver Failed to factorize! " << std::endl;
-                    return false;
-                }
+                if (!LS->factorize(dampJ)) { std::cout << "Solver Failed to factorize! " << std::endl; return false; }
 
-                LS->solve(rhs, direction);
+                LS->solve(rhs, dir);
 
-                if (verbose) std::cout << "direction magnitude: " << direction.norm() << std::endl;
+                if (dir.norm() < funcTolerance) { x = prevx; return true; }
 
-                if (direction.norm() < funcTolerance) {
-                    x = prevx;
-                    if (verbose) std::cout << "Stopping since direction magnitude small." << std::endl;
-                    return true;
-                }
+                Eprv = ECur;
 
-                ST->objective_jacobian(prevx, EVec, J, false);
-                double prevEnergy2 = EVec.squaredNorm();
-                ST->objective_jacobian(prevx + direction, EVec, J, false);
-                double newEnergy2 = EVec.squaredNorm();
-
+                ST->objective_jacobian(prevx + dir, ECur, J, false);
+                double newEnergy2 = ECur.squaredNorm();
                 energy = newEnergy2;
+                bool accepted = prvEnergy2 > newEnergy2;
+                x = accepted ? prevx + dir : prevx;
 
-                if (prevEnergy2 > newEnergy2) {
-                    x = prevx + direction; {
-                        if (std::abs(prevEnergy2 - newEnergy2) < funcTolerance) {
-                            if (verbose) std::cout << "Stopping sincefunction didn't change above tolerance." << std::endl;
-                            break;
-                        }
-                    }
-                } else x = prevx;
+                if (std::abs(prvEnergy2 - newEnergy2) < funcTolerance) { break; }
+                if (accepted) ST->objective_jacobian(x, ECur, J, true);
+                else ECur = Eprv;
 
-                if (verbose) std::cout << "New energy: " << energy << std::endl;
-                ST->objective_jacobian(x, EVec, J, true);
-                energy = EVec.squaredNorm();
+                energy = ECur.squaredNorm();
 
-                DT->update(*ST, J, prevx, direction, verbose, dampJ);
+                DT->update(J, prvEnergy2, newEnergy2, dampJ);
 
-                //The SolverTraits can order the optimization to stop by giving "true" of to continue by giving "false"
-                if (ST->post_iteration(x)) {
-                    if (verbose) std::cout << "ST->Post_iteration() gave a stop" << std::endl;
-                    return true;
-                }
-                currIter++;
+                if (ST->post_iteration(x)) { return true; }
+
+                curIter++;
                 prevx = x;
-            } while (currIter <= maxIterations);
+            } while (curIter <= maxIter);
 
             return false;
         }
