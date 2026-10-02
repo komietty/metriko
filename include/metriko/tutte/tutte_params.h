@@ -153,7 +153,6 @@ inline vec<int> sequential_mapping(
     vec visit(hm.nE, false);
     std::queue<Half> Q;
     Q.push(half_in);
-    visit[half_in.edge().id] = true;
     if (flag[half_in.face().id]) return nextH;
 
     while (!Q.empty()) {
@@ -167,10 +166,10 @@ inline vec<int> sequential_mapping(
 
         for (Half h: f.adjHalfs()) {
             Edge e = h.edge();
-            if (seam[e.id])  continue;                                     // 1: if hit the seam, just stops
-            if (visit[e.id]) continue;                                     // 2: if hit the visited edge, just stops
-            if (boun[h.id]) { nextH.emplace_back(h.twin().id); continue; } // 3: if hit boundary, puts it as a bridge to the next tquad
-            visit[e.id] = true;                                            // 4: inside tquad. add it to the queue
+            if (seam[e.id])  continue;                                  // 1: if hit the seam, just stops
+            if (visit[e.id]) continue;                                  // 2: if hit the visited edge, just stops
+            if (boun[h.id]) { nextH.push_back(h.twin().id); continue; } // 3: if hit boundary, puts it as a bridge to the next tquad
+            visit[e.id] = true;                                         // 4: inside tquad. add it to the queue
             Q.push(h.twin());
         }
     }
