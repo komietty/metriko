@@ -41,13 +41,15 @@
       "gargoyle",
       "fertility",
       "rocker-arm",
-      "soccerball"
+      "soccerball",
+      "rolling_stage_100k"
     ]
   },
   {
     "gridscale": "0.005",
     "vectorfield": "smoothest",
     "meshes": [
+      "botijo",
       "horsers",
       "gargoyle",
       "dancer_25k",

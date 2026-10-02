@@ -36,8 +36,9 @@ inline VecXc solve_hermitian(const SprsC& A, const VecXc& b) {
     return ldlt.solve(b);
 }
 
-// inverse power iteration for the smallest generalized eigenvector of L x = s M x
-inline VecXc solve_smallest_eig(const SprsC& L, const SprsC& M, int nIter = 50) {
+// inverse power iteration for the smallest generalized eigenvector of L x = s M x. iterates until the rayleigh
+// quotient s = x* L x / x* M x stops changing (relative change below tol), or maxIter is reached
+inline VecXc solve_smallest_eig(const SprsC& L, const SprsC& M, const int maxIter = 500, const double tol = 1e-8) {
     SparseLDLT<SprsC> ldlt(L);
     if (ldlt.info() != Eigen::Success) {
         METRIKO_FAIL("failed to factorize the connection Laplacian (info {}): the mesh is likely degenerate, too coarsely tessellated, or contains sharp features / bad triangles", static_cast<int>(ldlt.info()));
@@ -45,19 +46,22 @@ inline VecXc solve_smallest_eig(const SprsC& L, const SprsC& M, int nIter = 50) 
 
     // fixed-seed start vector: the result must not depend on what else consumed std::rand in the process.
     // real and imaginary parts are drawn in separate statements to keep the draw order defined
-    //std::mt19937 rng(0);
-    //std::uniform_real_distribution<double> uni(-1., 1.);
-    //VecXc x(L.rows());
-    //for (int i = 0; i < x.size(); i++) {
-    //    double re = uni(rng);
-    //    double im = uni(rng);
-    //    x(i) = complex(re, im);
-    //}
+    std::mt19937 rng(0);
+    std::uniform_real_distribution<double> uni(-1., 1.);
+    VecXc x(L.rows());
+    for (int i = 0; i < x.size(); i++) {
+        double re = uni(rng);
+        double im = uni(rng);
+        x(i) = complex(re, im);
+    }
 
-    VecXc x = VecXc::Random(L.rows());
-    for (int i = 0; i < nIter; i++) {
+    double s_prev = std::numeric_limits<double>::infinity();
+    for (int i = 0; i < maxIter; i++) {
         x = ldlt.solve(M * x);
-        x /= std::sqrt(std::abs(x.dot(M * x)));
+        x /= std::sqrt(std::abs(x.dot(M * x)));   // x* M x = 1
+        const double s = std::abs(x.dot(L * x));  // rayleigh quotient
+        if (std::abs(s - s_prev) <= tol * std::abs(s)) break;
+        s_prev = s;
     }
     return x;
 }
