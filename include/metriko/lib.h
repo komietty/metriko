@@ -123,7 +123,7 @@ inline RemeshResult compute_remesh(
     for (int i = 0; i < bc_.size(); ++i) bc.row(i) = bc_[i];
 
     sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
-    slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
+    slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e9);
 
     constexpr int    slim_max_iter = 50;
     constexpr double slim_rel_tol  = 1e-4;
@@ -134,7 +134,6 @@ inline RemeshResult compute_remesh(
         std::println("[slim] iter {} energy {}", i, sData.energy);
         prev = sData.energy;
     }
-    //slim_solve(sData, 50);
 
     // ------ qex on the slim result ------
     // per-corner uv of the cut mesh from the per-vertex slim result: hm_cut and hm_emb share the face matrix
