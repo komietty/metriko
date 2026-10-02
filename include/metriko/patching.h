@@ -262,28 +262,12 @@ inline void flood_patches(const QuadGraph& g, const std::set<std::pair<int, int>
     }
 }
 
-// greedy colouring of the patch adjacency, then the colour index spread by the golden ratio so that neighbours map far apart
-inline vec<double> colour_patches(const QuadGraph& g, const vec<double>& tqid_of_quad) {
-    std::map<int, std::set<int>> adj;
-    for (int i = 0; i < tqid_of_quad.size(); ++i)
-    for (int j = 0; j < 4; ++j) {
-        int ta = tqid_of_quad[i], tb = tqid_of_quad[g.quad(g.idx(i, (j + 1) % 4), g.idx(i, j))];
-        if (ta >= 0 && tb >= 0 && ta != tb) { adj[ta].insert(tb); adj[tb].insert(ta); }
-    }
-    vec<std::pair<int, int>> order;   // (degree, tqid), most constrained first
-    for (auto& [t, ns]: adj) order.emplace_back(ns.size(), t);
-    rg::sort(order, std::greater<>{});
-    umap<int, int> colour_of;
-    for (auto [deg, t]: order) {
-        std::set<int> used;
-        for (int u: adj[t]) if (colour_of.contains(u)) used.insert(colour_of.at(u));
-        int c = 0;
-        while (used.contains(c)) ++c;
-        colour_of[t] = c;
-    }
+// the colour of a quad is its tqid spread by the golden ratio: consecutive ids land far apart on the colour map,
+// which is enough to tell neighbouring patches apart without colouring the adjacency
+inline vec<double> colour_patches(const vec<double>& tqid_of_quad) {
     vec<double> colour(tqid_of_quad.size(), -1);
     for (int i = 0; i < tqid_of_quad.size(); ++i)
-        if (int t = tqid_of_quad[i]; t >= 0 && colour_of.contains(t)) colour[i] = std::fmod(colour_of.at(t) * 0.618033988749895, 1.);
+        if (int t = tqid_of_quad[i]; t >= 0) colour[i] = std::fmod(t * 0.618033988749895, 1.);
     return colour;
 }
 
@@ -328,7 +312,7 @@ inline QuadPatch label_quad_patches(
     res.node_qv      = std::move(rp.node_qv);
     flood_patches(g, res.track, res.tqid_of_quad);
     res.unlabeled = rg::count(res.tqid_of_quad, -1.);
-    res.colour    = colour_patches(g, res.tqid_of_quad);
+    res.colour    = colour_patches(res.tqid_of_quad);
 
     for (auto& [nid, v]: res.node_qv) {
         auto* lv = tv.singular_vert(nid);

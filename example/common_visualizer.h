@@ -315,7 +315,7 @@ inline void visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const QuadP
     tracks.show("tedge tracks on the quad mesh", 0.001, true)->setColor({0., 0., 0.});
 
     auto* surf = polyscope::registerSurfaceMesh("quad patch", qv, qidx);
-    surf->setShadeStyle(polyscope::MeshShadeStyle::Smooth);
+    surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
     surf->setEdgeWidth(1.);
     surf->addFaceScalarQuantity("tqid", patch.tqid_of_quad);
     auto* col = surf->addFaceScalarQuantity("patch colour", patch.colour);
