@@ -17,6 +17,11 @@ struct overloaded : Ts... { using Ts::operator()...; };
 constexpr auto circular_prev = [](auto& c, auto it) { return it == c.begin() ? std::prev(c.end()) : std::prev(it); };
 constexpr auto circular_next = [](auto& c, auto it) { auto n = std::next(it); return n == c.end() ? c.begin() : n; };
 
+// the length of a quad edge for vertices V at grid scale `scale` (a fraction of the bounding box diagonal). the pipeline
+// runs on V divided by it: the uv (in grid cells) and the positions then share their unit, which symmetric dirichlet
+// (slim) relies on, and the absolute tolerances mean the same on every model
+inline double grid_unit(const MatXd& V, const double scale) { return (V.colwise().maxCoeff() - V.colwise().minCoeff()).norm() * scale; }
+
 inline complex get_quater_rot(int i) {
     switch ((i % 4 + 4) % 4) {
         case 0: return {1, 0};

@@ -113,6 +113,39 @@ inline void visualize_seam(const Hmesh& hm, const vec<bool>& seam, const VecXi& 
     sg.show(name, 0.001, show);
 }
 
+// interior singulars whose uv cone angle (the sum of the uv corner angles at the vertex) differs from the one its index
+// asks for, (4 - index) * pi / 2, drawn as points. on `surf`, a face scalar marks folded faces (non-positive uv area)
+// with bit 1 and the one-ring faces of those singulars with bit 2. returns the number of wrongly wound singulars
+inline int visualize_wrong_cones(polyscope::SurfaceMesh* surf, const Hmesh& hm, const VecXi& singular, const bool show = true) {
+    auto uv = [&](int f, int j) { return hm.cfn(f * 3 + j); };
+    vec<int> mark(hm.nF, 0);
+    for (Face f: hm.faces) if (cross(uv(f.id, 1) - uv(f.id, 0), uv(f.id, 2) - uv(f.id, 0)) <= 0) mark[f.id] |= 1;
+
+    Points pts;
+    for (Vert v: hm.verts) {
+        const int s = singular[v.id];
+        if (s == 0 || v.isBoundary()) continue;
+        double cone = 0;
+        for (Half h: v.adjHalfs()) {
+            const int f = h.face().id;
+            int j = 0;
+            while (hm.idx(f, j) != v.id) ++j;
+            cone += std::arg((uv(f, (j + 2) % 3) - uv(f, j)) / (uv(f, (j + 1) % 3) - uv(f, j)));
+        }
+        const double want = (4 - s) * M_PI / 2;
+        if (std::abs(cone - want) < 1e-3) continue;
+        for (Half h: v.adjHalfs()) mark[h.face().id] |= 2;
+        pts.add(v.pos());
+        pts.scalar("index", s);
+        pts.scalar("vid", v.id);
+        pts.scalar("cone / pi", cone / M_PI);
+        std::println("[cone] singular {} index {:+d}: uv cone {:.2f} pi, should be {:.2f} pi", v.id, s, cone / M_PI, want / M_PI);
+    }
+    surf->addFaceScalarQuantity("folded (1) / wrong cone ring (2)", vec<double>(mark.begin(), mark.end()))->setEnabled(false);
+    pts.show("wrong cones", 0.003, show, "index");
+    return (int)pts.ps.size();
+}
+
 //------------------------------------------------------------------------------
 // t-mesh right after the motorcycle graph and the quantization (before the collapse)
 //------------------------------------------------------------------------------

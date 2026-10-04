@@ -37,9 +37,10 @@ static vec<bool> seam;
 int main(int argc, char** argv) {
     const auto t_start = std::chrono::steady_clock::now();
     auto t_lap = t_start;
-    auto lap = [&](const char* name) { auto t = std::chrono::steady_clock::now(); std::println("[time] {:<22} {:8.3f} s", name, std::chrono::duration<double>(t - t_lap).count()); t_lap = t; };
+    auto lap = [&](const char* name) { auto t = std::chrono::steady_clock::now(); std::println("[time] {:<22} {:8.0f} ms", name, std::chrono::duration<double, std::milli>(t - t_lap).count()); t_lap = t; };
     igl::readOBJ(argv[1], V, F);
-    //cleanup::decimate_and_clean(V, F,  100000);
+    cleanup::cleanup_mesh(V, F);
+    V /= grid_unit(V, std::stod(argv[2]));   // grid units: one quad edge = 1
     Hmesh hm(V, F);
     if (!load_cache(std::format("{}.{}.cache", argv[1], argv[2]), hm.cfn, matching, singular, seam)) throw std::runtime_error("the cache does not exist");
 
@@ -217,7 +218,7 @@ int main(int argc, char** argv) {
             lap("qex q_edge");
             auto qfaces = qex::generate_q_faces(q_ports, qedges);
             lap("qex q_face");
-            std::println("[time] {:<22} {:8.3f} s", "total (before visualize)", std::chrono::duration<double>(std::chrono::steady_clock::now() - t_start).count());
+            std::println("[time] {:<22} {:8.0f} ms", "total (before visualize)", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_start).count());
 
             //visualizer::visualize_qedges(qedges);
             auto [qv, qidx] = extract_quad_mesh(hm, qfaces, true);

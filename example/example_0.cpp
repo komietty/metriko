@@ -21,7 +21,9 @@ static MatXi F;
 
 int main(int argc, char** argv) {
     igl::readOBJ(argv[1], V, F);
-    //cleanup::decimate_and_clean(V, F,  100000);
+    //cleanup::cleanup_mesh(V, F);
+    cleanup::decimate_and_clean(V, F, 1000000);
+    V /= grid_unit(V, std::stod(argv[2]));   // grid units: one quad edge = 1
     Hmesh hm(V, F);
 
     FaceRosyField rawf(hm, N, FieldType::Smoothest);
@@ -61,6 +63,7 @@ int main(int argc, char** argv) {
     auto surf = visualizer::visualize_mesh(hm);
     visualizer::visualize_frosy_field(surf, rawf, *cmbf);
     visualizer::visualize_seam(hm, seam);
+    visualizer::visualize_wrong_cones(surf, hm, cmbf->singular);
 
     polyscope::show();
     return 0;

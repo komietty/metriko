@@ -12,7 +12,9 @@
 #include <set>
 #include <map>
 #include <queue>
+#include <Eigen/Geometry>
 #include <igl/AABB.h>
+#include <igl/per_face_normals.h>
 #include <igl/remove_duplicate_vertices.h>
 #include "qex/common.h"
 #include "tmesh/emesh.h"
@@ -45,28 +47,78 @@ inline void weld_quad_soup(const MatXd& pos, const MatXi& idx, MatXd& pos_w, Mat
     for (int j = 0; j < idx.cols(); ++j) idx_w(i, j) = SVJ(idx(i, j));
 }
 
-// laplacian smoothing of a quad mesh, projected back onto the input surface after every step
-inline void smooth_on_surface(MatXd& pos, const MatXi& idx, const MatXd& V, const MatXi& F, const int iters = 500, const double lambda = 0.01) {
-    vec<std::set<int>> adj(pos.rows());
-    for (int i = 0; i < idx.rows(); ++i)
-    for (int j = 0; j < 4; ++j) {
-        int a = idx(i, j), b = idx(i, (j + 1) % 4);
-        adj[a].insert(b);
-        adj[b].insert(a);
-    }
+// conformal relaxation of a quad mesh on the input surface: shape-up (bouaziz et al. 2012) with the set of squares as
+// the shape constraint. local step: every quad is projected onto its closest square, a similarity of the unit square
+// fitted to its four corners (umeyama 1991). global step: every vertex takes the least-squares compromise of the
+// corners its quads ask for, which for this constraint set alone is their mean. the surface closeness is enforced as
+// a projection onto the input surface after every global step (the limit of an infinite weight on that constraint),
+// so the vertices never leave it. a square has right angles and equal sides, and its size is free per quad: the
+// iteration drives every corner towards 90 degrees while the quad size varies smoothly over the mesh.
+// not part of shape-up: a step must not fold a quad. a quad convex with respect to the surface normal (summed over the
+// faces closest to its corners) before a step keeps its corners where they were if the step would make it non-convex;
+// reverting corners can fold a neighbour in turn, so this repeats until nothing changes. quads that came out of the
+// quad extraction folded move freely, and are guarded once they come out convex
+inline void conformalize_on_surface(MatXd& pos, const MatXi& idx, const MatXd& V, const MatXi& F, const int max_iter = 200, const double tol = 1e-6) {
+    Eigen::Matrix<double, 3, 4> square;   // the unit square, corners in the cyclic order of a quad
+    square << -1,  1, 1, -1,
+              -1, -1, 1,  1,
+               0,  0, 0,  0;
+    VecXi n_quads = VecXi::Zero(pos.rows());
+    for (int i = 0; i < idx.rows(); ++i) for (int j = 0; j < 4; ++j) ++n_quads(idx(i, j));
+
+    MatXd N;
+    igl::per_face_normals(V, F, N);
     igl::AABB<MatXd, 3> tree;
     tree.init(V, F);
-    for (int it = 0; it < iters; ++it) {
-        MatXd next = pos;
-        for (int v = 0; v < pos.rows(); ++v) {
-            if (adj[v].empty()) continue;
-            Row3d c = Row3d::Zero();
-            for (int n: adj[v]) c += pos.row(n);
-            next.row(v) = (1 - lambda) * pos.row(v) + lambda * c / (double)adj[v].size();
+    VecXd sqrD; VecXi I; MatXd C;
+    tree.squared_distance(V, F, pos, sqrD, I, C);
+
+    auto convex = [&](const MatXd& P, const VecXi& face_of, int q) {
+        Row3d n = Row3d::Zero();
+        for (int j = 0; j < 4; ++j) n += N.row(face_of(idx(q, j)));
+        for (int j = 0; j < 4; ++j) {
+            const Row3d c = P.row(idx(q, j)), a = P.row(idx(q, (j + 3) % 4)), b = P.row(idx(q, (j + 1) % 4));
+            if ((b - c).cross(a - c).dot(n) <= 0) return false;
         }
-        VecXd sqrD; VecXi I; MatXd C;
-        tree.squared_distance(V, F, next, sqrD, I, C);
+        return true;
+    };
+    vec<char> guarded(idx.rows());
+    for (int q = 0; q < idx.rows(); ++q) guarded[q] = convex(pos, I, q);
+
+    vec<Eigen::Matrix<double, 3, 4>> fit(idx.rows());
+    for (int it = 0; it < max_iter; ++it) {
+        #pragma omp parallel for schedule(static)
+        for (int i = 0; i < idx.rows(); ++i) {
+            Eigen::Matrix<double, 3, 4> p;
+            for (int j = 0; j < 4; ++j) p.col(j) = pos.row(idx(i, j)).transpose();
+            const Eigen::Matrix4d T = Eigen::umeyama(square, p, true);
+            fit[i] = (T.topLeftCorner<3, 3>() * square).colwise() + T.topRightCorner<3, 1>();
+        }
+        MatXd next = MatXd::Zero(pos.rows(), 3);
+        for (int i = 0; i < idx.rows(); ++i) for (int j = 0; j < 4; ++j) next.row(idx(i, j)) += fit[i].col(j).transpose();
+        for (int v = 0; v < pos.rows(); ++v) next.row(v) = n_quads(v) > 0 ? Row3d(next.row(v) / n_quads(v)) : Row3d(pos.row(v));
+
+        VecXi I_next;
+        tree.squared_distance(V, F, next, sqrD, I_next, C);
+        for (bool changed = true; changed; ) {
+            changed = false;
+            for (int q = 0; q < idx.rows(); ++q) {
+                if (!guarded[q] || convex(C, I_next, q)) continue;
+                for (int j = 0; j < 4; ++j) {
+                    const int v = idx(q, j);
+                    if (C.row(v) == pos.row(v)) continue;
+                    C.row(v) = pos.row(v);
+                    I_next(v) = I(v);
+                    changed = true;
+                }
+            }
+        }
+        for (int q = 0; q < idx.rows(); ++q) if (!guarded[q]) guarded[q] = convex(C, I_next, q);
+
+        const double move = (C - pos).rowwise().norm().maxCoeff();   // in grid units: the pipeline runs on V / grid_unit
         pos = C;
+        I   = I_next;
+        if (move < tol) break;
     }
 }
 
@@ -76,7 +128,7 @@ inline std::pair<MatXd, MatXi> extract_quad_mesh(const Hmesh& hm, const vec<qex:
     MatXi idx, idx_w;
     quad_soup(qfaces, pos, idx);
     weld_quad_soup(pos, idx, pos_w, idx_w);
-    if (refine) smooth_on_surface(pos_w, idx_w, hm.pos, hm.idx);
+    if (refine) conformalize_on_surface(pos_w, idx_w, hm.pos, hm.idx);
     return {pos_w, idx_w};
 }
 

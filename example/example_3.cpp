@@ -31,13 +31,14 @@ static constexpr int N = 4;
 int main(int argc, char** argv) {
     const auto t_start = std::chrono::steady_clock::now();
     auto t_lap = t_start;
-    auto print_time = [](const char* name, auto dur) { std::println("[time] {:<26} {:8.3f} s", name, std::chrono::duration<double>(dur).count()); };
+    auto print_time = [](const char* name, auto dur) { std::println("[time] {:<26} {:8.0f} ms", name, std::chrono::duration<double, std::milli>(dur).count()); };
     auto lap = [&](const char* name) { auto t = std::chrono::steady_clock::now(); print_time(name, t - t_lap); t_lap = t; };
 
     MatXd V;
     MatXi F;
     igl::readOBJ(argv[1], V, F);
     cleanup::cleanup_mesh(V, F);
+    V /= grid_unit(V, std::stod(argv[2]));   // grid units: one quad edge = 1
     Hmesh hm(V, F);
     lap("load");
 
@@ -70,9 +71,10 @@ int main(int argc, char** argv) {
     ///--- stage 1: quantization + t-mesh collapse / snap ---///
     auto mg = Mgrph(hm, matching, singular);
     Emesh tm(mg);
+    lap("motorcycle");
     auto X  = compute_quantization(tm, mg);
     tm.set_x(X);
-    lap("motorcycle + quantization");
+    lap("quantization");
 
     // TEMP debug: on a throw in stage 1, stop there and show the t-mesh reached so far. the tquad being
     // processed and its neighbours are drawn separately so the broken spot is easy to find
@@ -119,14 +121,16 @@ int main(int argc, char** argv) {
         tm.collapse_tedge_snap(false);
         tm.collapse_tedge_snap(true);
         for (const auto& [teid, _] : tm.live_tedges()) tm.collapse_tedge_snap_dedup(teid);
+        lap("snap");
         repair_crossing_tedges(tm);
         if (validate_no_crossing(tm, "after repair") > 0) throw std::runtime_error("tedge contacts remain");
+        lap("repair");
     } catch (const std::exception& ex) {
         show_failure(cur_tqid == -1 ? "snap + repair" : "collapse", ex);
         return 1;
     }
     save_emesh(std::format("{}.{}.tm", argv[1], argv[2]), tm);
-    lap("snap + repair");
+    lap("save t-mesh");
 
     ///--- stage 2: cut, tutte, slim, qex ---///
     vec<bool> seam1;

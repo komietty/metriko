@@ -19,7 +19,7 @@
 namespace metriko {
 
 struct RemeshResult {
-    std::unique_ptr<Hmesh>         hmesh;
+    std::unique_ptr<Hmesh>         hmesh;   // in grid units: V / grid_unit(V, scale)
     std::unique_ptr<Mgrph>         mgrph;
     std::unique_ptr<Emesh>         emesh;
     std::unique_ptr<FaceRosyField> cmbf;
@@ -41,7 +41,8 @@ inline RemeshResult compute_remesh(
     const bool refine = true
 ) {
     auto res  = RemeshResult();
-    auto hm   = std::make_unique<Hmesh>(V, F);
+    const double unit = grid_unit(V, scale);
+    auto hm   = std::make_unique<Hmesh>(MatXd(V / unit), F);
     auto rawf = FaceRosyField(*hm, 4, c_aligned? FieldType::CurvatureAligned : FieldType::Smoothest);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(*hm, seam);
@@ -155,6 +156,7 @@ inline RemeshResult compute_remesh(
     auto q_edges = qex::generate_q_edge(*hm_emb, matching1, q_ports);
     auto q_faces = qex::generate_q_faces(q_ports, q_edges);
     std::tie(res.q_pos, res.q_idx) = extract_quad_mesh(*hm, q_faces, refine);
+    res.q_pos *= unit;   // back to the units of V
     res.q_patch = label_quad_patches(*tm, cmbf->singular, q_faces, res.q_idx);
 
     res.hmesh = std::move(hm);
