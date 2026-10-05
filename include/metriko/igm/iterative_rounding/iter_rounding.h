@@ -133,7 +133,6 @@ public:
             weightMatrix,
             length,
             localInjectivity,
-            nF,
             N,
             n,
             iter_cb,

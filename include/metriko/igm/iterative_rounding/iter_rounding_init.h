@@ -7,10 +7,8 @@
 //
 #ifndef METRIKO_ITER_ROUNDING_INIT_H
 #define METRIKO_ITER_ROUNDING_INIT_H
-#include <set>
 #include <stdexcept>
 #include <igl/local_basis.h>
-#include <igl/setdiff.h>
 #include <igl/slice.h>
 #include <igl/speye.h>
 #include <igl/unique.h>
@@ -84,7 +82,6 @@ namespace metriko {
             const SprsD &weightMatrix, // per face weight of the poisson energy, repeated over the 2N rows of the face
             const double length_,
             const bool locinj_,
-            const int nF,
             const int N,
             const int n,
             std::function<bool(const VecXd &x)> iter_cb,
@@ -94,71 +91,6 @@ namespace metriko {
            fixedVals(fixedVals),
            iter_cb(iter_cb)
         {
-            // ---
-            // Reducing constraint matrix:
-            // reducing duplication of Cfull
-            // all non-zero columns
-            // ---
-            VecXi I(Cfull.nonZeros());
-            VecXi J(Cfull.nonZeros());
-            VecXd S(Cfull.nonZeros());
-            std::set<int> uniqueJ;
-            int counter = 0;
-            for (int k = 0; k < Cfull.outerSize(); ++k) {
-                for (SprsD::InnerIterator it(Cfull, k); it; ++it) {
-                    I(counter) = it.row();
-                    J(counter) = it.col();
-                    uniqueJ.insert(it.col());
-                    S(counter++) = it.value();
-                }
-            }
-
-            // creating small dense matrix with all non-zero columns
-            VecXi JMask = VecXi::Constant(Cfull.cols(), -1);
-            vec uj(uniqueJ.begin(), uniqueJ.end());
-            VecXi uniqueJVec = Eigen::Map<VecXi>(uj.data(), uj.size());
-            for (int i = 0; i < uj.size(); i++) JMask(uj[i]) = i;
-
-            MatXd CSmall = MatXd::Zero(Cfull.rows(), JMask.maxCoeff() + 1);
-            for (int i = 0; i < I.size(); i++) CSmall(I(i), JMask(J(i))) = S(i);
-
-            // converting into the big matrix
-            VecXi nonPartIndices, stub;
-            VecXi n_vtrans_ids(Cfull.cols());
-            for (int i = 0; i < Cfull.cols(); i++) n_vtrans_ids(i) = i;
-            igl::setdiff(n_vtrans_ids, uniqueJVec, nonPartIndices, stub);
-
-            MatXd USmall(0, 0);
-            if (CSmall.rows() != 0) {
-                Eigen::FullPivLU<MatXd> lu(CSmall);
-                USmall = lu.kernel(); // lu.rank(): num of the constraints
-            } else
-                nonPartIndices = n_vtrans_ids;
-
-            SprsD URaw(
-                nonPartIndices.size() + USmall.rows(),
-                nonPartIndices.size() + USmall.cols()
-            );
-            vec<TripD> urT;
-            for (int i = 0; i < nonPartIndices.size(); i++) urT.emplace_back(i, i, 1.);
-
-            for (int i = 0; i < USmall.rows(); i++) {
-            for (int j = 0; j < USmall.cols(); j++) {
-                const double v = USmall(i, j);
-                if (v != 0) urT.emplace_back(nonPartIndices.size() + i, nonPartIndices.size() + j, v);
-            }}
-
-            URaw.setFromTriplets(urT.begin(), urT.end());
-
-            SprsD permMat(URaw.rows(), URaw.rows());
-            vec<TripD> pmT;
-            for (int ci = 0; ci < nonPartIndices.size(); ci++) pmT.emplace_back(nonPartIndices(ci), ci, 1.);
-            for (int ci = 0; ci < uniqueJVec.size(); ci++) pmT.emplace_back(
-                uniqueJVec(ci), nonPartIndices.size() + ci, 1.);
-            permMat.setFromTriplets(pmT.begin(), pmT.end());
-
-            UFull = permMat * URaw;
-
             //----- Generating naive poisson solution -----
             // Compute poisson eq. so that the gradient of enegy function equal to zero.
             // Conceptually it computes uv to follow the given nvec with the constraint.
@@ -166,6 +98,7 @@ namespace metriko {
             // if isometricity is not important, then the solver below might have room for optimization
             // e.g. consider only the conformality... use conformal optimization
 
+            UFull = sparse_null_space(Cfull);
             X2F = (G2 * UFull).pruned();
             SprsD E = X2F.transpose() * weightMatrix * X2F * length;
             VecXd f = X2F.transpose() * weightMatrix * F2;
@@ -185,51 +118,25 @@ namespace metriko {
                 bmT.emplace_back(it.col(), it.row() + E.rows(), it.value());
             }}
 
-            SprsD bigMat(E.rows() + constMat.rows(), E.rows() + constMat.rows());
-            bigMat.setFromTriplets(bmT.begin(), bmT.end());
-
-            VecXd bigRhs(f.size() + fixedVals.size());
-            bigRhs << f, fixedVals;
-
             // the fixed values are constraints C x = v on a few variables only: write x = x0 + Z y, with Z the identity
             // on the untouched variables and the (dense, small) kernel of C on the touched ones. E restricted to y is
             // symmetric positive definite and is solved by cholesky; the LU of the full KKT system is the fallback
             VecXd XSmall;
             {
-                const int nx = UFull.cols();
-                vec<int> cols;   // the variables the constraints touch
-                for (int k = 0; k < constMat.outerSize(); ++k)
-                    for (SprsD::InnerIterator it(constMat, k); it; ++it) cols.push_back(it.col());
-                rg::sort(cols);
-                cols.erase(rg::unique(cols).begin(), cols.end());
-                VecXi loc = VecXi::Constant(nx, -1);
-                for (int j = 0; j < cols.size(); ++j) loc(cols[j]) = j;
-                MatXd Cd = MatXd::Zero(constMat.rows(), cols.size());
-                for (int k = 0; k < constMat.outerSize(); ++k) for (SprsD::InnerIterator it(constMat, k); it; ++it) Cd(it.row(), loc(it.col())) = it.value();
-
-                Eigen::FullPivLU<MatXd> lu(Cd);
-                VecXd x0 = VecXd::Zero(nx);
-                const VecXd xc = lu.solve(fixedVals);
-                for (int j = 0; j < cols.size(); ++j) x0(cols[j]) = xc(j);
-
-                vec<TripD> zT;
-                int ny = 0;
-                for (int i = 0; i < nx; ++i) if (loc(i) == -1) zT.emplace_back(i, ny++, 1.);
-                if (lu.dimensionOfKernel() > 0) {
-                    const MatXd K = lu.kernel();
-                    for (int k = 0; k < K.cols(); ++k, ++ny) for (int j = 0; j < K.rows(); ++j) if (K(j, k) != 0) zT.emplace_back(cols[j], ny, K(j, k));
-                }
-                SprsD Z(nx, ny);
-                Z.setFromTriplets(zT.begin(), zT.end());
-
+                VecXd xp;
+                const SprsD Z   = sparse_null_space(constMat, fixedVals, xp);
                 const SprsD Ey  = Z.transpose() * E * Z;
-                const VecXd rhs = Z.transpose() * (f - E * x0);
+                const VecXd rhs = Z.transpose() * (f - E * xp);
                 SparseLLT llt(Ey);
                 const VecXd y = llt.solve(rhs);
                 // a (nearly) singular E passes the factorization but not the solve
                 if (llt.info() == Eigen::Success && y.allFinite() && (Ey * y - rhs).norm() <= 1e-8 * std::max(rhs.norm(), 1.)) {
-                    XSmall = x0 + Z * y;
+                    XSmall = xp + Z * y;
                 } else {
+                    SprsD bigMat(E.rows() + constMat.rows(), E.rows() + constMat.rows());
+                    bigMat.setFromTriplets(bmT.begin(), bmT.end());
+                    VecXd bigRhs(f.size() + fixedVals.size());
+                    bigRhs << f, fixedVals;
                     Eigen::SparseLU solver(bigMat);
                     if (solver.info() != Eigen::Success) METRIKO_FAIL("initial Poisson solve (SparseLU) failed");
                     VecXd XSmallFull = solver.solve(bigRhs);

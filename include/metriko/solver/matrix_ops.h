@@ -12,6 +12,56 @@
 #include "metriko/solver/sparse_solver.h"
 
 namespace metriko {
+// the solutions of C x = b for a sparse C whose nonzeros sit in a few columns, as x = x0 + Z y. the columns C does not
+// touch stay free: identity columns of Z, in their order. the touched ones are confined to the kernel of C restricted to
+// them, computed densely by FullPivLU, whose vectors follow in Z. x0 solves C x0 = b and is zero off the touched columns
+inline SprsD sparse_null_space(const SprsD& C, const VecXd& b, VecXd& x0) {
+    const int nx = C.cols();
+    vec<int> cols;   // the touched columns
+
+    for (int k = 0; k < C.outerSize(); ++k)
+    for (SprsD::InnerIterator it(C, k); it; ++it)
+        cols.push_back(it.col());
+
+    rg::sort(cols);
+    cols.erase(rg::unique(cols).begin(), cols.end());
+    VecXi loc = VecXi::Constant(nx, -1);
+    for (int j = 0; j < cols.size(); ++j) loc(cols[j]) = j;
+
+    vec<TripD> T;
+    int ny = 0;
+    for (int i = 0; i < nx; ++i) if (loc(i) == -1) T.emplace_back(i, ny++, 1.);
+    x0 = VecXd::Zero(nx);
+
+    if (!cols.empty()) {
+        MatXd Cd = MatXd::Zero(C.rows(), cols.size());
+        for (int k = 0; k < C.outerSize(); ++k)
+        for (SprsD::InnerIterator it(C, k); it; ++it)
+            Cd(it.row(), loc(it.col())) = it.value();
+
+        Eigen::FullPivLU<MatXd> lu(Cd);
+        const VecXd xc = lu.solve(b);
+        for (int j = 0; j < cols.size(); ++j) x0(cols[j]) = xc(j);
+
+        if (lu.dimensionOfKernel() > 0) {
+            const MatXd K = lu.kernel();
+            for (int k = 0; k < K.cols(); ++k, ++ny)
+            for (int j = 0; j < K.rows(); ++j)
+                if (K(j, k) != 0) T.emplace_back(cols[j], ny, K(j, k));
+        }
+    }
+
+    SprsD Z(nx, ny);
+    Z.setFromTriplets(T.begin(), T.end());
+    return Z;
+}
+
+// the homogeneous case, C x = 0: x = Z y
+inline SprsD sparse_null_space(const SprsD& C) {
+    VecXd x0;
+    return sparse_null_space(C, VecXd::Zero(C.rows()), x0);
+}
+
 inline void reduce_to_linearly_independent(SprsD& mat) {
     if (mat.rows() == 0) return;
     SparseRankQR qr;

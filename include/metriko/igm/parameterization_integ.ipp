@@ -104,6 +104,7 @@ namespace metriko {
             cfn.block(i, N * j, 1, N) = nfn.row(cut.idx(i, j)).array();
         }}
 
+#ifdef METRIKO_DEBUG
         //----- check the derivative of the map is close to the original tangent field ----//
         double evaluation = 0;
         VecXd G_NF = G3 * NF;
@@ -118,9 +119,7 @@ namespace metriko {
                 evaluation += (v1 - v2).norm();
             }
         }
-#ifdef METRIKO_DEBUG
-        std::cout << "Deviation of the recovered tf from the original : "
-                << evaluation / (ext.rows() * N) << std::endl;
+        std::cout << "Deviation of the recovered tf from the original : " << evaluation / (ext.rows() * N) << std::endl;
 #endif
 
         return success;
