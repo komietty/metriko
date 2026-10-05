@@ -12,6 +12,20 @@
 #include "metriko/solver/sparse_solver.h"
 
 namespace metriko {
+template<class Scalar> struct SparseEntry { int row; int col; Scalar value; };
+using SprsEntry = SparseEntry<double>;
+
+// the nonzeros of a column-major sparse matrix as a range of {row, col, value}, column by column, without copying.
+// the matrix must outlive the range and keep its sparsity pattern while it is walked
+template<class Scalar>
+auto nonzeros(const Eigen::SparseMatrix<Scalar>& S) {
+    return vw::iota(0, (int)S.outerSize()) | vw::transform([&S](int k) {
+        const int b = S.outerIndexPtr()[k];
+        const int e = S.isCompressed() ? S.outerIndexPtr()[k + 1] : b + S.innerNonZeroPtr()[k];
+        return vw::iota(b, e) | vw::transform([&S, k](int p) { return SparseEntry<Scalar>{ (int)S.innerIndexPtr()[p], k, S.valuePtr()[p] }; });
+    }) | vw::join;
+}
+
 // the solutions of C x = b for a sparse C whose nonzeros sit in a few columns, as x = x0 + Z y. the columns C does not
 // touch stay free: identity columns of Z, in their order. the touched ones are confined to the kernel of C restricted to
 // them, computed densely by FullPivLU, whose vectors follow in Z. x0 solves C x0 = b and is zero off the touched columns
@@ -19,9 +33,7 @@ inline SprsD sparse_null_space(const SprsD& C, const VecXd& b, VecXd& x0) {
     const int nx = C.cols();
     vec<int> cols;   // the touched columns
 
-    for (int k = 0; k < C.outerSize(); ++k)
-    for (SprsD::InnerIterator it(C, k); it; ++it)
-        cols.push_back(it.col());
+    for (const auto& [r, c, v]: nonzeros(C)) cols.push_back(c);
 
     rg::sort(cols);
     cols.erase(rg::unique(cols).begin(), cols.end());
@@ -35,9 +47,7 @@ inline SprsD sparse_null_space(const SprsD& C, const VecXd& b, VecXd& x0) {
 
     if (!cols.empty()) {
         MatXd Cd = MatXd::Zero(C.rows(), cols.size());
-        for (int k = 0; k < C.outerSize(); ++k)
-        for (SprsD::InnerIterator it(C, k); it; ++it)
-            Cd(it.row(), loc(it.col())) = it.value();
+        for (const auto& [r, c, v]: nonzeros(C)) Cd(r, loc(c)) = v;
 
         Eigen::FullPivLU<MatXd> lu(Cd);
         const VecXd xc = lu.solve(b);
@@ -74,10 +84,7 @@ inline void reduce_to_linearly_independent(SprsD& mat) {
 
     vec<TripD> T;
     T.reserve(mat.nonZeros());
-    for (int k = 0; k < mat.outerSize(); ++k) {
-    for (SprsD::InnerIterator it(mat, k); it; ++it) {
-        if (int rid = rid_map(it.row()); rid != -1) T.emplace_back(rid, it.col(), it.value());
-    }}
+    for (const auto& [r, c, v]: nonzeros(mat)) if (int rid = rid_map(r); rid != -1) T.emplace_back(rid, c, v);
 
     mat.resize(rank, mat.cols());
     mat.setFromTriplets(T.begin(), T.end());
@@ -105,23 +112,10 @@ void sparse_block(
     vec<Eigen::Triplet<Scalar>> T;
     for (int i = 0; i < row_offsets.size(); i++)
     for (int j = 0; j < col_offsets.size(); j++)
-    for (int k = 0; k < mats[i]->outerSize(); ++k)
-    for (typename Eigen::SparseMatrix<Scalar>::InnerIterator it(*(mats[i]), k); it; ++it)
-        T.push_back(Eigen::Triplet<Scalar>(row_offsets(i) + it.row(), col_offsets(j) + it.col(), it.value()));
+    for (const auto& [r, c, v]: nonzeros(*mats[i]))
+        T.emplace_back(row_offsets(i) + r, col_offsets(j) + c, v);
 
     result.setFromTriplets(T.begin(), T.end());
-}
-
-struct SprsEntry { int row; int col; double value; };
-
-// all nonzeros, column by column
-inline vec<SprsEntry> nonzeros(const SprsD& S) {
-    vec<SprsEntry> res;
-    res.reserve(S.nonZeros());
-    for (int k = 0; k < S.outerSize(); ++k)
-    for (SprsD::InnerIterator it(S, k); it; ++it)
-        res.push_back({.row=(int)it.row(), .col=(int)it.col(), .value=it.value()});
-    return res;
 }
 
 // for each row, the columns holding a nonzero on it, in column order

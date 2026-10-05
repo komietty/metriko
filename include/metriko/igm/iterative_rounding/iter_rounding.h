@@ -39,12 +39,17 @@ class CholeskyWrapper {
         cholmod_sparse A{};
         A.nrow = Jt.cols(); A.ncol = Jt.rows(); A.nzmax = Jt.nonZeros();
         A.p = Jt.outerIndexPtr(); A.i = Jt.innerIndexPtr(); A.x = Jt.valuePtr();
-        A.stype = 0; A.itype = CHOLMOD_INT; A.xtype = CHOLMOD_REAL; A.dtype = CHOLMOD_DOUBLE; A.sorted = 1; A.packed = 1;
+        A.stype = 0;
+        A.itype = CHOLMOD_INT;
+        A.xtype = CHOLMOD_REAL;
+        A.dtype = CHOLMOD_DOUBLE;
+        A.sorted = 1;
+        A.packed = 1;
         return A;
     }
 
 public:
-    CholeskyWrapper() { cholmod_start(&c); c.supernodal = CHOLMOD_SUPERNODAL; }
+    CholeskyWrapper()  { cholmod_start(&c); c.supernodal = CHOLMOD_SUPERNODAL; }
     ~CholeskyWrapper() { if (L) cholmod_free_factor(&L, &c); cholmod_finish(&c); }
     CholeskyWrapper(const CholeskyWrapper&) = delete;
     CholeskyWrapper& operator=(const CholeskyWrapper&) = delete;

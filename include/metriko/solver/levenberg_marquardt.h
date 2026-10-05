@@ -21,11 +21,10 @@ namespace metriko {
         void build_damped_matrix(const SprsD& J, SprsD& dampJ) const {
             VecXd dampVec = VecXd::Zero(J.cols());
             vec<TripD> dampJTris;
-            for (int k = 0; k < J.outerSize(); ++k)
-                for (SprsD::InnerIterator it(J, k); it; ++it) {
-                    dampVec(it.col()) += currLambda * it.value() * it.value();
-                    dampJTris.emplace_back(it.row(), it.col(), it.value());
-                }
+            for (const auto& [r, c, v]: nonzeros(J)) {
+                dampVec(c) += currLambda * v * v;
+                dampJTris.emplace_back(r, c, v);
+            }
             for (int i = 0; i < dampVec.size(); i++)
                 dampJTris.emplace_back(J.rows() + i, i, std::sqrt(dampVec(i)));
 

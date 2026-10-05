@@ -40,9 +40,7 @@ namespace metriko {
 
             vec<TripD> T;
 
-            for (int k = 0; k < G2.outerSize(); ++k)
-                for (SprsD::InnerIterator it(G2, k); it; ++it)
-                    T.emplace_back(it.row(), it.col(), -length * it.value());
+            for (const auto& [r, c, v]: nonzeros(G2)) T.emplace_back(r, c, -length * v);
             for (int i = 0; i < l1; i++) T.emplace_back(i, G2.cols() + i, 1.);
             gInteg.setFromTriplets(T.begin(), T.end());
 
@@ -108,40 +106,33 @@ namespace metriko {
 
             vec<TripD> bmT;
 
-            for (int k = 0; k < E.outerSize(); ++k)
-            for (SprsD::InnerIterator it(E, k); it; ++it)
-                bmT.emplace_back(it.row(), it.col(), it.value());
-
-            for (int k = 0; k < constMat.outerSize(); ++k) {
-            for (SprsD::InnerIterator it(constMat, k); it; ++it) {
-                bmT.emplace_back(it.row() + E.rows(), it.col(), it.value());
-                bmT.emplace_back(it.col(), it.row() + E.rows(), it.value());
-            }}
+            for (const auto& [r, c, v]: nonzeros(E)) bmT.emplace_back(r, c, v);
+            for (const auto& [r, c, v]: nonzeros(constMat)) {
+                bmT.emplace_back(r + E.rows(), c, v);
+                bmT.emplace_back(c, r + E.rows(), v);
+            }
 
             // the fixed values are constraints C x = v on a few variables only: write x = x0 + Z y, with Z the identity
             // on the untouched variables and the (dense, small) kernel of C on the touched ones. E restricted to y is
             // symmetric positive definite and is solved by cholesky; the LU of the full KKT system is the fallback
             VecXd XSmall;
-            {
-                VecXd xp;
-                const SprsD Z   = sparse_null_space(constMat, fixedVals, xp);
-                const SprsD Ey  = Z.transpose() * E * Z;
-                const VecXd rhs = Z.transpose() * (f - E * xp);
-                SparseLLT llt(Ey);
-                const VecXd y = llt.solve(rhs);
-                // a (nearly) singular E passes the factorization but not the solve
-                if (llt.info() == Eigen::Success && y.allFinite() && (Ey * y - rhs).norm() <= 1e-8 * std::max(rhs.norm(), 1.)) {
-                    XSmall = xp + Z * y;
-                } else {
-                    SprsD bigMat(E.rows() + constMat.rows(), E.rows() + constMat.rows());
-                    bigMat.setFromTriplets(bmT.begin(), bmT.end());
-                    VecXd bigRhs(f.size() + fixedVals.size());
-                    bigRhs << f, fixedVals;
-                    Eigen::SparseLU solver(bigMat);
-                    if (solver.info() != Eigen::Success) METRIKO_FAIL("initial Poisson solve (SparseLU) failed");
-                    VecXd XSmallFull = solver.solve(bigRhs);
-                    XSmall = XSmallFull.head(UFull.cols());
-                }
+            VecXd xp;
+            const SprsD Z   = sparse_null_space(constMat, fixedVals, xp);
+            const SprsD Ey  = Z.transpose() * E * Z;
+            const VecXd rhs = Z.transpose() * (f - E * xp);
+            SparseLLT llt(Ey);
+            const VecXd y = llt.solve(rhs);
+            // a (nearly) singular E passes the factorization but not the solve
+            if (llt.info() == Eigen::Success && y.allFinite() && (Ey * y - rhs).norm() <= 1e-8 * std::max(rhs.norm(), 1.)) { XSmall = xp + Z * y; }
+            else {
+                SprsD bigMat(E.rows() + constMat.rows(), E.rows() + constMat.rows());
+                bigMat.setFromTriplets(bmT.begin(), bmT.end());
+                VecXd bigRhs(f.size() + fixedVals.size());
+                bigRhs << f, fixedVals;
+                Eigen::SparseLU solver(bigMat);
+                if (solver.info() != Eigen::Success) METRIKO_FAIL("initial Poisson solve (SparseLU) failed");
+                VecXd XSmallFull = solver.solve(bigRhs);
+                XSmall = XSmallFull.head(UFull.cols());
             }
 
             x0 = UFull * XSmall;
@@ -149,9 +140,7 @@ namespace metriko {
             XF_Small << XSmall, F2;
 
             vec<TripD> ueT;
-            for (int k = 0; k < UFull.outerSize(); ++k)
-            for (SprsD::InnerIterator it(UFull, k); it; ++it)
-                ueT.emplace_back(it.row(), it.col(), it.value());
+            for (const auto& [r, c, v]: nonzeros(UFull)) ueT.emplace_back(r, c, v);
 
             for (int k = 0; k < F2.size(); k++)
                 ueT.emplace_back(UFull.rows() + k, UFull.cols() + k, 1.);

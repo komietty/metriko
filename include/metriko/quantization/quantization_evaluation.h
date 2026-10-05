@@ -34,9 +34,8 @@ namespace metriko {
         SprsD G(tm.tedges.size(), tm.tedges.size());
         G.setFromTriplets(T.begin(), T.end());
 
-        for (int k = 0; k < G.outerSize(); ++k)
-        for (SprsD::InnerIterator it(G, k); it; ++it)
-            METRIKO_CHECK(it.value() <= 2, "generating loop {} passes tedge {} more than twice", it.row(), it.col());
+        for (const auto& [r, c, v]: nonzeros(G))
+            METRIKO_CHECK(v <= 2, "generating loop {} passes tedge {} more than twice", r, c);
 
         reduce_to_linearly_independent(G);
 
