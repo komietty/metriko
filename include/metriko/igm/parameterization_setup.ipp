@@ -58,13 +58,10 @@ namespace metriko {
 
     inline void RosyParameterization::setup() {
         // here we compute a permutation matrix
-        vec<MatXi> constParmMats(N);
-        MatXi unitPermMat = MatXi::Zero(N, N);
-        for (int i = 0; i < N; i++) unitPermMat((i + 1) % N, i) = 1;
-
-        // generate all the members of the permutation group
-        constParmMats[0] = MatXi::Identity(N, N);
-        for (int i = 1; i < N; i++) constParmMats[i] = unitPermMat * constParmMats[i - 1];
+        vec<MatXi> constParmMats(N, MatXi::Zero(N, N));
+        for (int k = 0; k < N; k++)
+        for (int i = 0; i < N; i++)
+            constParmMats[k]((i + k) % N, i) = 1;
 
         vec<TripD> vT, cT;
         // forming the constraints and the singularity positions
@@ -81,14 +78,11 @@ namespace metriko {
             // remember uv = Rot * val + Transition
             for (Half h: v.adjHalfs(v.isBoundary() ? find_first_bndr_he(v) : find_first_seam_he(v))) {
                 if (h.isBoundary()) break; /// last boundary
-                Face f = h.face();
-                int jVcut = -1;
-                for (int j = 0; j < 3; j++) if (raw.idx(f.id, j) == v.id) jVcut = cut.idx(f.id, j);
+                int jVcut = cut.idx(h.face().id, h.next().crnr().id % 3);
 
                 if (jVcut != iVcut) {
                     iVcut = jVcut;
-                    for (int i = 0; i < permIdcs.size(); i++)
-                        assign_block(vT, permMats[i], N * iVcut, N * permIdcs[i]);
+                    for (int i = 0; i < permIdcs.size(); i++) assign_block(vT, permMats[i], N * iVcut, N * permIdcs[i]);
                 }
 
                 Half hn = h.prev().twin();
@@ -142,29 +136,15 @@ namespace metriko {
         /// Warning: this assumes n divides N!
         /// integer variables are per single "d" packet, and the rounding is done for the N functions with projection over linRed
         vec<TripD> buff;
-        buff.clear();
         for (int i = 0; i < N * nR; i += N) assign_block(buff, lreductor, i, i * n/N);
         uncompress.resize(N * nR, n * nR);
         uncompress.setFromTriplets(buff.begin(), buff.end());
 
-        fixedIdcs.resize(n);
-        if (nS == 0) {
-            // no inner singular vertices; vertex 0 is set to (0....0)
-            for (int j = 0; j < n; j++) fixedIdcs(j) = j;
-        } else {
-            // fixing first singularity to (0,....0)
-            int iV;
-            for (iV = 0; iV < raw.nV; iV++) if (is_inside_singular(raw.verts[iV])) break;
-            for (int j = 0; j < n; j++) fixedIdcs(j) = n * iV + j;
-        }
-
         //----- indices to be integer (used for rounding on seams) -----
-        integerIdcs.resize(nT * n);
-        integerIdcs.setZero();
-        for (int i = 0; i < nT; i++) {
-        for (int j = 0; j < n; j++) {
-            integerIdcs(n * i + j) = n * (raw.nV + i) + j;
-        }}
+        const auto sv = rg::find_if(raw.verts, [&](Vert v) { return is_inside_singular(v); });
+        const auto iV = sv == raw.verts.end() ? 0 : sv->id;
+        fixedIdcs   = VecXi::LinSpaced(n, n * iV, n * iV + n - 1);
+        integerIdcs = VecXi::LinSpaced(n * nT, n * raw.nV, n * (raw.nV + nT) - 1);
 
         //----- indices of singular (used for rounding on singulars before rounding on seams) -----
         singularIdcs.resize(n * nS);
