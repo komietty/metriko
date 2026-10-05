@@ -73,15 +73,14 @@ inline SprsD compute_poisson_weight_matrix(
         }
     }
 
-    SprsD W(k * hm.nF, k * hm.nF);
-    W.reserve(VecXi::Ones(k * hm.nF));
+    VecXd w(hm.nF);
     for (Face f: hm.faces) {
-        double df = 0, el = 0;
+        double df = 0;
+        double el = 0;
         for (Half h: f.adjHalfs()) { df += std::min(d(h.tail().id), R); el += h.len(); }
-        double w = std::pow(R / std::max(df / 3, el / 9), beta);
-        for (int i = 0; i < k; i++) W.insert(k * f.id + i, k * f.id + i) = w;
+        w(f.id) = std::pow(R / std::max(df / 3, el / 9), beta);
     }
-    return W;
+    return SprsD(w.replicate(1, k).transpose().reshaped().asDiagonal());
 }
 }
 #endif

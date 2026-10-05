@@ -36,7 +36,7 @@ struct FaceRosyField  {
     // edge lengths). 0 keeps the raw per-face estimate
     FaceRosyField(const Hmesh &m, const int nRosy, FieldType type, double guidanceSmooth = 4.): mesh(m), rosyN(nRosy) {
         SprsC L = connectionLaplacian();
-        SprsC M = galerkinMassMatrix();
+        SprsC M = SprsC(mesh.faceArea.cast<complex>().asDiagonal());
         switch (type) {
         case FieldType::Smoothest: {
             compressed = solve_smallest_eig(L, M);
@@ -137,14 +137,6 @@ struct FaceRosyField  {
         S.setFromTriplets(T.begin(), T.end());
         I.setIdentity();
         return S + 1e-9 * I;
-    }
-
-    SprsC galerkinMassMatrix() const {
-        SprsC S(mesh.nF, mesh.nF);
-        vec<TripC> T;
-        for (Face f: mesh.faces) { T.emplace_back(f.id, f.id, f.area()); }
-        S.setFromTriplets(T.begin(), T.end());
-        return S;
     }
 
     VecXc principalCurvatureDir() const {

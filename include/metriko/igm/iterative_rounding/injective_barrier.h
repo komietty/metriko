@@ -94,17 +94,10 @@ namespace metriko {
             }
 
             if (updateJ) {
-                VecXd barDer = -splineDerivative.array() / (barSpline.array() * barSpline.array()).array();
-                for (int i = 0; i < fBarrier.size(); i++)
-                    if (std::abs(fBarrier(i)) < 10e-9) barDer(i) = 0.;
-                    else if (fBarrier(i) == std::numeric_limits<double>::infinity())
-                        barDer(i) = std::numeric_limits<double>::infinity();
-
-                gBarrier.resize(barDer.size(), barDer.size());
-                vec<TripD> T;
-                for (int i = 0; i < barDer.size(); i++)
-                    T.emplace_back(i, i, barDer(i));
-                gBarrier.setFromTriplets(T.begin(), T.end());
+                constexpr double inf = std::numeric_limits<double>::infinity();
+                VecXd barDer = -splineDerivative.array() / barSpline.array().square();
+                barDer   = (fBarrier.array().abs() < 10e-9).select(0., (fBarrier.array() == inf).select(inf, barDer));
+                gBarrier = SprsD(barDer.asDiagonal());
             }
 
             //gBarrier = gBarrier * gen_image_filed(field);

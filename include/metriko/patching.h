@@ -42,9 +42,7 @@ inline void weld_quad_soup(const MatXd& pos, const MatXi& idx, MatXd& pos_w, Mat
     VecXi SVI, SVJ;
     const double eps = 1e-7 * (pos.colwise().maxCoeff() - pos.colwise().minCoeff()).norm();
     igl::remove_duplicate_vertices(pos, eps, pos_w, SVI, SVJ);
-    idx_w.resize(idx.rows(), idx.cols());
-    for (int i = 0; i < idx.rows(); ++i)
-    for (int j = 0; j < idx.cols(); ++j) idx_w(i, j) = SVJ(idx(i, j));
+    idx_w = idx.unaryExpr([&](int i) { return SVJ(i); });
 }
 
 // conformal relaxation of a quad mesh on the input surface: shape-up (bouaziz et al. 2012) with the set of squares as
