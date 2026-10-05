@@ -324,23 +324,96 @@ inline void visualize_qedges(const vec<qex::Qedge>& qedges, const double scale =
     sg.show("q_edges", scale, show);
 }
 
-// a labeled quad mesh: singular / junction nodes, tedge tracks, and the patches coloured by tquad
-inline void visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const QuadPatch& patch) {
-    auto at = [&](int v) { return Row3d(qv.row(v)); };
+// the patches (tquads) coloured with four colours, equally spaced on the colour map (0, 1/3, 2/3, 1), so that patches
+// sharing a quad edge differ: a backtracking search in dsatur order (the patch with the most distinct colours among
+// its coloured neighbours first), within a step budget. four colours are not always enough off the sphere; then the
+// greedy dsatur pass gives a patch with all four taken the colour fewest of its neighbours use, and the number of such
+// conflicts is printed. unlabeled quads (tqid < 0) stay -1
+inline vec<double> four_colour_patches(const MatXi& qidx, const vec<double>& tqid_of_quad) {
+    umap<int, int> pid;   // tqid -> patch index
+    for (double t: tqid_of_quad) if (t >= 0) pid.try_emplace((int)t, (int)pid.size());
+    const int np = pid.size();
 
-    Points sing;
-    for (auto& s: patch.singulars) {
-        sing.add(at(s.qv));
-        sing.scalar("vertex id", s.vid);
-        sing.scalar("tedges", s.tedges);
-        sing.scalar("tracks", s.tracks);
-        sing.scalar("quad valence", s.valence);
-        if (s.tracks != s.tedges) std::println("[quad patch] singular vertex {}: {} tedges but {} quad edges on a track (quad valence {})", s.vid, s.tedges, s.tracks, s.valence);
+    // adjacency: two quads on one quad edge with different patches
+    vec<std::set<int>> adj(np);
+    std::map<std::pair<int, int>, int> edge_quad;
+    for (int q = 0; q < qidx.rows(); ++q) {
+        if (tqid_of_quad[q] < 0) continue;
+        for (int j = 0; j < qidx.cols(); ++j) {
+            auto e = std::minmax(qidx(q, j), qidx(q, (j + 1) % qidx.cols()));
+            auto [it, fresh] = edge_quad.try_emplace(e, q);
+            if (fresh) continue;
+            const int a = pid.at((int)tqid_of_quad[q]), b = pid.at((int)tqid_of_quad[it->second]);
+            if (a != b) { adj[a].insert(b); adj[b].insert(a); }
+        }
+    }
+
+    vec<int> col(np, -1);
+    auto uses_of = [&](int p) { std::array<int, 4> u{}; for (int r: adj[p]) if (col[r] >= 0) ++u[col[r]]; return u; };
+    auto next_patch = [&] {   // dsatur: most distinct neighbour colours, then most neighbours
+        int best = -1, best_sat = -1, best_deg = -1;
+        for (int p = 0; p < np; ++p) {
+            if (col[p] >= 0) continue;
+            const auto u = uses_of(p);
+            const int sat = rg::count_if(u, [](int c) { return c > 0; }), deg = adj[p].size();
+            if (sat > best_sat || (sat == best_sat && deg > best_deg)) { best = p; best_sat = sat; best_deg = deg; }
+        }
+        return best;
+    };
+
+    long steps = 0;
+    constexpr long budget = 1000000;
+    std::function<bool()> search = [&] {
+        const int p = next_patch();
+        if (p < 0) return true;
+        const auto u = uses_of(p);
+        for (int c = 0; c < 4; ++c) {
+            if (u[c] > 0 || ++steps > budget) continue;
+            col[p] = c;
+            if (search()) return true;
+        }
+        col[p] = -1;
+        return false;
+    };
+
+    if (!search()) {   // no proper four colouring found within the budget: greedy, with the fewest clashes
+        rg::fill(col, -1);
+        int conflicts = 0;
+        for (int p = next_patch(); p >= 0; p = next_patch()) {
+            const auto u = uses_of(p);
+            col[p] = rg::min_element(u) - u.begin();
+            if (u[col[p]] > 0) ++conflicts;
+        }
+        std::println("[quad patch] four colours: none found in {} steps, {} patches share a colour with a neighbour", budget, conflicts);
+    }
+
+    vec<double> res(tqid_of_quad.size(), -1);
+    for (int q = 0; q < res.size(); ++q) if (tqid_of_quad[q] >= 0) res[q] = col[pid.at((int)tqid_of_quad[q])] / 3.;
+    return res;
+}
+
+// a labeled quad mesh: the anchored nodes (singular / junction), tedge tracks, and the patches coloured by tquad. at a
+// singular, the tedges leaving it should all run on tracks: their count against the quad edges on a track is printed
+inline void visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const Emesh& tm, const VecXi& singular, const QuadPatch& patch) {
+    auto at = [&](int v) { return Row3d(qv.row(v)); };
+    VecXi valence = VecXi::Zero(qv.rows());   // quads at a quad vertex
+    for (int i = 0; i < qidx.size(); ++i) ++valence(qidx(i));
+
+    Points sing, junc;
+    for (auto& [nid, v]: patch.node_qv) {
+        auto* lv = std::get_if<HmLocOnV>(&tm.tnodes[nid]);
+        if (!lv || !singular(lv->id)) { junc.add(at(v)); continue; }
+        int tedges = 0;
+        for (const auto& [_, nids]: tm.live_tedges()) tedges += (nids.front() == nid) + (nids.back() == nid);
+        const int tracks = rg::count_if(patch.track, [&](auto e) { return e.first == v || e.second == v; });
+        sing.add(at(v));
+        sing.scalar("vertex id", lv->id);
+        sing.scalar("tedges", tedges);
+        sing.scalar("tracks", tracks);
+        sing.scalar("quad valence", valence(v));
+        if (tracks != tedges) std::println("[quad patch] singular vertex {}: {} tedges but {} quad edges on a track (quad valence {})", lv->id, tedges, tracks, valence(v));
     }
     sing.show("tedge start", 0.002, false)->setPointColor({0.1, 0.8, 0.1});
-
-    Points junc;
-    for (int v: patch.junctions) junc.add(at(v));
     junc.show("tedge end", 0.0015, false)->setPointColor({0.9, 0.1, 0.1});
 
     Segments tracks;
@@ -351,13 +424,18 @@ inline void visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const QuadP
     surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
     surf->setEdgeWidth(1.);
     surf->addFaceScalarQuantity("tqid", patch.tqid_of_quad);
-    auto* col = surf->addFaceScalarQuantity("patch colour", patch.colour);
+    vec<double> golden = patch.tqid_of_quad;   // tqid spread by the golden ratio: consecutive ids land far apart on the colour map
+    for (double& c: golden) if (c >= 0) c = std::fmod(c * 0.618033988749895, 1.);
+    auto* col = surf->addFaceScalarQuantity("patch colour", golden);
     col->setColorMap("coolwarm");
     col->setEnabled(true);
+    auto* col4 = surf->addFaceScalarQuantity("patch colour (4)", four_colour_patches(qidx, patch.tqid_of_quad));
+    col4->setColorMap("coolwarm");
+    col4->setMapRange({0., 1.});
 
     if (!patch.ok())
         std::println("[quad patch] anchors {} | singulars with no consistent rotation {} | with several consistent rotations {} | unreached tedges {} | junction vertices {} | track edges {} | unlabeled quads {}",
-                     patch.anchors, patch.no_rotation, patch.several, patch.unreached, (int)patch.junctions.size(), (int)patch.track.size(), patch.unlabeled);
+                     patch.anchors, patch.no_rotation, patch.several, patch.unreached, (int)junc.ps.size(), (int)patch.track.size(), patch.unlabeled);
 }
 
 }

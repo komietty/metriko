@@ -131,16 +131,17 @@ inline std::pair<MatXd, MatXi> extract_quad_mesh(const Hmesh& hm, const vec<qex:
 }
 
 //------------------------------------------------------------------------------
-// navigation on the quad mesh
+// patch labeling: replay the t-mesh on the quad mesh
 //------------------------------------------------------------------------------
 
+// the quad mesh as directed edges
 struct QuadGraph {
     const MatXi& idx;
     std::map<std::pair<int, int>, std::pair<int, int>> corner;   // directed edge a -> b: (quad on its left, corner a)
-    umap<int, vec<int>> nbrs;                                     // vertex -> neighbours
+    vec<vec<int>> nbrs;                                           // quad vertex -> neighbours
     umap<int, int> qv_of_vid;                                     // mesh vertex -> quad vertex (q-vertices on a vertex)
 
-    QuadGraph(const vec<qex::Qface>& qfaces, const MatXi& idx): idx(idx) {
+    QuadGraph(const vec<qex::Qface>& qfaces, const MatXi& idx): idx(idx), nbrs(idx.size() ? idx.maxCoeff() + 1 : 0) {
         for (int i = 0; i < idx.rows(); ++i)
         for (int j = 0; j < 4; ++j) {
             int a = idx(i, j), b = idx(i, (j + 1) % 4);
@@ -149,39 +150,30 @@ struct QuadGraph {
             if (int v = qfaces[i].qhalfs[j].port1().vid; v >= 0) qv_of_vid[v] = a;
         }
     }
-    int quad(int a, int b)     const { return corner.at({a, b}).first; }                        // quad on the left of a -> b
-    int valence(int v)         const { return (int)nbrs.at(v).size(); }
+    int quad(int a, int b)     const { return corner.at({a, b}).first; }                                // quad on the left of a -> b
+    int valence(int v)         const { return (int)nbrs[v].size(); }
     int rot(int v, int w)      const { auto [q, j] = corner.at({v, w}); return idx(q, (j + 3) % 4); }   // neighbour of v after w, CCW
-    int straight(int t, int v) const { return rot(v, rot(v, t)); }                              // arrived t -> v: keep going
-    vec<int> ring(int v, int first) const {                                                     // neighbours of v, CCW from `first`
+    int straight(int t, int v) const { return rot(v, rot(v, t)); }                                      // arrived t -> v: keep going
+    vec<int> ring(int v, int first) const {                                                             // neighbours of v, CCW from `first`
         vec<int> r = {first};
         while ((int)r.size() < valence(v)) r.push_back(rot(v, r.back()));
         return r;
     }
 };
 
-//------------------------------------------------------------------------------
-// the t-mesh as seen from the quad mesh
-//------------------------------------------------------------------------------
-
-struct Branch { int teid; bool fwd; int slot; };   // a tedge leaving a node, forward along its nids or not, and its slot offset around the node
-
+// the t-mesh as seen from the quad mesh, built once and never changed
 struct TmeshView {
+    struct Tedge  { int cano = -1; int steps = 0; int left = -1; int right = -1; };   // canonical thalf, quantized length, tquads along nids
+    struct Branch { int teid; bool fwd; int slot; };   // a tedge leaving a node, forward along its nids or not, and its slot offset around the node
+
     const Emesh& tm;
     const VecXi& singular;
     const QuadGraph& g;
-    umap<int, int> steps;                                // teid -> quantized length
-    umap<int, int> cano;                                 // teid -> canonical thalf
-    umap<int, std::pair<int, int>> sides;                // teid -> (left, right) tquad along nids
+    vec<Tedge> te;                                       // per tedge
     umap<int, vec<std::pair<int, bool>>> branches;       // node -> (teid, leaves the node forward)
 
-    TmeshView(const Emesh& tm, const VecXi& singular, const QuadGraph& g): tm(tm), singular(singular), g(g) {
-        for (auto& th: tm.thalfs) {
-            if (th.id == -1 || !th.cano) continue;
-            steps[th.teid] = (int)std::round(th.x);
-            cano[th.teid]  = th.id;
-            sides[th.teid] = {th.tqid, tm.thalfs[th.twid].tqid};
-        }
+    TmeshView(const Emesh& tm, const VecXi& singular, const QuadGraph& g): tm(tm), singular(singular), g(g), te(tm.tedges.size()) {
+        for (auto& th: tm.thalfs) if (th.id != -1 && th.cano) te[th.teid] = {th.id, (int)std::round(th.x), th.tqid, tm.thalfs[th.twid].tqid};
         for (auto& [teid, nids]: tm.live_tedges()) {
             branches[nids.front()].emplace_back(teid, true);
             branches[nids.back()].emplace_back(teid, false);
@@ -196,74 +188,73 @@ struct TmeshView {
         auto* lv = singular_vert(nid);
         return lv && g.qv_of_vid.contains(lv->id) ? g.qv_of_vid.at(lv->id) : -1;
     }
-    // all tedges at a node, CCW from (te, fwd), each with its slot offset in quad edges. rotating CCW around the
-    // node from an outgoing tedge sweeps through the tquad P on its left and reaches P's previous boundary thalf,
-    // which ends at the node. this follows P's boundary order, so a tquad touching itself at the node is handled;
-    // the slot advances by 2 when the node lies inside a side of P
-    vec<Branch> chain(int nid, int te, bool fwd) const {
-        vec<Branch> ch = {{te, fwd, 0}};
+    // all tedges at a node, CCW from (t, fwd), each with its slot offset in quad edges. rotating CCW around the node
+    // from an outgoing tedge sweeps through the tquad P on its left and reaches P's previous boundary thalf, which
+    // ends at the node. this follows P's boundary order, so a tquad touching itself at the node is handled; the slot
+    // advances by 2 when the node lies inside a side of P
+    vec<Branch> chain(int nid, int t, bool fwd) const {
+        vec<Branch> ch = {{t, fwd, 0}};
         for (int k = 1, slot = 0; k < (int)branches.at(nid).size(); ++k) {
-            const int c = cano.at(te);
-            const auto& th = tm.thalfs[fwd ? c : tm.thalfs[c].twid];   // P on its left, pointing away from the node
-            const auto& tq = tm.tquads[th.tqid];
+            const int c = te[t].cano;
+            const auto& th  = tm.thalfs[fwd ? c : tm.thalfs[c].twid];   // P on its left, pointing away from the node
+            const auto& tq  = tm.tquads[th.tqid];
             auto cur = rg::find(tq.data, th.id, &Edata::thid);
             auto prv = circular_prev(tq.data, cur);
-            const auto& th2 = tm.thalfs[prv->thid];                    // ends at the node
+            const auto& th2 = tm.thalfs[prv->thid];                     // ends at the node
             slot += prv->side == cur->side ? 2 : 1;
-            te  = th2.teid;
-            fwd = !th2.cano;                                           // outgoing from the node: backwards along nids if cano
-            ch.push_back({te, fwd, slot});
+            t   = th2.teid;
+            fwd = !th2.cano;                                            // outgoing from the node: backwards along nids if cano
+            ch.push_back({t, fwd, slot});
         }
         return ch;
     }
 };
 
-//------------------------------------------------------------------------------
-// replay: walk every tedge on the quad mesh, labeling the quads on its two sides
-//------------------------------------------------------------------------------
+struct QuadPatch {
+    vec<double> tqid_of_quad;                  // per quad, -1 when unlabeled
+    std::set<std::pair<int, int>> track;       // quad edges (min, max) lying on a tedge
+    umap<int, int> node_qv;                    // t-node -> quad vertex
+    // singular nodes whose rotation was fixed / with no consistent rotation / with several, tedges never walked, quads with no tquad
+    int anchors = 0, no_rotation = 0, several = 0, unreached = 0, unlabeled = 0;
+    bool ok() const { return no_rotation == 0 && several == 0 && unreached == 0 && unlabeled == 0; }
+};
 
+// walk every tedge on the quad mesh, labeling the quads on its two sides. the state of the walk only: a replay is
+// copied to try the rotations at a singular
 struct Replay {
     struct Job { int teid; bool fwd; int from; int to; };   // walk teid starting with the quad edge from -> to
 
-    const TmeshView* tv;   // pointer, so that a replay can be copied and assigned
-    vec<double> tqid_of_quad;
-    std::set<std::pair<int, int>> track;   // quad edges (min, max) lying on a tedge
+    const TmeshView* tv;                   // pointer, so that a replay can be copied and assigned
+    QuadPatch out;                         // the labels so far
     vec<bool> done;                        // per tedge
-    umap<int, int> node_qv;                // node -> quad vertex
     std::queue<Job> jobs;
     bool ok = true;
 
-    explicit Replay(const TmeshView& tv): tv(&tv), tqid_of_quad(tv.g.idx.rows(), -1), done(tv.tm.tedges.size(), false) {}
+    explicit Replay(const TmeshView& tv): tv(&tv), done(tv.tm.tedges.size(), false) { out.tqid_of_quad.assign(tv.g.idx.rows(), -1); }
 
-    // anchor a node at a quad vertex and queue the tedges leaving it, `first` at slot `rot`
-    void anchor(int nid, int qv, const vec<Branch>& branches, const vec<int>& ring, int rot) {
-        node_qv[nid] = qv;
-        for (auto [te, fwd, slot]: branches) if (!done[te]) jobs.push({te, fwd, qv, ring[(slot + rot) % ring.size()]});
-    }
-
-    // label one quad: false when it already carries another patch
-    bool label(int q, int tqid) {
-        if (tqid_of_quad[q] >= 0 && tqid_of_quad[q] != tqid) return false;
-        tqid_of_quad[q] = tqid;
-        return true;
+    // anchor a node at a quad vertex and queue the tedges leaving it, the first at slot `rot`
+    void anchor(int nid, int qv, const vec<TmeshView::Branch>& branches, const vec<int>& ring, int rot) {
+        out.node_qv[nid] = qv;
+        for (auto [t, fwd, slot]: branches) if (!done[t]) jobs.push({t, fwd, qv, ring[(slot + rot) % ring.size()]});
     }
 
     // walk a tedge straight along the quad edges; false at the first contradiction
     bool walk(const Job& jb) {
-        auto [lq, rq] = tv->sides.at(jb.teid);
-        if (!jb.fwd) std::swap(lq, rq);
+        auto label = [&](int q, int tqid) { auto& l = out.tqid_of_quad[q]; if (l >= 0 && l != tqid) return false; l = tqid; return true; };
+        const auto& e = tv->te[jb.teid];
+        const int lq = jb.fwd ? e.left : e.right, rq = jb.fwd ? e.right : e.left;
         int a = jb.from, b = jb.to;
-        for (int k = 0, n = tv->steps.at(jb.teid); k < n; ++k) {
+        for (int k = 0; k < e.steps; ++k) {
             if (!label(tv->g.quad(a, b), lq) || !label(tv->g.quad(b, a), rq)) return false;
-            track.insert(std::minmax(a, b));
-            if (k + 1 == n) break;
+            out.track.insert(std::minmax(a, b));
+            if (k + 1 == e.steps) break;
             if (tv->g.valence(b) != 4) return false;   // irregular vertex before the far node
             std::tie(a, b) = std::pair(b, tv->g.straight(a, b));
         }
         const int nid = tv->far_node(jb.teid, jb.fwd);
-        if (int s = tv->singular_qv(nid); s >= 0 && s != b) return false;   // landed away from the singular
-        if (auto it = node_qv.find(nid); it != node_qv.end()) return it->second == b;   // anchored elsewhere
-        anchor(nid, b, tv->chain(nid, jb.teid, !jb.fwd), tv->g.ring(b, a), 0);       // slots CCW from the reverse of arrival
+        if (int s = tv->singular_qv(nid); s >= 0 && s != b) return false;               // landed away from the singular
+        if (auto it = out.node_qv.find(nid); it != out.node_qv.end()) return it->second == b;   // anchored elsewhere
+        anchor(nid, b, tv->chain(nid, jb.teid, !jb.fwd), tv->g.ring(b, a), 0);         // slots CCW from the reverse of arrival
         return true;
     }
 
@@ -277,56 +268,12 @@ struct Replay {
     }
 };
 
-//------------------------------------------------------------------------------
-// result
-//------------------------------------------------------------------------------
-
-struct QuadPatch {
-    struct Singular { int vid; int qv; int tedges; int tracks; int valence; };   // vertex, quad vertex, tedges at it, quad edges on a track, quad valence
-    vec<double> tqid_of_quad;                  // per quad, -1 when unlabeled
-    vec<double> colour;                        // per quad in [0, 1), neighbouring patches far apart; -1 when unlabeled
-    std::set<std::pair<int, int>> track;       // quad edges (min, max) lying on a tedge
-    umap<int, int> node_qv;                    // t-node -> quad vertex
-    vec<Singular> singulars;
-    vec<int> junctions;                        // quad vertices of the anchored non-singular nodes
-    int anchors = 0;                           // singular nodes whose rotation was fixed
-    int no_rotation = 0;                       // singular nodes with no consistent rotation
-    int several = 0;                           // singular nodes with several consistent rotations
-    int unreached = 0;                         // tedges never walked
-    int unlabeled = 0;                         // quads with no tquad
-    bool ok() const { return no_rotation == 0 && several == 0 && unreached == 0 && unlabeled == 0; }
-};
-
-// spread the labels into the patch interiors without crossing a track
-inline void flood_patches(const QuadGraph& g, const std::set<std::pair<int, int>>& track, vec<double>& tqid_of_quad) {
-    std::queue<int> que;
-    for (int i = 0; i < (int)tqid_of_quad.size(); ++i) if (tqid_of_quad[i] >= 0) que.push(i);
-    while (!que.empty()) {
-        int q = que.front(); que.pop();
-        for (int j = 0; j < 4; ++j) {
-            int a = g.idx(q, j), b = g.idx(q, (j + 1) % 4);
-            if (track.contains(std::minmax(a, b))) continue;
-            int nb = g.quad(b, a);
-            if (tqid_of_quad[nb] < 0) { tqid_of_quad[nb] = tqid_of_quad[q]; que.push(nb); }
-        }
-    }
-}
-
-// the colour of a quad is its tqid spread by the golden ratio: consecutive ids land far apart on the colour map,
-// which is enough to tell neighbouring patches apart without colouring the adjacency
-inline vec<double> colour_patches(const vec<double>& tqid_of_quad) {
-    vec<double> colour(tqid_of_quad.size(), -1);
-    for (int i = 0; i < tqid_of_quad.size(); ++i)
-        if (int t = tqid_of_quad[i]; t >= 0) colour[i] = std::fmod(t * 0.618033988749895, 1.);
-    return colour;
-}
-
 // replay the t-mesh on the quad mesh and label every quad by its tquad, with no geometry.
 //
 // singular vertices are q-vertices, so their quad vertex is exact. every tedge walks exactly x quad edges straight
 // ahead, and its landing vertex IS its far node, which anchors the tedges there in CCW order. the only unknown is
 // the rotation of the chain at the first singular of each component: every rotation is replayed and the one
-// without contradictions is kept.
+// without contradictions is kept. the labels are then flooded into the patch interiors without crossing a track
 inline QuadPatch label_quad_patches(
     const Emesh& tm,
     const VecXi& singular,
@@ -335,13 +282,11 @@ inline QuadPatch label_quad_patches(
 ) {
     const QuadGraph g(qfaces, qidx);
     const TmeshView tv(tm, singular, g);
-    QuadPatch res;
-
     Replay rp(tv);
     for (auto& [nid, brs]: tv.branches) {
         const int s = tv.singular_qv(nid);
-        if (s < 0 || rp.node_qv.contains(nid)) continue;
-        const auto ring  = g.ring(s, g.nbrs.at(s).front());
+        if (s < 0 || rp.out.node_qv.contains(nid)) continue;
+        const auto ring  = g.ring(s, g.nbrs[s].front());
         const auto chain = tv.chain(nid, brs[0].first, brs[0].second);
         vec<Replay> good;
         for (int rot = 0; rot < ring.size(); ++rot) {
@@ -350,27 +295,26 @@ inline QuadPatch label_quad_patches(
             t.run();
             if (t.ok) good.push_back(std::move(t));
         }
-        if (good.empty()) { ++res.no_rotation; continue; }
-        if (good.size() > 1) ++res.several;
+        if (good.empty()) { ++rp.out.no_rotation; continue; }
+        const bool several = good.size() > 1;
         rp = std::move(good.front());
-        ++res.anchors;
+        rp.out.several += several;
+        ++rp.out.anchors;
     }
-    for (auto& [teid, nids]: tm.live_tedges()) if (tv.steps.at(teid) > 0 && !rp.done[teid]) ++res.unreached;
+    for (auto& [teid, nids]: tm.live_tedges()) if (tv.te[teid].steps > 0 && !rp.done[teid]) ++rp.out.unreached;
 
-    res.tqid_of_quad = std::move(rp.tqid_of_quad);
-    res.track        = std::move(rp.track);
-    res.node_qv      = std::move(rp.node_qv);
-    flood_patches(g, res.track, res.tqid_of_quad);
+    QuadPatch res = std::move(rp.out);
+    std::queue<int> que;   // flood
+    for (int i = 0; i < (int)res.tqid_of_quad.size(); ++i) if (res.tqid_of_quad[i] >= 0) que.push(i);
+    while (!que.empty()) {
+        int q = que.front(); que.pop();
+        for (int j = 0; j < 4; ++j) {
+            int a = qidx(q, j), b = qidx(q, (j + 1) % 4);
+            if (res.track.contains(std::minmax(a, b))) continue;
+            if (int nb = g.quad(b, a); res.tqid_of_quad[nb] < 0) { res.tqid_of_quad[nb] = res.tqid_of_quad[q]; que.push(nb); }
+        }
+    }
     res.unlabeled = rg::count(res.tqid_of_quad, -1.);
-    res.colour    = colour_patches(res.tqid_of_quad);
-
-    for (auto& [nid, v]: res.node_qv) {
-        auto* lv = tv.singular_vert(nid);
-        if (!lv) { res.junctions.push_back(v); continue; }
-        int ntrack = 0;
-        for (int w: g.nbrs.at(v)) if (res.track.contains(std::minmax(v, w))) ++ntrack;
-        res.singulars.push_back({lv->id, v, (int)tv.branches.at(nid).size(), ntrack, g.valence(v)});
-    }
     return res;
 }
 

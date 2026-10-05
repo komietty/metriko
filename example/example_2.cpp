@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
             //visualizer::visualize_qedges(qedges);
             auto [qv, qidx] = extract_quad_mesh(hm, qfaces, true);
             lap("quad mesh refinement");
-            visualizer::visualize_quad_patch(qv, qidx, label_quad_patches(em, singular, qfaces, qidx));
+            visualizer::visualize_quad_patch(qv, qidx, em, singular, label_quad_patches(em, singular, qfaces, qidx));
             lap("quad patch");
         }
     }
