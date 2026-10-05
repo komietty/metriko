@@ -92,16 +92,12 @@ public:
 
     // assure that all values of round diff by fixed indices are less than 1e-7
     bool post_checking(const VecXd &x) {
-        VecXd fullx = UFull * x;
-        double max = -1;
-        for (int i : fixedIdcs) {
-            double v = frac * fullx(i);
-            max = std::max(max, std::abs(v - std::round(v)));
-        }
+        VecXd f = UFull * x;
+        VecXd v = frac * f(fixedIdcs);
         xCurr = x;
         xInit = x;
         xPrev = x;
-        return max <= 10e-7;
+        return fixedIdcs.empty() ? -1. : (v.array() - v.array().round()).abs().maxCoeff() <= 10e-7;
     }
 
     SeamlessIntegration(

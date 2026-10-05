@@ -115,13 +115,7 @@ namespace metriko {
         }
 
         static double avg_norm(const MatXd &field, const int dim, const int N, const int nF) {
-            double sum = 0.;
-            for (int i = 0; i < nF; i++) {
-                for (int j = 0; j < N; j++) {
-                    sum += field.block(i, dim * j, 1, dim).norm();
-                }
-            }
-            return sum / (N * nF);
+            return field.reshaped<Eigen::RowMajor>(nF * N, dim).rowwise().norm().mean();
         }
     };
 

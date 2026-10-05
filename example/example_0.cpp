@@ -31,12 +31,7 @@ int main(int argc, char** argv) {
     auto cutm = compute_cut_mesh(hm, seam);
     auto cmbf = compute_combbed_field(rawf, seam);
 
-    MatXd ext(hm.nF, 3 * N);
-    for (Face f: hm.faces) {
-    for (int k = 0; k < N; ++k) {
-        complex c = cmbf->field(f.id, k);
-        ext.block(f.id, 3 * k, 1, 3) = (c.real() * f.basisX() + c.imag() * f.basisY()).normalized();
-    }}
+    MatXd ext = compute_extrinsic_field(*cmbf, N);
 
     std::cout << "start params" << std::endl;
 

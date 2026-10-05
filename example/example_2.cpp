@@ -152,16 +152,10 @@ int main(int argc, char** argv) {
             for (auto v: hm_cut->verts) uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
 
             // pin the seam (boundary) vertices softly to the tutte uv
-            std::vector<int>   b_;
-            std::vector<Row2d> bc_;
-            for (auto v: hm_cut->verts) {
-                if (!v.isBoundary()) continue;
-                b_.push_back(v.id);
-                bc_.emplace_back(uv_init.row(v.id));
-            }
-            VecXi b = Eigen::Map<VecXi>(b_.data(), b_.size());
-            MatXd bc(bc_.size(), 2);
-            for (int i = 0; i < bc_.size(); ++i) bc.row(i) = bc_[i];
+            std::vector<int> b_;
+            for (auto v: hm_cut->verts) if (v.isBoundary()) b_.push_back(v.id);
+            const VecXi b  = Eigen::Map<VecXi>(b_.data(), b_.size());
+            const MatXd bc = uv_init(b, Eigen::indexing::all);
 
             sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
             slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e5);
@@ -190,12 +184,8 @@ int main(int argc, char** argv) {
         {
             // per-corner uv from the per-vertex slim result: hm_cut and hm2
             // share the face matrix, so corner (i, j) <-> vertex hm2->idx(i, j)
-            hm_emb->cfn = VecXc(hm_emb->nF * 3);
-            for (int i = 0; i < hm_cut->nF; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                int k = hm_cut->idx(i, j);
-                hm_emb->cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
-            }}
+            const VecXi cv = hm_cut->idx.reshaped<Eigen::RowMajor>();
+            hm_emb->cfn = sData.V_o(cv, 0).cast<complex>() + complex(0, 1) * sData.V_o(cv, 1).cast<complex>();
 
             qex::sanitization(*hm_emb, matching1, singular1, 4);
             lap("qex sanitization");

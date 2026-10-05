@@ -146,12 +146,13 @@ int main(int argc, char** argv) {
     igl::SLIMData sData;
     MatXd uv_init(hm_cut->nV, 2);
     for (auto v: hm_cut->verts) uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
-    std::vector<int>   b_;   // the seam (boundary) vertices are pinned softly to the tutte uv
-    std::vector<Row2d> bc_;
-    for (auto v: hm_cut->verts) if (v.isBoundary()) { b_.push_back(v.id); bc_.emplace_back(uv_init.row(v.id)); }
-    VecXi b = Eigen::Map<VecXi>(b_.data(), b_.size());
-    MatXd bc(bc_.size(), 2);
-    for (int i = 0; i < bc_.size(); ++i) bc.row(i) = bc_[i];
+
+    vec<int> b_;
+    for (auto v: hm_cut->verts) if (v.isBoundary()) b_.push_back(v.id);
+
+    const VecXi b  = Eigen::Map<VecXi>(b_.data(), b_.size());
+    const MatXd bc = uv_init(b, Eigen::indexing::all);
+
     sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
     slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e9);
     constexpr int    slim_max_iter = 50;
@@ -165,9 +166,8 @@ int main(int argc, char** argv) {
     lap("slim");
 
     // per-corner uv from the per-vertex slim result: hm_cut and hm_emb share the face matrix
-    hm_emb->cfn = VecXc(hm_emb->nF * 3);
-    for (int i = 0; i < hm_cut->nF; ++i)
-    for (int j = 0; j < 3; ++j) hm_emb->cfn(i * 3 + j) = complex(sData.V_o(hm_cut->idx(i, j), 0), sData.V_o(hm_cut->idx(i, j), 1));
+    const VecXi cv = hm_cut->idx.reshaped<Eigen::RowMajor>();   // corner i * 3 + j -> its vertex
+    hm_emb->cfn = sData.V_o(cv, 0).cast<complex>() + complex(0, 1) * sData.V_o(cv, 1).cast<complex>();
     qex::sanitization(*hm_emb, matching1, singular1, N);
     lap("qex sanitization");
 

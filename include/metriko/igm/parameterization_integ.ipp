@@ -34,28 +34,17 @@ namespace metriko {
         G3.setFromTriplets(eT.begin(), eT.end());
         G2.setFromTriplets(iT.begin(), iT.end());
 
-        VecXd rawF2Vec;
-        double norm = 0;
-        {
-            norm = avg_norm(ext, 3, N, cut.nF);
-            MatXd rawF3 = ext;
-            rawF3.array() /= norm;
-
-            MatXd rawF2(cut.nF, 2 * N);
-            for (int i = 0; i < N; i++)
-                rawF2.middleCols(2 * i, 2) <<
-                        ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisX).rowwise().sum(),
-                        ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisY).rowwise().sum();
-            rawF2Vec = rawF2.reshaped<Eigen::RowMajor>().transpose();
-        }
+        MatXd rawF2(cut.nF, 2 * N);
+        for (int i = 0; i < N; i++)
+            rawF2.middleCols(2 * i, 2) <<
+                    ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisX).rowwise().sum(),
+                    ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisY).rowwise().sum();
 
         //------ generating locally_injectivity_check -----
         auto locally_injectivity_check = [&](const VecXd &X) {
             if (!localInjectivity) return false;
             const VecXd NF = fullx2Nfunc * X;
-            MatXd nfn_(cut.nV, N);
-            for (int i = 0; i < nfn_.rows(); i++)
-                nfn_.row(i) << NF.segment(N * i, N).transpose();
+            const MatXd nfn_ = NF.reshaped<Eigen::RowMajor>(cut.nV, N);
             for (Face f: cut.faces) {
                 Half h = f.half();
                 Row2d a = nfn_.block(h.tail().id, 0, 1, 2);
@@ -75,7 +64,7 @@ namespace metriko {
             compute_poisson_weight_matrix(raw, singlars, gridscale, 2 * N),
             singularIdcs,
             integerIdcs,
-            (cut.pos.colwise().maxCoeff() - cut.pos.colwise().minCoeff()).norm() * gridscale / norm,
+            (cut.pos.colwise().maxCoeff() - cut.pos.colwise().minCoeff()).norm() * gridscale / avg_norm(ext, 3, N, cut.nF),
             Cfull,
             G2 * fullx2Nfunc,
             N,
@@ -85,24 +74,19 @@ namespace metriko {
             roundSeams,
             localInjectivity,
             verbose,
-            rawF2Vec,
+            rawF2.reshaped<Eigen::RowMajor>().transpose(),
             locally_injectivity_check,
             fullx
         );
 
         if (!success && verbose) std::cout << "Rounding has failed!" << std::endl;
 
-        nfn.resize(cut.nV, N);
-        cfn.resize(raw.nF, N * 3);
 
         VecXd NF = fullx2Nfunc * fullx;
-        for (int i = 0; i < nfn.rows(); i++)
-            nfn.row(i) << NF.segment(N * i, N).transpose();
+        nfn = NF.reshaped<Eigen::RowMajor>(cut.nV, N);
 
-        for (int i = 0; i < raw.nF; i++) {
-        for (int j = 0; j < 3; j++) {
-            cfn.block(i, N * j, 1, N) = nfn.row(cut.idx(i, j)).array();
-        }}
+        cfn.resize(raw.nF, N * 3);
+        for (int j = 0; j < 3; j++) cfn.middleCols(N * j, N) = nfn(cut.idx.col(j), Eigen::indexing::all);
 
 #ifdef METRIKO_DEBUG
         //----- check the derivative of the map is close to the original tangent field ----//
