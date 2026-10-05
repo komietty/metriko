@@ -9,7 +9,6 @@
 #define METRIKO_TUTTE_CUTTING_H
 #include <format>
 #include <map>
-#include <print>
 #include <ranges>
 #include <set>
 #include <unordered_map>
@@ -79,7 +78,6 @@ inline void face_cutting(
         for (size_t k = 0; k + 1 < ch.size(); ++k) halfs.emplace_back(ch[k], ch[k + 1]);
     }
 
-    auto pos2 = [&](int vid) { return f.to_local(vpos[vid]); };
     auto cr   = [](complex u, complex v) { return (std::conj(u) * v).imag(); };
 
     constexpr double penalty = 100.; // dominates min_angle in (-pi, pi]
@@ -97,17 +95,15 @@ inline void face_cutting(
         while (cur != sta) {
             int prev_v = poly.back().x();
             int curr_v = poly.back().y();
-            const Row3d& p_prev = vpos[prev_v];
-            const Row3d& p_curr = vpos[curr_v];
-            const Row3d  d_prev = (p_curr - p_prev).normalized();
+            const auto p_curr = f.to_local(vpos[curr_v]);
+            const auto d_prev = p_curr - f.to_local(vpos[prev_v]);
 
             auto   best_it = halfs.end();
-            double best    = -10;   // signed turn angle in (-pi, pi]
+            double best    = -10;   // signed turn angle in (-pi, pi], in the face plane like the ear clipping below
             for (auto it = halfs.begin(); it != halfs.end(); ++it) {
                 if (it->x() != curr_v) continue;
                 if (it->y() == prev_v) continue;   // no immediate u-turn
-                Row3d d_cand = (vpos[it->y()] - p_curr).normalized();
-                double ang = std::atan2(f.normal().dot(d_prev.cross(d_cand)), d_prev.dot(d_cand));
+                double ang = std::arg((f.to_local(vpos[it->y()]) - p_curr) / d_prev);
                 if (ang > best) { best = ang; best_it = it; }
             }
 
@@ -125,7 +121,9 @@ inline void face_cutting(
         // interior angles of a CCW triangle in the face plane (all positive);
         // negative for a CW triangle, so it also ranks invalid choices last
         auto min_angle = [&](int va, int vb, int vc) {
-            complex a = pos2(va), b = pos2(vb), c = pos2(vc);
+            auto a = f.to_local(vpos[va]),
+                 b = f.to_local(vpos[vb]),
+                 c = f.to_local(vpos[vc]);
             return std::min({std::arg((c - a) / (b - a)),
                              std::arg((a - b) / (c - b)),
                              std::arg((b - c) / (a - c))});
@@ -134,21 +132,25 @@ inline void face_cutting(
         METRIKO_CHECK(cyc.size() >= 3, "polygon with {} vertices", cyc.size());
 
         while (cyc.size() > 3) {
-            const size_t n = cyc.size();
+            size_t n = cyc.size();
             size_t best_k = n;
             double best_q = std::numeric_limits<double>::lowest();
             for (size_t k = 0; k < n; ++k) {
                 int va = cyc[(k + n - 1) % n];
                 int vb = cyc[k];
                 int vc = cyc[(k + 1) % n];
-                complex a = pos2(va), b = pos2(vb), c = pos2(vc);
-                if (cr(b - a, c - b) <= EPS) continue;   // reflex or flat corner: not an ear
+                auto a = f.to_local(vpos[va]),
+                     b = f.to_local(vpos[vb]),
+                     c = f.to_local(vpos[vc]);
+                if (cr(b - a, c - b) <= EPS * std::abs(b - a) * std::abs(c - b)) continue; // reflex or flat corner (sine below EPS): not an ear
 
-                bool empty = true;                        // no other cycle vertex inside the ear
+                bool empty = true; // no other cycle vertex inside the ear
                 for (size_t m = 0; m < n && empty; ++m) {
                     if (m == k || m == (k + 1) % n || m == (k + n - 1) % n) continue;
-                    complex q = pos2(cyc[m]);
-                    empty = cr(b - a, q - a) < -EPS || cr(c - b, q - b) < -EPS || cr(a - c, q - c) < -EPS;
+                    auto q = f.to_local(vpos[cyc[m]]);
+                    empty = cr(b - a, q - a) < -EPS * std::abs(b - a) * std::abs(q - a)
+                         || cr(c - b, q - b) < -EPS * std::abs(c - b) * std::abs(q - b)
+                         || cr(a - c, q - c) < -EPS * std::abs(a - c) * std::abs(q - c);
                 }
                 if (!empty) continue;
 
@@ -163,14 +165,9 @@ inline void face_cutting(
                 if (q > best_q) { best_q = q; best_k = k; }
             }
             METRIKO_CHECK(best_k != n, "ear clipping failed in face {} (polygon of {})", f.id, cyc.size());
-            if (best_q < -4) std::println("[cut] uv-degenerate triangle unavoidable (face {})", f.id);
             tris.emplace_back(cyc[(best_k + n - 1) % n], cyc[best_k], cyc[(best_k + 1) % n]);
             cyc.erase(cyc.begin() + (long)best_k);
         }
-
-        #if METRIKO_DEBUG
-        if (common_side(sides, cyc[0], cyc[1], cyc[2]) >= 0) std::println("[cut] uv-degenerate triangle unavoidable (face {})", f.id);
-        #endif
 
         tris.emplace_back(cyc[0], cyc[1], cyc[2]);
     }
@@ -197,7 +194,7 @@ inline void split_degenerate_faces(
         if (!seam0[e.id]) continue;
         Half h  = e.half();
         auto ch = chain_of(h_aux, h);
-        vec<double> rs = {1.};   // r = 1 at tail, 0 at head along h
+        vec<double> rs = {1.}; // r = 1 at tail, 0 at head along h
         for (const auto& [r, _]: vw::reverse(h_aux[h.id])) rs.push_back(r);
         rs.push_back(0.);
         for (size_t k = 0; k + 1 < ch.size(); ++k) {
@@ -208,13 +205,12 @@ inline void split_degenerate_faces(
         }
     }
 
+    std::map<std::pair<int, int>, int> tri_of; // directed edge -> tri on its left, kept up to date by split_at
+    auto index   = [&](int i) { for (int j = 0; j < 3; ++j) tri_of[{tris[i][j], tris[i][(j + 1) % 3]}] = i; };
+    auto unindex = [&](int i) { for (int j = 0; j < 3; ++j) tri_of.erase({tris[i][j], tris[i][(j + 1) % 3]}); };
+    for (int i = 0; i < tris.size(); ++i) index(i);
+
     for (bool again = true; std::exchange(again, false);) {
-        std::map<std::pair<int, int>, int> tri_of;
-
-        for (int i = 0; i < tris.size(); ++i)
-        for (int j = 0; j < 3; ++j)
-            tri_of[{tris[i][j], tris[i][(j + 1) % 3]}] = i;
-
         // split edge j of triangle i (and the neighbor across it) at the midpoint.
         // s: the side the degeneracy is on; rejected when the neighbor's opposite
         // vertex is also on it (the split would not resolve anything)
@@ -241,10 +237,13 @@ inline void split_degenerate_faces(
             }
 
             Row3d mid = (vpos[a] + vpos[b]) / 2;
+            unindex(i);
+            unindex(k);
             tris[i] = {a, m, c};
             tris[k] = {b, m, d};
             tris.emplace_back(m, b, c);
             tris.emplace_back(m, a, d);
+            for (int t: { i, k, (int)tris.size() - 2, (int)tris.size() - 1 }) index(t);
             vpos.emplace_back(mid);
             return true;
         };
@@ -281,7 +280,6 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     std::map<int, vec<Row2i>> cuts; // face id -> segment endpoints
 
     vec<SegRec> sgms; // flat annotation list; matched to cut halfedges at the end
-
     vec auxs(hm.nH, EdgeSplits{});
 
     vec<Row3d> vpos;
@@ -356,10 +354,11 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
 
     vec<Row3i> tris;
     for (Face f: hm.faces) {
-        bool f1 = cuts[f.id].empty();
-        bool f2 = rg::all_of(f.halfs(), [&](Half h) { return auxs[h.id].empty(); });
-        if (f1 && f2) { auto [a, b, c] = f.verts(); tris.emplace_back(a.id, b.id, c.id); }
-        else face_cutting(f, cuts[f.id], auxs, sides, vpos, tris);
+        const auto it    = cuts.find(f.id);
+        const bool cut   = it != cuts.end();
+        const bool split = rg::any_of(f.halfs(), [&](Half h) { return !auxs[h.id].empty(); });
+        if (!cut && !split) { auto [a, b, c] = f.verts(); tris.emplace_back(a.id, b.id, c.id); }
+        else face_cutting(f, cut ? it->second : vec<Row2i>{}, auxs, sides, vpos, tris);
     }
 
     split_degenerate_faces(hm, seam0, sgms, auxs, sides, vpos, tris);
@@ -381,7 +380,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         if (!seam0[e.id]) continue;
         auto ch = chain_of(auxs, e.half());
         for (int k = 0; k + 1 < ch.size(); ++k) {
-            Half h = half_by_verts.at({ch[k], ch[k + 1]});   // same direction as h
+            Half h = half_by_verts.at({ch[k], ch[k + 1]}); // same direction as h
             seam1[h.edge().id] = true;
             matching1(h.edge().id) = h.isCanonical() ? matching0(e.id) : -matching0(e.id);
         }
@@ -391,7 +390,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     data.clear();
     for (auto& [i0, i1, d0, d1]: sgms) {
         auto it = half_by_verts.find({i0, i1});
-        METRIKO_CHECK(it != half_by_verts.end(), "no half between vertices {} ({:.6f} {:.6f} {:.6f}) and {} ({:.6f} {:.6f} {:.6f}), thid {}, tqid {}, order {}", i0, vpos[i0].x(), vpos[i0].y(), vpos[i0].z(), i1, vpos[i1].x(), vpos[i1].y(), vpos[i1].z(), d0.thid, d0.tqid, d0.order);
+        METRIKO_CHECK(it != half_by_verts.end(), "no half between vertices");
         d0.half = it->second;
         d1.half = it->second.twin();
         data.push_back(d0);
