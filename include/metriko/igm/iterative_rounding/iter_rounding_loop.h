@@ -11,7 +11,7 @@
 #include "iter_rounding_common.h"
 
 namespace metriko {
-    template <typename T>
+template <typename T>
 class SeamlessIntegration: public Integration {
 public:
     const SprsD& UFull;
@@ -24,7 +24,8 @@ public:
     vec<int> fixedVals;
     vec<int> integerIdcs;  // used when rounding uv on seams
     vec<int> singularIdcs; // used when rounding uv on singularities
-    bool roundedSingulars, roundSeams;
+    bool roundedSingulars = false;
+    bool roundSeams       = false;
 
     void initial_solution(VecXd &x0_) const { x0_ = xInit; }
 
@@ -93,8 +94,8 @@ public:
     bool post_checking(const VecXd &x) {
         VecXd fullx = UFull * x;
         double max = -1;
-        for (const int i : fixedIdcs) {
-            const double v = frac * fullx(i);
+        for (int i : fixedIdcs) {
+            double v = frac * fullx(i);
             max = std::max(max, std::abs(v - std::round(v)));
         }
         xCurr = x;
@@ -111,16 +112,11 @@ public:
             const VecXi& sIdcs,
             const bool roundSeams_
     ): Integration(ni.G2, F2_, ni.N, ni.n, ni.localInjectivity, ni.length, 1., 10e4, 0.01, ni.wBarrier, ni.barrier),
-       UFull(ni.UFull),
-       xInit(xInit_),
-       frac(1.),
-       roundedSingulars(false),
-       roundSeams(roundSeams_)
+       UFull(ni.UFull), frac(1.), xInit(xInit_), roundSeams(roundSeams_)
     {
-        integerIdcs  = vec(iIdcs.data(), iIdcs.data() + iIdcs.size());
-        singularIdcs = vec(sIdcs.data(), sIdcs.data() + sIdcs.size());
+        integerIdcs  = vec<int>(iIdcs.data(), iIdcs.data() + iIdcs.size());
+        singularIdcs = vec<int>(sIdcs.data(), sIdcs.data() + sIdcs.size());
         leftIdcs = roundSeams ? integerIdcs : singularIdcs;
-
         xSize = UFull.cols();
         xCurr = xInit;
         xPrev = xInit;

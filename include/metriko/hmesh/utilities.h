@@ -50,7 +50,7 @@ inline complex get_face_uv(const HmLoc& loc, int fid, const Hmesh& hm) {
 // returns the diagonal matrix with the weight of each face repeated over its k rows (the 2N field components of the
 // integration). gridscale: the grid spacing as a fraction of the bounding box diagonal
 inline SprsD compute_poisson_weight_matrix(
-    const Hmesh& raw,
+    const Hmesh& hm,
     const VecXi& singular,
     const double gridscale,
     const int k
@@ -58,24 +58,24 @@ inline SprsD compute_poisson_weight_matrix(
     using DI = std::pair<double, int>;
     constexpr double beta  = 1.;
     constexpr double cells = 8.;
-    double R = (raw.pos.colwise().maxCoeff() - raw.pos.colwise().minCoeff()).norm() * gridscale * cells;
+    double R = (hm.pos.colwise().maxCoeff() - hm.pos.colwise().minCoeff()).norm() * gridscale * cells;
 
     // edge path distance to the nearest inner singular, up to R
-    VecXd d = VecXd::Constant(raw.nV, std::numeric_limits<double>::infinity());
+    VecXd d = VecXd::Constant(hm.nV, std::numeric_limits<double>::infinity());
     std::priority_queue<DI, vec<DI>, std::greater<>> pq;
-    for (Vert v: raw.verts) if (!v.isBoundary() && singular[v.id] != 0) { d(v.id) = 0; pq.emplace(0., v.id); }
+    for (Vert v: hm.verts) if (!v.isBoundary() && singular[v.id] != 0) { d(v.id) = 0; pq.emplace(0., v.id); }
     while (!pq.empty()) {
         auto [dv, v] = pq.top(); pq.pop();
         if (dv > d(v) || dv > R) continue;
-        for (Half h: raw.verts[v].adjHalfs()) {
+        for (Half h: hm.verts[v].adjHalfs()) {
             int w = h.head().id;
             if (double nd = dv + h.len(); nd < d(w)) { d(w) = nd; pq.emplace(nd, w); }
         }
     }
 
-    SprsD W(k * raw.nF, k * raw.nF);
-    W.reserve(VecXi::Ones(k * raw.nF));
-    for (Face f: raw.faces) {
+    SprsD W(k * hm.nF, k * hm.nF);
+    W.reserve(VecXi::Ones(k * hm.nF));
+    for (Face f: hm.faces) {
         double df = 0, el = 0;
         for (Half h: f.adjHalfs()) { df += std::min(d(h.tail().id), R); el += h.len(); }
         double w = std::pow(R / std::max(df / 3, el / 9), beta);
