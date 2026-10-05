@@ -72,6 +72,7 @@ namespace metriko {
         bool success = iterative_rounding(
             fixedIdcs,
             fixedVals,
+            compute_poisson_weight_matrix(raw, singlars, gridscale, 2 * N),
             singularIdcs,
             integerIdcs,
             (cut.pos.colwise().maxCoeff() - cut.pos.colwise().minCoeff()).norm() * gridscale / norm,

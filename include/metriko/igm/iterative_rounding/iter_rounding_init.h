@@ -81,6 +81,7 @@ namespace metriko {
             const VecXd &F2_,
             const VecXi &fixedIdcs,
             const VecXd &fixedVals,
+            const SprsD &weightMatrix, // per face weight of the poisson energy, repeated over the 2N rows of the face
             const double length_,
             const bool locinj_,
             const int nF,
@@ -162,24 +163,12 @@ namespace metriko {
             // Compute poisson eq. so that the gradient of enegy function equal to zero.
             // Conceptually it computes uv to follow the given nvec with the constraint.
             // See eq. (6) in the report by Bommes(2012)
-            //
             // if isometricity is not important, then the solver below might have room for optimization
             // e.g. consider only the conformality... use conformal optimization
-            //
-            // maybe it is better to use correct mass matrix ...
-            // double max_mass = 0;
-            // for (Face f: mesh.faces) { max_mass = std::max(max_mass, f.area() * 0.5); }
-            // vec<TripD> T;
-            // for (Face f: mesh.faces) {
-            // for (int i = 0; i < N * 2; i++) {
-            //     T.emplace_back(f.id * N * 2 + i, f.id * N * 2 + i, f.area() / max_mass);
-            // }}
 
-            SprsD Mass;
-            igl::speye(2 * N * nF, Mass);
             X2F = (G2 * UFull).pruned();
-            SprsD E = X2F.transpose() * Mass * X2F * length;
-            VecXd f = X2F.transpose() * Mass * F2;
+            SprsD E = X2F.transpose() * weightMatrix * X2F * length;
+            VecXd f = X2F.transpose() * weightMatrix * F2;
             SprsD constMat(fixedIdcs.size(), UFull.cols());
 
             igl::slice(UFull, fixedIdcs, 1, constMat);

@@ -97,6 +97,7 @@ public:
     inline bool iterative_rounding(
         const VecXi &fixedIdcs,
         const VecXd &fixedVals,
+        const SprsD &weightMatrix,
         const VecXi &singularIdcs,
         const VecXi &integerIdcs,
         const double length,
@@ -129,6 +130,7 @@ public:
             intrinsicField,
             fixedIdcs,
             fixedVals,
+            weightMatrix,
             length,
             localInjectivity,
             nF,
