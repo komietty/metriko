@@ -1,7 +1,7 @@
 # metriko
 ![bimba](example/docs/bimba.png)
 
-Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing ~100k vertices.
+Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method even for meshes containing 100k+ vertices.
 
 ## Why Metriko?
 
