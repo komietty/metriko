@@ -309,11 +309,9 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         return vid_of_nid[nid];
     };
 
-    for (const auto& th: tm.thalfs) {
-        if (th.id == -1 || !th.cano) continue;
+    for (const auto& th: tm.cano_thalfs()) {
         const auto& nids = tm.tedges[th.teid].nids;
         const int   nsgs = nids.size() - 1;
-
         const auto& tw = tm.thalfs[th.twid];
         const int   sa = th.tqid * 4 + tm.tquads[th.tqid].side_of(th);
         const int   sb = tw.tqid * 4 + tm.tquads[tw.tqid].side_of(tw);

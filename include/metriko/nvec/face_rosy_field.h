@@ -84,9 +84,7 @@ struct FaceRosyField  {
             // takes the field from 205 to 138 singularities and cuts the curl by 21% for a
             // 3% loss of alignment, and leaves fandisk and spot essentially unchanged
             if (guidanceSmooth > 0.) {
-                double a = 0.;
-                for (Face f: mesh.faces) a += f.area();
-                SprsC lhs_ = M + (guidanceSmooth * a / mesh.nF) * L;
+                SprsC lhs_ = M + guidanceSmooth * mesh.faceArea.mean() * L;
                 VecXc rhs_ = M * D;
                 D = solve_hermitian(lhs_, rhs_);
             }

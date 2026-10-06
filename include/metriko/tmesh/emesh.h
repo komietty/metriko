@@ -221,10 +221,12 @@ struct Emesh {
     vec<Erng> allowed_range_thalfs(const vec<int>& thids) const;
     vec<Erng> allowed_range_tquads(const vec<int>& tqids) const;
 
-    auto live_tedges() const { return tedges | vw::filter([](const Eedge& te) { return te.id != -1; }); }
     auto live_tedges()       { return tedges | vw::filter([](      Eedge& te) { return te.id != -1; }); }
-    auto live_tquads() const { return tquads | vw::filter([](const Equad& tq) { return tq.id != -1; }); }
     auto live_tquads()       { return tquads | vw::filter([](      Equad& tq) { return tq.id != -1; }); }
+    auto live_tedges() const { return tedges | vw::filter([](const Eedge& te) { return te.id != -1; }); }
+    auto live_tquads() const { return tquads | vw::filter([](const Equad& tq) { return tq.id != -1; }); }
+    auto live_thalfs() const { return thalfs | vw::filter([](const Ehalf& th) { return th.id != -1; }); }
+    auto cano_thalfs() const { return thalfs | vw::filter([](const Ehalf& th) { return th.id != -1 && th.cano; }); }
 
     void collapse_tedge_snap(bool flag);
     void collapse_tedge_snap_dedup(int teid);
