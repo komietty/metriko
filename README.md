@@ -12,15 +12,13 @@ Many existing quad meshing algorithms rely heavily on Mixed Integer Programming 
 Metriko implements the Quantized Global Parameterization (QGP) algorithm, providing fast and robust quadrilateral parameterization. The algorithm guarantees a valid result and scales linearly with the number of vertices.
 
 ## Features
-Metriko is currently in early development. Available features include:
+Available features include:
 - Globally optimal rotational symmetry tangent fields
 - Basic integration of tangent fields
 - Integer Grid Mapping (IGM) using an iterative rounding algorithm
 - T-mesh implementation based on the motorcycle graph
 - Quantization and mesh generation using T-mesh
 - Extraction of a quad mesh(QEx) from a locally-injective uv map
-
-Known limitations and issues:
 - Meshes with boundaries are currently not supported (planned for future support)
 
 ## Usage
