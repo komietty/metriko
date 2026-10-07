@@ -56,21 +56,21 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
         if (th1.bgn) return { th1.nid_fr(), s1 };
         if (th0.end) return { th0.nid_to(), s1 };
         if (th1.end) return { th1.nid_to(), s0 };
-        // a zero tedge drawn by an earlier collapse carries no flag: keep the node where more tquads meet
-        return count_adj_tquads(th0.id) >= count_adj_tquads(th0.twid) ? std::pair{ th0.nid_fr(), s0 } : std::pair{ th0.nid_to(), s1 };
+        return n_adj_tqs(th0.id) >= n_adj_tqs(th0.twid) ? std::pair{ th0.nid_fr(), s0 } : std::pair{ th0.nid_to(), s1 };
     };
 
-    auto is_junction = [&](int nid, int thid_at) {
-        return !rg::contains(std::array{ th_l.nid_fr(), th_l.nid_to(), th_r.nid_fr(), th_r.nid_to() }, nid)
-            && count_adj_tquads(thid_at) != 2;
+    auto must_use_in_aux = [&](int nid, int thid) { // a crossing point or a singular point
+        if (rg::contains(std::array{th_l.nid_fr(), th_l.nid_to(), th_r.nid_fr(), th_r.nid_to()}, nid)) return false;
+        return n_adj_tqs(thid) != 2 || is_fixed(nid);
     };
+
     int    oft = 0, btm = 0;
     double rt  = 0, rb  = 0;
     double span   = sumX(aux.thids_t),
            rt_sum = sumR(aux.thids_t),
            rb_sum = sumR(aux.thids_b);
-    for (int thid: aux.thids_t | vw::reverse) { const auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (is_junction(th.nid_fr(), th.id))   aux.pts.push_back({ .nid = th.nid_fr(), .val = oft, .ord = rt / rt_sum * span, .top = true  }); }
-    for (int thid: aux.thids_b)               { const auto& th = thalfs[thid]; btm += th.x; rb += th.r; if (is_junction(th.nid_to(), th.twid)) aux.pts.push_back({ .nid = th.nid_to(), .val = btm, .ord = rb / rb_sum * span, .top = false }); }
+    for (int thid: aux.thids_t | vw::reverse) { const auto& th = thalfs[thid]; oft += th.x; rt += th.r; if (must_use_in_aux(th.nid_fr(), th.id))   aux.pts.push_back({ .nid = th.nid_fr(), .val = oft, .ord = rt / rt_sum * span, .top = true  }); }
+    for (int thid: aux.thids_b)               { const auto& th = thalfs[thid]; btm += th.x; rb += th.r; if (must_use_in_aux(th.nid_to(), th.twid)) aux.pts.push_back({ .nid = th.nid_to(), .val = btm, .ord = rb / rb_sum * span, .top = false }); }
 
     auto [nid_bgn, side_bgn] = find_terminal(aux.thid_l, true, false);
     auto [nid_end, side_end] = find_terminal(aux.thid_r, false, true);
