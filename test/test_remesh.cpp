@@ -22,15 +22,16 @@ int main(int argc, char** argv) {
         CHECK(V.rows() > 0 && F.rows() > 0);
 
         try {
-            auto res = compute_remesh(V, F, scale, ft == FieldType::CurvatureAligned);
+            const auto im = compute_quadrangulation_impl(V, F, scale, ft == FieldType::CurvatureAligned);
+            CHECK(im.hmesh && im.mgrph && im.emesh);
+            CHECK(validate_no_crossing(*im.emesh, "test") == 0);                              // no tedge contacts
+            CHECK(!im.q_faces.empty());                                                        // reached quad extraction
+            CHECK(rg::all_of(im.q_ports, [](const qex::Qport& p) { return p.isConnected; }));  // every port paired
+            for (const auto& qf: im.q_faces) CHECK(qf.qhalfs.size() == 4);
+            CHECK(im.q_idx.rows() == (int)im.q_faces.size() && im.q_val.rows() == im.q_idx.rows());
+            CHECK((im.q_val.col(0).array() >= 0).all());                                        // every quad in a patch
 
-            CHECK(res.hmesh && res.mgrph && res.emesh);
-            CHECK(validate_no_crossing(*res.emesh, "test") == 0);                              // no tedge contacts
-            CHECK(!res.q_faces.empty());                                                        // reached quad extraction
-            CHECK(rg::all_of(res.q_ports, [](const qex::Qport& p) { return p.isConnected; }));  // every port paired
-            for (const auto& qf: res.q_faces) CHECK(qf.qhalfs.size() == 4);
-
-            std::cout << "[test_remesh] OK  " << mesh << "  quads=" << res.q_faces.size() << std::endl;
+            std::cout << "[test_remesh] OK  " << mesh << "  quads=" << im.q_idx.rows() << std::endl;
         } catch (const std::exception& ex) {
             std::cerr << "FAIL: compute_remesh threw: " << ex.what() << "  (" << mesh << ")\n";
             return 1;
