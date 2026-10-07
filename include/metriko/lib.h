@@ -108,23 +108,14 @@ inline RemeshStage compute_quadrangulation_impl(
 
     MatXd uv = compute_tutte_parameterization(*hm_emb, *tm, seam1, hdata);
 
-    igl::SLIMData sData;
     MatXd uv_init(hm_cut->nV, 2);
+    vec<int> bnd;
     for (auto v: hm_cut->verts) uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
+    for (auto v: hm_cut->verts) if (v.isBoundary()) bnd.push_back(v.id);
+    const VecXi b = Eigen::Map<VecXi>(bnd.data(), bnd.size());
 
-    vec<int>   b_;
-    vec<Row2d> bc_;
-    for (auto v: hm_cut->verts) {
-        if (!v.isBoundary()) continue;
-        b_.push_back(v.id);
-        bc_.emplace_back(uv_init.row(v.id));
-    }
-    VecXi b = Eigen::Map<VecXi>(b_.data(), b_.size());
-    MatXd bc(bc_.size(), 2);
-    for (int i = 0; i < bc_.size(); ++i) bc.row(i) = bc_[i];
-
-    sData.slim_energy = igl::MappingEnergyType::SYMMETRIC_DIRICHLET;
-    slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, sData.slim_energy, b, bc, 1e9);
+    igl::SLIMData sData;
+    slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, uv_init(b, Eigen::indexing::all), 1e9);
 
     double prev = std::numeric_limits<double>::infinity();
     for (int i = 0; i < slim_max_iter; ++i) {
