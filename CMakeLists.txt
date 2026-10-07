@@ -70,10 +70,10 @@ endif()
 #========== Done finding OpenMp ========================================================================================
 
 add_library(${PROJECT_NAME} STATIC
-        include/metriko/tmesh/emesh_collapse_range.cpp
-        include/metriko/tmesh/emesh_collapse_th.cpp
-        include/metriko/tmesh/emesh_collapse_tq_0.cpp
-        include/metriko/tmesh/emesh_collapse_tq_1.cpp
+        include/metriko/tmesh/emesh_c_rg.cpp
+        include/metriko/tmesh/emesh_c_th.cpp
+        include/metriko/tmesh/emesh_c_tq_0.cpp
+        include/metriko/tmesh/emesh_c_tq_1.cpp
         include/metriko/tmesh/emesh_postprocess.cpp
 )
 
