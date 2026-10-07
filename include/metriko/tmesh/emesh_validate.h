@@ -55,6 +55,9 @@ inline vec<TeContact> find_tedge_contacts(const Emesh& tm) {
 
             bool shared = s.n0 == t.n0 || s.n0 == t.n1 || s.n1 == t.n0 || s.n1 == t.n1;
             if (!shared && find_strict_intersection(a0, a1, b0, b1)) { report(fid, s.teid, t.teid, true); continue; }
+            // two distinct nodes at one point (a collapse can leave them): the tedges meet there without a shared node
+            auto coincide = [](int n, int m, complex p, complex q) { return n != m && std::abs(p - q) < EPS; };
+            if (coincide(s.n0, t.n0, a0, b0) || coincide(s.n0, t.n1, a0, b1) || coincide(s.n1, t.n0, a1, b0) || coincide(s.n1, t.n1, a1, b1)) { report(fid, s.teid, t.teid, false); continue; }
             if (is_inside_segment(a0, a1, b0) || is_inside_segment(a0, a1, b1)) { report(fid, s.teid, t.teid, false); continue; } // t's endpoint on s
             if (is_inside_segment(b0, b1, a0) || is_inside_segment(b0, b1, a1)) { report(fid, t.teid, s.teid, false); }           // s's endpoint on t
         }

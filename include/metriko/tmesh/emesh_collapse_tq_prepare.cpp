@@ -59,7 +59,7 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
         return n_adj_tqs(th0.id) >= n_adj_tqs(th0.twid) ? std::pair{ th0.nid_fr(), s0 } : std::pair{ th0.nid_to(), s1 };
     };
 
-    auto must_use_in_aux = [&](int nid, int thid) { // a crossing point or a singular point
+    auto must_use_in_aux = [&](int nid, int thid) { // a crossing point or a singular point, not tq corners
         if (rg::contains(std::array{th_l.nid_fr(), th_l.nid_to(), th_r.nid_fr(), th_r.nid_to()}, nid)) return false;
         return n_adj_tqs(thid) != 2 || is_fixed(nid);
     };
