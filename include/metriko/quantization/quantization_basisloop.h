@@ -55,8 +55,8 @@ namespace metriko {
             const Ehalf& prev = thalfs[q.top().thid];
             q.pop();
 
-            for (int thid: tm.tquads[prev.tqid].thids((th2side[prev.id] + 2) % 4)) {
-                const auto &curr = thalfs[thalfs[thid].twid];
+            for (int thid: prev.tquad().thids((th2side[prev.id] + 2) % 4)) {
+                const auto &curr = thalfs[thid].twin();
 
                 if (curr.id == bgn.id && counter > 0) {
                     int idx = prev.id;

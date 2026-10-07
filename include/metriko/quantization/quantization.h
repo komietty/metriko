@@ -35,9 +35,9 @@ namespace metriko {
     inline vec<StripArc> build_strip_arcs(const Emesh& tm, const VecXi& th2side) {
         vec<StripArc> arcs;
         for (const Ehalf& th: tm.thalfs) {
-        for (const auto& d: tm.tquads[th.tqid].data) {
+        for (const auto& d: th.tquad().data) {
             if (d.side == (th2side[th.id] + 2) % 4) {
-                const Ehalf& to = tm.thalfs[tm.thalfs[d.thid].twid];
+                const Ehalf& to = tm.thalfs[d.thid].twin();
                 arcs.push_back({th.id, to.id, to.teid});
             }
         }}

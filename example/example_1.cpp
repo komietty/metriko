@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
         std::print("[tq check] tqid {}: {}{} side x = {} {} {} {} |", tq.id, zero ? "zero side " : "", mismatch ? "opposite sides differ " : "", x0, x1, x2, x3);
         for (int s = 0; s < 4; ++s) {
             std::print(" [");
-            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, tm.thalfs[t].x, tm.count_adj_tquads(t), tm.count_adj_tquads(tm.thalfs[t].twid));
+            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, tm.thalfs[t].x, tm.n_adj_tqs(t), tm.n_adj_tqs(tm.thalfs[t].twid));
             std::print(" ]");
         }
         std::println("");
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
         std::print("[zero tq] tqid {}: side x = {} {} {} {} |", tq.id, sum(0), sum(1), sum(2), sum(3));
         for (int s = 0; s < 4; ++s) {
             std::print(" [");
-            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, tm.thalfs[t].x, tm.count_adj_tquads(t), tm.count_adj_tquads(tm.thalfs[t].twid));
+            for (int t: tq.thids(s)) std::print(" thid {} (x {}, adj {}/{})", t, tm.thalfs[t].x, tm.n_adj_tqs(t), tm.n_adj_tqs(tm.thalfs[t].twid));
             std::print(" ]");
         }
         std::println("");
