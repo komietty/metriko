@@ -99,16 +99,12 @@ struct Emesh {
     vec<Eedge> tedges = {};
     vec<Ehalf> thalfs = {};
     vec<Equad> tquads = {};
+    vec<bool>  fixed  = {};
 
     Emesh(const Emesh&) = delete;
     Emesh(Emesh&&)      = delete;
 
     explicit Emesh(const Hmesh& hm): hm(hm) {}
-
-    // builds the t-mesh from the motorcycle graph: every curve is split into tedges at its junction nodes, the
-    // thalfs leaving a junction are ordered by the node's adjacency, and every tquad is traced along the next
-    // thalfs. r is the length of the tedge in the parameter domain (used by the quantization); x stays -1 until
-    // set_x() is called with the quantization result
     explicit Emesh(const Mgrph& mg): hm(mg.hm) {
         tnodes.reserve(mg.mnodes.size());
         for (const Mnode& mn : mg.mnodes) {
@@ -118,6 +114,7 @@ struct Emesh {
                 [&](const HmLocOnE& e) -> HmLoc { return HmLocOnE{.id = e.id, .r = e.r}; },
                 [&](const HmLocOnP& l) -> HmLoc { Face f = hm.faces[l.id]; return HmLocOnF{.id = l.id, .xy = f.to_local(f.uv2pos(l.uv))}; },
             }, mn.loc));
+            fixed.push_back(mn.jt == JunctionType::F);
         }
 
         // 1: one tedge per run of segments between two junction nodes. a trailing run that ends at no junction
@@ -208,6 +205,8 @@ struct Emesh {
     }
 
     void set_x(const VecXd& X) { for (Ehalf& th: thalfs) if (th.id != -1) th.x = X[th.teid]; }
+
+    bool is_fixed(int nid) const { return nid < fixed.size() && fixed[nid]; }
 
     int step_next(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step next failed"); return circular_next(d, it)->thid; };
     int step_prev(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step prev failed"); return circular_prev(d, it)->thid; };
