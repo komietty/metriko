@@ -51,9 +51,7 @@ int main(int argc, char** argv) {
     lap("field");
 
     RosyParameterization rp(hm, *cutm, extf, cmbf->singular, cmbf->matching, seam, N, std::stod(argv[2]));
-    rp.seamless = false;
     rp.localInjectivity = true;
-    rp.verbose = false;
     rp.setup();
     rp.integ();
     lap("parameterization");
@@ -190,7 +188,7 @@ int main(int argc, char** argv) {
     visualizer::visualize_mesh(hm, false, "base mesh");
     visualizer::visualize_tedges(hm, tm, "tedges snapped", false);
     auto [qv, qidx] = extract_quad_mesh(hm, qfaces, true);
-    visualizer::visualize_quad_patch(qv, qidx, tm, singular, label_quad_patches(tm, singular, qfaces, qidx));
+    visualizer::visualize_quad_patch(qv, qidx, label_quad_patches(tm, singular, qfaces, qidx));
     polyscope::show();
     return 0;
 }

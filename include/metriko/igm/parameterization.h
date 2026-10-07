@@ -39,8 +39,8 @@ namespace metriko {
         VecXd fullx;           // Result: computed result
         MatXd nfn;             // Result: vertex-uv value on cut mesh
         MatXd cfn;             // Result: corner-uv value on raw mesh
-        bool verbose;          // Output the integration log.
-        bool seamless;         // Whether to do full translational seamless.
+        bool verbose = false;  // Output the integration log.
+        bool seamless = false; // Whether to do full translational seamless.
         bool roundSeams;       // Whether to round seams or round singularities
         bool localInjectivity; // Enforce local injectivity; might result in failure!
 

@@ -71,7 +71,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC
         include/metriko/tmesh/emesh_collapse_range.cpp
-        include/metriko/tmesh/emesh_collapse_thalf.cpp
+        include/metriko/tmesh/emesh_collapse_th.cpp
         include/metriko/tmesh/emesh_collapse_tq_prepare.cpp
         include/metriko/tmesh/emesh_collapse_tq_execute.cpp
         include/metriko/tmesh/emesh_postprocess.cpp
