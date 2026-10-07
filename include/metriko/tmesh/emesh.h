@@ -206,16 +206,10 @@ struct Emesh {
 
     void set_x(const VecXd& X) { for (Ehalf& th: thalfs) if (th.id != -1) th.x = X[th.teid]; }
 
-    bool is_fixed(int nid) const { return nid < fixed.size() && fixed[nid]; }
-
+    bool is_fixed(int nid)  const { return nid < fixed.size() && fixed[nid]; }
+    int n_adj_tqs(int thid) const { int n = 0, thid_ = thid; do { ++n; thid_ = step_next(thalfs[thid_].twid); } while (thid_ != thid && n <= thalfs.size()); return n; }
     int step_next(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step next failed"); return circular_next(d, it)->thid; };
     int step_prev(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step prev failed"); return circular_prev(d, it)->thid; };
-    int count_adj_tquads(int thid0) const {
-        int count = 0, thid = thid0;
-        do { ++count; thid = step_next(thalfs[thid].twid); }
-        while (thid != thid0 && count <= thalfs.size());
-        return count;
-    }
 
     vec<Erng> allowed_range_thalfs(const vec<int>& thids) const;
     vec<Erng> allowed_range_tquads(const vec<int>& tqids) const;

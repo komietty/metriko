@@ -31,8 +31,8 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
             auto thids_3 = tq_curr.thids((s0 + 3) % 4);
             if (!rg::all_of(thids_0, zero))               return true; // stop caz tq_curr is not collapsable
             if (thids_0.size() > 1 || thids_2.size() > 1) return true; // stop caz tq_curr has split chain
-            if (count_adj_tquads(th_curr.id)   == 4)      return true; // stop caz cannot go father
-            if (count_adj_tquads(th_curr.twid) == 4)      return true; // stop caz cannot go father
+            if (n_adj_tqs(th_curr.id)   == 4)             return true; // stop caz cannot go father
+            if (n_adj_tqs(th_curr.twid) == 4)             return true; // stop caz cannot go father
             if (sumX(thids_1) == 0 || sumX(thids_3) == 0) return true; // stop caz tq_curr's all sides are x == zero
             METRIKO_CHECK(!thids_2.empty(), "tquad {}: no thalf on the side opposite to thalf {} (side sizes {} {} {} {})", tq_curr.id, th_curr.id, thids_0.size(), thids_1.size(), thids_2.size(), thids_3.size());
             seq.push_back(thids_2.front());
@@ -91,7 +91,7 @@ bool Emesh::collapse_tquad_chain_prepare(int tqid, Tqchain& chain) const {
                 th_l.nid_to(),
                 th_r.nid_fr(),
                 th_r.nid_to()
-            }, nid) && count_adj_tquads(thid_at) != 2; // adjacency around the pushed node
+            }, nid) && n_adj_tqs(thid_at) != 2; // adjacency around the pushed node
         };
 
         auto   btm  = oft;

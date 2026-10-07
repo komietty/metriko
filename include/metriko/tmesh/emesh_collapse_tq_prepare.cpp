@@ -83,8 +83,7 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
         for (int thid: *thids | vw::filter([&](int i){return zero(i); })) {
             auto p0 = rg::find(aux.pts, thalfs[thid].nid_fr(), &Tqpoint::nid);
             auto p1 = rg::find(aux.pts, thalfs[thid].nid_to(), &Tqpoint::nid);
-            if (p0 == aux.pts.end() || p1 == aux.pts.end()) return false;
-            if (std::abs(p0 - p1) != 1) return false;
+            if (p0 == aux.pts.end() || p1 == aux.pts.end() || std::abs(p0 - p1) != 1) return false;
             if (rg::any_of(aux.pts, [&](auto& p) { return p.val == p0->val && p.top != p0->top; })) return false;
         }
     }

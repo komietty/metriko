@@ -240,10 +240,10 @@ void Emesh::collapse_tquad_chain_execute(Tqchain& chain) {
         return !copy.is_valid();
     };
 
-    bool cfr_r  = count_adj_tquads(th_r.id) == 4   && !on_chain(th_r.nid_fr());
-    bool cfr_l  = count_adj_tquads(th_l.id) == 4   && !on_chain(th_l.nid_fr());
-    bool cto_r  = count_adj_tquads(th_r.twid) == 4 && !on_chain(th_r.nid_to());
-    bool cto_l  = count_adj_tquads(th_l.twid) == 4 && !on_chain(th_l.nid_to());
+    bool cfr_r  = n_adj_tqs(th_r.id) == 4   && !on_chain(th_r.nid_fr());
+    bool cfr_l  = n_adj_tqs(th_l.id) == 4   && !on_chain(th_l.nid_fr());
+    bool cto_r  = n_adj_tqs(th_r.twid) == 4 && !on_chain(th_r.nid_to());
+    bool cto_l  = n_adj_tqs(th_l.twid) == 4 && !on_chain(th_l.nid_to());
     bool keep_l = consume_creates_invalid_tq(th_l);
     bool keep_r = consume_creates_invalid_tq(th_r);
 

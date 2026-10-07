@@ -178,8 +178,8 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
 
     auto on_line = [&](int nid) { return rg::any_of(aux.pts, [&](auto& p) { return p.nid == nid; }); };
     auto keep_of = [&](const Ehalf& th) {
-        if (count_adj_tquads(th.id)   == 4 && !on_line(th.nid_fr())) return true;
-        if (count_adj_tquads(th.twid) == 4 && !on_line(th.nid_to())) return true;
+        if (n_adj_tqs(th.id)   == 4 && !on_line(th.nid_fr())) return true;
+        if (n_adj_tqs(th.twid) == 4 && !on_line(th.nid_to())) return true;
         Equad across = tquads[thalfs[th.twid].tqid];
         std::erase_if(across.data, [&](auto& d) { return d.thid == th_l.twid || d.thid == th_r.twid; });
         return !across.is_valid();

@@ -27,8 +27,8 @@ void Emesh::collapse_thalf(int thid) {
     METRIKO_CHECK(it_crr->side == it_prv->side || it_crr->side == it_nxt->side, "collapse thalf error");
     METRIKO_CHECK(it_crr->side != it_prv->side || it_crr->side != it_nxt->side, "collapse thalf error");
 
-    if      (count_adj_tquads(th_crr.id) == 2 && !is_fixed(th_crr.nid_fr())) { te_prv.insert_locs(te_crr.nids); }
-    else if (count_adj_tquads(th_twn.id) == 2 && !is_fixed(th_crr.nid_to())) { te_nxt.insert_locs(te_crr.nids); }
+    if      (n_adj_tqs(th_crr.id) == 2 && !is_fixed(th_crr.nid_fr())) { te_prv.insert_locs(te_crr.nids); }
+    else if (n_adj_tqs(th_twn.id) == 2 && !is_fixed(th_crr.nid_to())) { te_nxt.insert_locs(te_crr.nids); }
     else {
         bool collapse_to_prev = it_crr->side != it_prv->side;
         if (is_fixed(collapse_to_prev ? th_crr.nid_fr() : th_crr.nid_to())) collapse_to_prev = !collapse_to_prev;
