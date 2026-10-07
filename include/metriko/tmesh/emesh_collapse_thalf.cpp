@@ -30,14 +30,14 @@ void Emesh::collapse_thalf(int thid) {
     if      (count_adj_tquads(th_crr.id) == 2 && !is_fixed(th_crr.nid_fr())) { te_prv.insert_locs(te_crr.nids); }
     else if (count_adj_tquads(th_twn.id) == 2 && !is_fixed(th_crr.nid_to())) { te_nxt.insert_locs(te_crr.nids); }
     else {
-        bool c2p = it_crr->side != it_prv->side; // collapse to prev thalf
-        if (is_fixed(c2p ? th_crr.nid_fr() : th_crr.nid_to())) c2p = !c2p;
+        bool collapse_to_prev = it_crr->side != it_prv->side;
+        if (is_fixed(collapse_to_prev ? th_crr.nid_fr() : th_crr.nid_to())) collapse_to_prev = !collapse_to_prev;
 
         auto [n_fr, n_to] = [&]{
-            if ( c2p &&  th_prv.cano) return std::pair{th_prv.nid_fr(), th_crr.nid_to()};
-            if ( c2p && !th_prv.cano) return std::pair{th_crr.nid_to(), th_prv.nid_fr()};
-            if (!c2p &&  th_nxt.cano) return std::pair{th_crr.nid_fr(), th_nxt.nid_to()};
-            if (!c2p && !th_nxt.cano) return std::pair{th_nxt.nid_to(), th_crr.nid_fr()};
+            if ( collapse_to_prev &&  th_prv.cano) return std::pair{th_prv.nid_fr(), th_crr.nid_to()};
+            if ( collapse_to_prev && !th_prv.cano) return std::pair{th_crr.nid_to(), th_prv.nid_fr()};
+            if (!collapse_to_prev &&  th_nxt.cano) return std::pair{th_crr.nid_fr(), th_nxt.nid_to()};
+            if (!collapse_to_prev && !th_nxt.cano) return std::pair{th_nxt.nid_to(), th_crr.nid_fr()};
             throw std::runtime_error("unreachable");
         }();
 
@@ -59,23 +59,23 @@ void Emesh::collapse_thalf(int thid) {
                 if (locs[i] == locs[j]) { dups++; break; }
 
             // if dups >= 2, tquad is self intersected by one of its thalfs
-            // if dups == 1, tquad is self intersected by one of its singular (now tempolary skip, hope aother tquad is loc-inj)
+            // if dups == 1, tquad is self intersected by one of its singular (temp skip, hope aother tquad is loc-inj)
             METRIKO_CHECK(dups < 2, "tquad {} is self-intersected by one of its thalfs", tq_crr.id);
             if (dups == 1) {
-                auto& te_tgt = c2p ? te_prv : te_nxt;
+                auto& te_tgt = collapse_to_prev ? te_prv : te_nxt;
                 if (path_length(nids) < 0.5 * (path_length(te_crr.nids) + path_length(te_tgt.nids))) return;
             }
         }
 
-        auto  it_twn_adj = c2p ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
+        auto  it_twn_adj = collapse_to_prev ? circular_next(tq_twn.data, it_twn) : circular_prev(tq_twn.data, it_twn);
         auto& th_twn_adj = thalfs[it_twn_adj->thid];
         auto& te_twn_adj = tedges[th_twn_adj.teid];
         METRIKO_CHECK(tq_twn.thids(it_twn->side).size() >= 2, "its twin is alone on a side of tquad");
 
         // 1: collapse to the prv/nxt edge
         // 2: insert missing segments to the adjacent edge.
-        if (c2p) { te_prv.nids = nids; te_twn_adj.insert_locs(te_crr.nids); }
-        else     { te_nxt.nids = nids; te_twn_adj.insert_locs(te_crr.nids); }
+        if (collapse_to_prev) { te_prv.nids = nids; te_twn_adj.insert_locs(te_crr.nids); }
+        else                  { te_nxt.nids = nids; te_twn_adj.insert_locs(te_crr.nids); }
     }
 
     // remove the data from tquads which have collapsed thalfs
