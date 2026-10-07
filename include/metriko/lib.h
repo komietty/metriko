@@ -1,5 +1,6 @@
 #ifndef METRIKO_LIB_H
 #define METRIKO_LIB_H
+#include <expected>
 #include <igl/slim.h>
 #include "hmesh/hmesh.h"
 #include "nvec/face_rosy_field.h"
@@ -170,17 +171,21 @@ inline RemeshStage compute_quadrangulation_impl(
     };
 }
 
-inline RemeshResult compute_quadrangulation(
+inline std::expected<RemeshResult, std::string> compute_quadrangulation(
     const MatXd& V,
     const MatXi& F,
-    const double scale
+    const double s
 ) {
-    auto res = compute_quadrangulation_impl(V, F, scale);
-    return {
-        std::move(res.q_pos),
-        std::move(res.q_idx),
-        std::move(res.q_val)
-    };
+    try {
+        auto q = compute_quadrangulation_impl(V, F, s);
+        return RemeshResult{
+            std::move(q.q_pos),
+            std::move(q.q_idx),
+            std::move(q.q_val)
+        };
+    }
+    catch (const std::exception& ex) { return std::unexpected(ex.what()); }
+    catch (...)                      { return std::unexpected("unknown error"); }
 }
 }
 #endif
