@@ -173,7 +173,7 @@ struct TmeshView {
     umap<int, vec<std::pair<int, bool>>> branches;       // node -> (teid, leaves the node forward)
 
     TmeshView(const Emesh& tm, const VecXi& singular, const QuadGraph& g): tm(tm), singular(singular), g(g), te(tm.tedges.size()) {
-        for (auto& th: tm.thalfs) if (th.id != -1 && th.cano) te[th.teid] = {th.id, (int)std::round(th.x), th.tqid, tm.thalfs[th.twid].tqid};
+        for (auto& th: tm.thalfs) if (th.id != -1 && th.cano) te[th.teid] = {th.id, (int)std::round(th.x), th.tqid, th.twin().tqid};
         for (auto& [teid, nids]: tm.live_tedges()) {
             branches[nids.front()].emplace_back(teid, true);
             branches[nids.back()].emplace_back(teid, false);
@@ -195,9 +195,9 @@ struct TmeshView {
     vec<Branch> chain(int nid, int t, bool fwd) const {
         vec<Branch> ch = {{t, fwd, 0}};
         for (int k = 1, slot = 0; k < (int)branches.at(nid).size(); ++k) {
-            const int c = te[t].cano;
-            const auto& th  = tm.thalfs[fwd ? c : tm.thalfs[c].twid];   // P on its left, pointing away from the node
-            const auto& tq  = tm.tquads[th.tqid];
+            const int c    = te[t].cano;
+            const auto& th = fwd ? tm.thalfs[c] : tm.thalfs[c].twin(); // P on its left, pointing away from the node
+            const auto& tq = tm.tquads[th.tqid];
             auto cur = rg::find(tq.data, th.id, &Edata::thid);
             auto prv = circular_prev(tq.data, cur);
             const auto& th2 = tm.thalfs[prv->thid];                     // ends at the node

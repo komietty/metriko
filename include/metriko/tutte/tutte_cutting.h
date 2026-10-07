@@ -310,11 +310,11 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     };
 
     for (const auto& th: tm.cano_thalfs()) {
-        const auto& nids = tm.tedges[th.teid].nids;
+        const auto& nids = th.tedge().nids;
         const int   nsgs = nids.size() - 1;
-        const auto& tw = tm.thalfs[th.twid];
-        const int   sa = th.tqid * 4 + tm.tquads[th.tqid].side_of(th);
-        const int   sb = tw.tqid * 4 + tm.tquads[tw.tqid].side_of(tw);
+        const auto& tw = th.twin();
+        const int   sa = th.tqid * 4 + th.side();
+        const int   sb = tw.tqid * 4 + tw.side();
 
         double total = 0;
         vec<double> len(nsgs);
@@ -344,8 +344,8 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
             if (!eo.has_value()) cuts[fo.value().id].emplace_back(i0, i1);
             sgms.push_back({
                 .i0 = i0, .i1 = i1,
-                .d0 = HalfData{.v0 = v0,     .v1 = v1,     .thid = th.id,   .tqid = th.tqid,                 .order = k},
-                .d1 = HalfData{.v0 = 1 - v1, .v1 = 1 - v0, .thid = th.twid, .tqid = tm.thalfs[th.twid].tqid, .order = t}
+                .d0 = HalfData{.v0 = v0,     .v1 = v1,     .thid = th.id,   .tqid = th.tqid, .order = k},
+                .d1 = HalfData{.v0 = 1 - v1, .v1 = 1 - v0, .thid = th.twid, .tqid = tw.tqid, .order = t}
             });
         }
     }

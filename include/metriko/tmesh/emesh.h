@@ -7,6 +7,7 @@
 //
 #ifndef METRIKO_EMESH_H
 #define METRIKO_EMESH_H
+#include <functional>
 #include <set>
 #include "motorcycle.h"
 #include "metriko/hmesh/hmloc.h"
@@ -15,6 +16,7 @@
 
 namespace metriko {
 struct Emesh;
+struct Equad;
 
 struct Tqpoint {
     int    nid = -1; // tnode of this point
@@ -62,8 +64,12 @@ struct Ehalf {
     bool end  = false;
     double x  = -1;
     double r  = -1;
+    int side() const;
     int nid_fr() const;
     int nid_to() const;
+    const Ehalf& twin() const;
+    const Eedge& tedge() const;
+    const Equad& tquad() const;
     const HmLoc& loc_fr() const;
     const HmLoc& loc_to() const;
 };
@@ -208,8 +214,8 @@ struct Emesh {
 
     bool is_fixed(int nid)  const { return nid < fixed.size() && fixed[nid]; }
     int n_adj_tqs(int thid) const { int n = 0, thid_ = thid; do { ++n; thid_ = step_next(thalfs[thid_].twid); } while (thid_ != thid && n <= thalfs.size()); return n; }
-    int step_next(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step next failed"); return circular_next(d, it)->thid; };
-    int step_prev(int thid) const { auto& [_, d] = tquads[thalfs[thid].tqid]; auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step prev failed"); return circular_prev(d, it)->thid; };
+    int step_next(int thid) const { auto& [_, d] = thalfs[thid].tquad(); auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step next failed"); return circular_next(d, it)->thid; };
+    int step_prev(int thid) const { auto& [_, d] = thalfs[thid].tquad(); auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step prev failed"); return circular_prev(d, it)->thid; };
 
     vec<Erng> allowed_range_thalfs(const vec<int>& thids) const;
     vec<Erng> allowed_range_tquads(const vec<int>& tqids) const;
@@ -249,6 +255,10 @@ struct Emesh {
 
 inline int Ehalf::nid_fr() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.front() : nids.back(); }
 inline int Ehalf::nid_to() const { const auto& nids = tm->tedges[teid].nids; return cano ? nids.back() : nids.front(); }
+inline int Ehalf::side()   const { return tquad().side_of(*this); }
+inline const Ehalf& Ehalf::twin() const { return tm->thalfs[twid]; }
+inline const Eedge& Ehalf::tedge() const { return tm->tedges[teid]; }
+inline const Equad& Ehalf::tquad() const { return tm->tquads[tqid]; }
 inline const HmLoc& Ehalf::loc_fr() const { return tm->tnodes[nid_fr()]; }
 inline const HmLoc& Ehalf::loc_to() const { return tm->tnodes[nid_to()]; }
 

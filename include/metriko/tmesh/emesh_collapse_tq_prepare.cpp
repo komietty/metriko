@@ -51,7 +51,7 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
 
     auto find_terminal = [&](int thid, bool s0, bool s1) -> std::pair<int, bool> {
         const auto& th0 = thalfs[thid];
-        const auto& th1 = thalfs[th0.twid];
+        const auto& th1 = th0.twin();
         if (th0.bgn) return { th0.nid_fr(), s0 };
         if (th1.bgn) return { th1.nid_fr(), s1 };
         if (th0.end) return { th0.nid_to(), s1 };

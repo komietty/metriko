@@ -17,7 +17,7 @@ vec<Erng> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
 
     for (int thid : thids) {
         const auto& th = thalfs[thid];
-        const auto& te = tedges[th.teid];
+        const auto& te = th.tedge();
         int n = te.nids.size();
         for (int i = 0; i < n - 1; ++i) {
             auto  j  = th.cano ? i : n - 1 - i;

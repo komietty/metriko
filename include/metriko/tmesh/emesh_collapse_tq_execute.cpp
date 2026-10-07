@@ -39,7 +39,7 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
         thids.push_back(tz.id);
         vec<int> nids = { n0 };
         for (int t: thids) {
-            auto ns = tedges[thalfs[t].teid].nids;
+            auto ns = thalfs[t].tedge().nids;
             if (ns.back()  == nids.back()) rg::reverse(ns);
             if (ns.front() != nids.back()) return {};
             nids.insert(nids.end(), ns.begin() + 1, ns.end());
@@ -148,8 +148,8 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
             data.insert(ahd ? it : it + 1, Edata{ th.id, it->side });
             return;
         }
-        auto& nids    = tedges[th.teid].nids;
-        auto& th_twn  = thalfs[th.twid];
+        auto& nids    = th.tedge().nids;
+        auto& th_twn  = th.twin();
         auto& th2_twn = thalfs[th2.twid];
         std::erase_if(tquads[th_twn.tqid].data, [&](const Edata& d) { return d.thid == th_twn.id; });
 
@@ -180,7 +180,7 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
     auto keep_of = [&](const Ehalf& th) {
         if (n_adj_tqs(th.id)   == 4 && !on_line(th.nid_fr())) return true;
         if (n_adj_tqs(th.twid) == 4 && !on_line(th.nid_to())) return true;
-        Equad across = tquads[thalfs[th.twid].tqid];
+        Equad across = th.twin().tquad();
         std::erase_if(across.data, [&](auto& d) { return d.thid == th_l.twid || d.thid == th_r.twid; });
         return !across.is_valid();
     };

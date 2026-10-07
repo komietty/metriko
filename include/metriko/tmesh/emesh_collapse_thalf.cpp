@@ -48,7 +48,7 @@ void Emesh::collapse_thalf(int thid) {
         { // Count duplication of verts for checking loc-inj
             vec<HmLoc> locs;
             for (const auto& [id, _]: tq_crr.data) {
-                auto ns = tedges[thalfs[id].teid].nids;
+                auto ns = thalfs[id].tedge().nids;
                 if (!thalfs[id].cano) rg::reverse(ns);
                 for (size_t k = 0; k + 1 < ns.size(); ++k) locs.push_back(tnodes[ns[k]]);
             }
