@@ -142,6 +142,26 @@ inline bool find_strict_intersection(
     );
 }
 
+// intersection except edge point and edge point
+inline bool has_contact(
+    const Face f,
+    const HmLoc& la,
+    const HmLoc& lb,
+    const HmLoc& lc,
+    const HmLoc& ld
+) {
+    if (!is_in_face(f, la) || !is_in_face(f, lb) || !is_in_face(f, lc) || !is_in_face(f, ld)) return false;
+    auto a = f.to_local(get_ptloc_pos(*f.m, la));
+    auto b = f.to_local(get_ptloc_pos(*f.m, lb));
+    auto c = f.to_local(get_ptloc_pos(*f.m, lc));
+    auto d = f.to_local(get_ptloc_pos(*f.m, ld));
+    return find_strict_intersection(a, b, c, d)
+        || is_inside_segment(a, b, c)
+        || is_inside_segment(a, b, d)
+        || is_inside_segment(c, d, a)
+        || is_inside_segment(c, d, b);
+}
+
 inline bool is_in_star(Vert v, const HmLoc& loc) {
     return rg::any_of(v.adjHalfs(), [&](Half h) { return is_in_face(h.face(), loc); });
 }
