@@ -12,8 +12,8 @@ using namespace metriko;
 
 int main(int argc, char** argv) {
     if (argc < 4) { std::cerr << "usage: test_remesh <gridscale> <nvec> <mesh.obj> [more.obj ...]\n"; return 2; }
-    const double    scale = std::stod(argv[1]);
-    const FieldType ft    = parse_field_type(argv[2]);
+    const double scale = std::stod(argv[1]);
+    const FieldType ft = parse_field_type(argv[2]);
 
     for (int a = 3; a < argc; ++a) {
         const char* mesh = argv[a];
@@ -24,13 +24,12 @@ int main(int argc, char** argv) {
         try {
             const auto im = compute_quadrangulation_impl(V, F, scale, ft == FieldType::CurvatureAligned);
             CHECK(im.hmesh && im.mgrph && im.emesh);
-            CHECK(validate_no_crossing(*im.emesh, "test") == 0);                              // no tedge contacts
-            CHECK(!im.q_faces.empty());                                                        // reached quad extraction
-            CHECK(rg::all_of(im.q_ports, [](const qex::Qport& p) { return p.isConnected; }));  // every port paired
-            for (const auto& qf: im.q_faces) CHECK(qf.qhalfs.size() == 4);
+            CHECK(validate_no_crossing(*im.emesh, "test") == 0);
+            CHECK(!im.q_faces.empty());
+            CHECK(rg::all_of(im.q_ports, [](const qex::Qport& p) { return p.isConnected; }));
+            for (const auto& [qhalfs]: im.q_faces) CHECK(qhalfs.size() == 4);
             CHECK(im.q_idx.rows() == (int)im.q_faces.size() && im.q_val.rows() == im.q_idx.rows());
-            CHECK((im.q_val.col(0).array() >= 0).all());                                        // every quad in a patch
-
+            CHECK((im.q_val.col(0).array() >= 0).all());
             std::cout << "[test_remesh] OK  " << mesh << "  quads=" << im.q_idx.rows() << std::endl;
         } catch (const std::exception& ex) {
             std::cerr << "FAIL: compute_remesh threw: " << ex.what() << "  (" << mesh << ")\n";

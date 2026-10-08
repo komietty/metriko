@@ -71,7 +71,8 @@ static vec<double> four_colour_patches(const MatXi& qidx, const VecXi& tqid) {
     return res;
 }
 
-static void visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const VecXi& tqid) {
+// the quads coloured by patch, and the patch boundaries (quad edges between two patches, or on the mesh boundary)
+static std::pair<polyscope::SurfaceMesh*, polyscope::CurveNetwork*> visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const VecXi& tqid) {
     auto at = [&](int v) { return Row3d(qv.row(v)); };
     struct Segments {
         vec<glm::vec3> ns;
@@ -100,7 +101,8 @@ static void visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const VecXi
         if (!fresh && tqid(q) == tqid(it->second)) it->second = -1;   // inside a patch
     }
     for (auto& [e, q]: edge_quad) if (q >= 0) bnd.add(at(e.first), at(e.second));
-    bnd.show("patch boundaries", 0.001, true)->setColor({0., 0., 0.});
+    auto* lines = bnd.show("patch boundaries", 0.0008, true);
+    lines->setColor({0., 0., 0.});
 
     auto* surf = polyscope::registerSurfaceMesh("quad patch", qv, qidx);
     surf->setShadeStyle(polyscope::MeshShadeStyle::Flat);
@@ -114,6 +116,7 @@ static void visualize_quad_patch(const MatXd& qv, const MatXi& qidx, const VecXi
     auto* col4 = surf->addFaceScalarQuantity("patch colour (4)", four_colour_patches(qidx, tqid));
     col4->setColorMap("coolwarm");
     col4->setMapRange({0., 1.});
+    return {surf, lines};
 }
 
 int main(int argc, char** argv) {
@@ -128,6 +131,7 @@ int main(int argc, char** argv) {
     std::println("[time] total {:8.0f} ms", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
 
     polyscope::options::verbosity = 0;
+    polyscope::options::buildGui  = false;   // no panels: the views are switched by the space key
     polyscope::init();
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
@@ -135,8 +139,28 @@ int main(int argc, char** argv) {
     base->setEdgeWidth(0.7);
     base->setEnabled(false);
     base->setMaterial("flat");
-    base->setSurfaceColor(glm::vec3(0.3, 0.3, 0.3));
-    visualize_quad_patch(res->pos, res->idx, res->val.col(0));
+    base->setSurfaceColor(glm::vec3(0.8, 0.8, 0.8));
+    auto [quad, lines] = visualize_quad_patch(res->pos, res->idx, res->val.col(0));
+
+    // space cycles the views; the current one and the key are written along the bottom of the window
+    const vec<std::string> views = { "base mesh", "quad mesh" };
+    int view = 1;
+    auto apply = [&] {
+        base->setEnabled(view == 0);
+        quad->setEnabled(view == 1);
+        lines->setEnabled(view == 1);
+    };
+    apply();
+    polyscope::state::userCallback = [&] {
+        if (ImGui::IsKeyPressed(ImGuiKey_Space, false)) { view = (view + 1) % views.size(); apply(); }
+        const ImVec2 size = ImGui::GetIO().DisplaySize;
+        constexpr float margin = 24;
+        ImGui::SetNextWindowPos({margin, size.y - margin - 30});
+        ImGui::SetNextWindowSize({size.x - 2 * margin, 30});
+        ImGui::Begin("help", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
+        ImGui::Text("press space to switch to the %s", views[(view + 1) % views.size()].c_str());
+        ImGui::End();
+    };
     polyscope::show();
     return 0;
 }
