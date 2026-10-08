@@ -132,6 +132,8 @@ int main(int argc, char** argv) {
 
     polyscope::options::verbosity = 0;
     polyscope::options::buildGui  = false;   // no panels: the views are switched by the space key
+    polyscope::options::giveFocusOnShow = true;   // bring the window to the front on show (off by default)
+    polyscope::options::programName = "metriko";   // the window title
     polyscope::init();
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
