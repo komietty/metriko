@@ -18,23 +18,19 @@
 #include "patching.h"
 
 namespace metriko {
-
 constexpr int    slim_max_iter = 50;
 constexpr double slim_rel_tol  = 1e-4;
 
 struct RemeshStage {
-    std::unique_ptr<Hmesh>         hmesh;
-    std::unique_ptr<Mgrph>         mgrph;
-    std::unique_ptr<Emesh>         emesh;
-    std::unique_ptr<FaceRosyField> cmbf;
-    vec<bool>                      seam;
-    MatXd                          qnt_x;
-    vec<qex::Qport>                q_ports;
-    vec<qex::Qedge>                q_edges;
-    vec<qex::Qface>                q_faces;
-    MatXd                          q_pos;
-    MatXi                          q_idx;
-    MatXi                          q_val;
+    std::unique_ptr<Hmesh> hmesh;
+    std::unique_ptr<Mgrph> mgrph;
+    std::unique_ptr<Emesh> emesh;
+    vec<qex::Qport>        q_ports;
+    vec<qex::Qedge>        q_edges;
+    vec<qex::Qface>        q_faces;
+    MatXd                  q_pos;
+    MatXi                  q_idx;
+    MatXi                  q_val;
 };
 
 struct RemeshResult {
@@ -106,22 +102,22 @@ inline RemeshStage compute_quadrangulation_impl(
     auto hm_emb = compute_embedding_cut_hmesh(*hm, *tm, seam, cmbf->matching, cmbf->singular, seam1, matching1, singular1, hdata);
     auto hm_cut = compute_cut_mesh(*hm_emb, seam1);
 
-    MatXd uv = compute_tutte_parameterization(*hm_emb, *tm, seam1, hdata);
+    MatXd uv_ebd = compute_tutte_parameterization(*hm_emb, *tm, seam1, hdata);
+    MatXd uv_cut(hm_cut->nV, 2);
 
-    MatXd uv_init(hm_cut->nV, 2);
     vec<int> bnd;
-    for (auto v: hm_cut->verts) uv_init.row(v.id) = uv.row(v.half().next().crnr().id);
+    for (auto v: hm_cut->verts) uv_cut.row(v.id) = uv_ebd.row(v.half().next().crnr().id);
     for (auto v: hm_cut->verts) if (v.isBoundary()) bnd.push_back(v.id);
     const VecXi b = Eigen::Map<VecXi>(bnd.data(), bnd.size());
 
-    igl::SLIMData sData;
-    slim_precompute(hm_cut->pos, hm_cut->idx, uv_init, sData, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, uv_init(b, Eigen::indexing::all), 1e9);
+    igl::SLIMData curr;
+    slim_precompute(hm_cut->pos, hm_cut->idx, uv_cut, curr, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, uv_cut(b, Eigen::indexing::all), 1e9);
 
     double prev = std::numeric_limits<double>::infinity();
     for (int i = 0; i < slim_max_iter; ++i) {
-        slim_solve(sData, 1);
-        if (std::abs(prev - sData.energy) < slim_rel_tol * std::abs(sData.energy)) break;
-        prev = sData.energy;
+        slim_solve(curr, 1);
+        if (std::abs(prev - curr.energy) < slim_rel_tol * std::abs(curr.energy)) break;
+        prev = curr.energy;
     }
 
     // ------ qex on the slim result ------
@@ -129,7 +125,7 @@ inline RemeshStage compute_quadrangulation_impl(
     for (int i = 0; i < hm_cut->nF; ++i) {
     for (int j = 0; j < 3; ++j) {
         int k = hm_cut->idx(i, j);
-        hm_emb->cfn(i * 3 + j) = complex(sData.V_o(k, 0), sData.V_o(k, 1));
+        hm_emb->cfn(i * 3 + j) = complex(curr.V_o(k, 0), curr.V_o(k, 1));
     }}
 
     qex::sanitization(*hm_emb, matching1, singular1, 4);
@@ -150,9 +146,6 @@ inline RemeshStage compute_quadrangulation_impl(
         std::move(hm),
         std::move(mg),
         std::move(tm),
-        std::move(cmbf),
-        seam,
-        X,
         std::move(q_ports),
         std::move(q_edges),
         std::move(q_faces),
