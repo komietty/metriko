@@ -7,9 +7,9 @@
 //
 #include <set>
 #include "emesh.h"
-using namespace metriko;
+namespace metriko {
 
-void Emesh::collapse_thalf(int thid) {
+inline void Emesh::collapse_thalf(int thid) {
     auto& th_crr = thalfs[thid];
     auto& th_twn = thalfs[th_crr.twid];
     auto& tq_crr = tquads[th_crr.tqid];
@@ -84,4 +84,5 @@ void Emesh::collapse_thalf(int thid) {
     th_crr = {};
     th_twn = {};
     te_crr = {};
+}
 }

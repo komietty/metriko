@@ -9,9 +9,9 @@
 #include <format>
 #include <set>
 #include "emesh.h"
-using namespace metriko;
+namespace metriko {
 
-void Emesh::collapse_tquad_execute(Tqaux& aux) {
+inline void Emesh::collapse_tquad_execute(Tqaux& aux) {
     const auto& th_l = thalfs[aux.thid_l];
     const auto& th_r = thalfs[aux.thid_r];
 
@@ -224,4 +224,5 @@ void Emesh::collapse_tquad_execute(Tqaux& aux) {
     }
     data.clear();
     id = -1;
+}
 }

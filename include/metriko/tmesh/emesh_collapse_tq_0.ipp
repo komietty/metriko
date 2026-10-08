@@ -7,9 +7,9 @@
 //
 #include <format>
 #include "emesh.h"
-using namespace metriko;
+namespace metriko {
 
-bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
+inline bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
     const auto& tq = tquads[tqid];
     if (tq.id == -1) return false;
 
@@ -89,4 +89,5 @@ bool Emesh::collapse_tquad_prepare(int tqid, Tqaux& aux) const {
     }
 
     return true;
+}
 }

@@ -9,7 +9,7 @@
 #include "emesh.h"
 
 namespace metriko {
-vec<Erng> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
+inline vec<Erng> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
     vec<Erng> res;
     vec v_stop(hm.nV, false);
     umap<int, Erng> rngs;
@@ -83,7 +83,7 @@ vec<Erng> Emesh::allowed_range_thalfs(const vec<int>& thids) const {
     return res;
 }
 
-vec<Erng> Emesh::allowed_range_tquads(const vec<int>& tqids) const {
+inline vec<Erng> Emesh::allowed_range_tquads(const vec<int>& tqids) const {
     vec<int> thids;
     for (int tqid: tqids)
     for (auto& [thid, _]: tquads[tqid].data)

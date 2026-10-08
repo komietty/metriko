@@ -287,4 +287,9 @@ inline int compute_eular(const Hmesh& hm, const vec<Erng>& rngs) {
 }
 
 }
+#include "emesh_collapse_rg.ipp"
+#include "emesh_collapse_th.ipp"
+#include "emesh_collapse_tq_0.ipp"
+#include "emesh_collapse_tq_1.ipp"
+#include "emesh_postprocess.ipp"
 #endif

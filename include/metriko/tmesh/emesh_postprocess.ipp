@@ -8,7 +8,7 @@
 #include "emesh.h"
 
 namespace metriko {
-void Emesh::collapse_tedge_snap(bool flag) {
+inline void Emesh::collapse_tedge_snap(bool flag) {
     auto snap_valid = [&](Vert v) {
         for (auto& [id, nids]: live_tedges()) {
             if (rg::any_of(nids, [&](int nid) {
@@ -122,7 +122,7 @@ void Emesh::collapse_tedge_snap(bool flag) {
     }
 }
 
-void Emesh::collapse_tedge_snap_dedup(int teid) {
+inline void Emesh::collapse_tedge_snap_dedup(int teid) {
     auto& nids = tedges[teid].nids;
 
     // nodes shared with other chains (junctions / crossings) must stay: dropping
@@ -157,7 +157,7 @@ void Emesh::collapse_tedge_snap_dedup(int teid) {
 // re-trace a tedge inside the union corridor of its two tquads. used to resolve
 // tedge-tedge contacts created by snapping: the corridor walls are the other
 // boundary tedges, so the new path cannot touch them by construction
-bool Emesh::reroute_tedge(int teid) {
+inline bool Emesh::reroute_tedge(int teid) {
     auto ths = thalfs | vw::filter([&](const Ehalf& th) { return th.id != -1 && th.teid == teid; });
     auto tq0 = -1;
     auto tq1 = -1;
