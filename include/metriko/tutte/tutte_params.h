@@ -1,0 +1,267 @@
+//
+// Copyright (C) 2025 Saki Komikado <komietty@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+//
+#ifndef METRIKO_TUTTE_PARAMS_H
+#define METRIKO_TUTTE_PARAMS_H
+
+#include <numeric>
+#include <unordered_set>
+#include "tutte.h"
+#include "metriko/tmesh/emesh.h"
+
+namespace metriko {
+inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
+    SprsD S(mesh.nV, mesh.nV);
+    vec<TripD> T;
+
+    for (Vert v: mesh.verts) {
+        if (v.isBoundary()) T.emplace_back(v.id, v.id, 1);
+        else {
+            double sum = 0.;
+            for (Half h: v.adjHalfs()) {
+                double l = (v.pos() - h.head().pos()).norm();
+                double w = 1. / (l + 1e-12);
+                sum += w;
+                T.emplace_back(v.id, h.head().id, -w);
+            }
+            T.emplace_back(v.id, v.id, sum);
+        }
+    }
+    S.setFromTriplets(T.begin(), T.end());
+    return S;
+}
+
+inline SprsD embedding_tutte_for_tquad(
+    const int tqid,
+    const vec<HalfData>& data,
+    const Hmesh& hm, // the sub hm
+    const Emesh& tm  // the org tm
+) {
+    auto tq_rg = rg::equal_range(data, tqid, {}, &HalfData::tqid);
+
+    std::unordered_set<int> rim;  // the tquad's own boundary, as halfedge ids
+    for (auto& it: tq_rg) rim.insert(it.half.id);
+
+    // find all faces
+    std::queue<int> queue;
+    auto visit = vec(hm.nF, false);
+
+    for (auto& it: tq_rg){
+        int fid = it.half.face().id;
+        queue.emplace(fid);
+        visit[fid] = true;
+    }
+
+    while (!queue.empty()) {
+        Face f0 = hm.faces[queue.front()];
+        queue.pop();
+        for (Half h0: f0.adjHalfs()) {
+            Face f1 = h0.twin().face();
+            if (visit[f1.id] || rim.contains(h0.id)) continue;
+            queue.emplace(f1.id);
+            visit[f1.id] = true;
+        }
+    }
+
+    // a map from sum hm cid -> rep cid, bacause in latter use reps is mutable, fan is for temp container
+    vec<int> fan(hm.nC);
+    std::iota(fan.begin(), fan.end(), 0);
+    auto fan_of = [&](int c) { while (fan[c] != c) c = fan[c]; return c; };
+
+    for (Face f: hm.faces) {
+        if (!visit[f.id]) continue;
+        for (Half h: f.adjHalfs()) {
+            if (h.twin().isBoundary() || !visit[h.twin().face().id]) continue;
+            if (rim.contains(h.id) || rim.contains(h.twin().id)) continue;
+            fan[fan_of(h.next().crnr().id)] = fan_of(h.twin().prev().crnr().id);  // corners at h.tail()
+            fan[fan_of(h.prev().crnr().id)] = fan_of(h.twin().next().crnr().id);  // corners at h.head()
+        }
+    }
+
+    vec<int> fids;
+    for (Face f: hm.faces)
+        if (visit[f.id]) fids.push_back(f.id);
+
+    // number the fans, then let every corner point straight at its number
+    vec<int> reps(hm.nC, -1); // sub hm cid -> sub hm vid
+    vec<int> gids;            // sub hm vid -> org hm vid
+    for (int fid: fids) {
+    for (int j = 0; j < 3; ++j) {
+        int cid = fan_of(fid * 3 + j);
+        if (reps[cid] < 0) { reps[cid] = gids.size(); gids.push_back(hm.idx(fid, j)); }
+        reps[fid * 3 + j] = reps[cid];
+    }}
+
+    MatXd V  = hm.pos(gids, Eigen::indexing::all);
+    MatXi F  = MatXi(fids.size(), 3);
+    MatXd UV = MatXd::Zero(gids.size(), 2);
+    for (int i = 0; i < F.rows(); ++i) {
+    for (int j = 0; j < 3; ++j) {
+        F(i, j) = reps[fids[i] * 3 + j];
+    }}
+
+    auto dir = complex(1, 0);
+    auto sum = complex(0, 0);
+    for (int i = 0; i < 4; i++) {
+        for (int thid: tm.tquads[tqid].thids(i)) {
+            auto x = tm.thalfs[thid].x;
+            for (auto& it: rg::equal_range(tq_rg, thid, {}, &HalfData::thid)) {
+                auto val = x * it.v0;
+                auto row = reps[it.half.next().crnr().id];
+                UV(row, 0) = val * dir.real() + sum.real();
+                UV(row, 1) = val * dir.imag() + sum.imag();
+            }
+            sum += x * dir;
+        }
+        dir *= complex(0, 1);
+    }
+
+    Eigen::SparseLU<SprsD> lu;
+    lu.compute(boundary_snap_laplacian(Hmesh(V, F, true)));
+    MatXd uv = lu.solve(UV);
+
+    SprsD uv_all(hm.nC, 2);
+    vec<TripD> T;
+    for (Face f: hm.faces) {
+        if (!visit[f.id]) continue;
+        for (Half h: f.adjHalfs()) {
+            Row2d r = uv.row(reps[h.crnr().id]);
+            T.emplace_back(h.crnr().id, 0, r.x());
+            T.emplace_back(h.crnr().id, 1, r.y());
+        }
+    }
+    uv_all.setFromTriplets(T.begin(), T.end());
+    return uv_all;
+}
+
+// take the tutte result as the input, embed it until seam intersection.
+// computes halfedges to search with in the next loop at the same time.
+inline vec<int> sequential_mapping(
+    const Hmesh& hm,
+    const SprsD& uv_in,
+    const Half half_in,
+    const vec<bool>& boun, // flag if a halfedge is the boundary of the tquad
+    const vec<bool>& seam, // need to be altered for new cut hmesh
+          vec<bool>& flag, // the flag to check a face is already marked
+    MatXd& uv_all
+) {
+    vec<int> nextH; // the halfedges to the other tquad
+    vec visit(hm.nE, false);
+    std::queue<Half> Q;
+    Q.push(half_in);
+    if (flag[half_in.face().id]) return nextH;
+
+    while (!Q.empty()) {
+        auto f = Q.front().face();
+        auto [c0, c1, c2] = f.crnrs();
+        uv_all.row(c0.id) = uv_in.row(c0.id);
+        uv_all.row(c1.id) = uv_in.row(c1.id);
+        uv_all.row(c2.id) = uv_in.row(c2.id);
+        flag[f.id] = true;
+        Q.pop();
+
+        for (Half h: f.adjHalfs()) {
+            Edge e = h.edge();
+            if (seam[e.id])  continue;                                  // 1: if hit the seam, just stops
+            if (visit[e.id]) continue;                                  // 2: if hit the visited edge, just stops
+            if (boun[h.id]) { nextH.push_back(h.twin().id); continue; } // 3: if hit boundary, puts it as a bridge to the next tquad
+            visit[e.id] = true;                                         // 4: inside tquad. add it to the queue
+            Q.push(h.twin());
+        }
+    }
+    return nextH;
+}
+
+// try to multiply rotation until halfedge coner values corresponds
+// need to consider: is there any possibility of flip?
+inline void apply_transition(
+    const Half h,    // the halfedge of unfixed side
+    const MatXd& m0, // the fixed uv information
+          SprsD& m1  // the unfixed adjacent uv information
+) {
+    auto at = [](const SprsD& m, int i) { return complex(m.coeff(i, 0), m.coeff(i, 1)); };
+    auto c0 = h.twin().next().crnr();
+    auto c1 = h.twin().prev().crnr();
+    auto uv0  = complex(m0(c0.id, 0), m0(c0.id, 1));
+    auto uv0a = complex(m0(c1.id, 0), m0(c1.id, 1));
+    auto uv1  = at(m1, h.prev().crnr().id);
+    auto uv1a = at(m1, h.next().crnr().id);
+    auto dir0 = uv0a - uv0;
+    auto dir1 = uv1a - uv1;
+
+    for (int i = 0; i < 4; i++) {
+        auto rot = get_quater_rot(i);
+        if (abs(rot * dir1 - dir0) > 1e-5) continue;
+
+        for (SprsD::InnerIterator it(m1, 0); it; ++it) {
+            auto r = it.row();
+            auto p = rot * (at(m1, r) - uv1) + uv0;
+            m1.coeffRef(r, 0) = p.real();
+            m1.coeffRef(r, 1) = p.imag();
+        }
+        return;
+    }
+    METRIKO_FAIL("failed to apply_transition");
+}
+
+inline MatXd compute_tutte_parameterization(
+    const Hmesh& hm,          // hmesh after tutte cutting
+    const Emesh& tm,          // tmesh original
+    const vec<bool>& seam,    // seam adapted to tutte cutting
+    const vec<HalfData>& data //
+) {
+    MatXd uv = MatXd::Zero(hm.nC, 2);
+
+    struct HalfHash {
+        std::size_t operator()(const Half& h) const noexcept { return std::hash<int>{}(h.id); }
+    };
+
+    // compute uv per tquad first...
+    vec<SprsD> uv_tq;
+    uv_tq.resize(tm.tquads.size());
+
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < tm.tquads.size(); i++) {
+        if (tm.tquads[i].id == -1) continue;
+        uv_tq[i] = embedding_tutte_for_tquad(i, data, hm, tm);
+    }
+
+    auto flag = vec(hm.nF, false);
+    std::stack<int> stack;
+
+    std::unordered_map<Half, const HalfData*, HalfHash> data_by_half;
+    data_by_half.reserve(data.size());
+    for (auto& d : data) { data_by_half.emplace(d.half, &d); }
+
+    { // 1: process the first tquad
+        auto h = data.begin()->half;
+        auto i = data.begin()->tqid;
+        vec b(hm.nH, false);
+        for (auto& d: data) { if (d.tqid == i) b[d.half.id] = true; }
+        for (auto nh: sequential_mapping(hm, uv_tq[i], h, b, seam, flag, uv)) stack.emplace(nh);
+    }
+
+    // 2: other tquads
+    while (!stack.empty()) {
+        auto h = hm.halfs[stack.top()]; stack.pop();
+        if (flag[h.face().id]) continue;
+
+        auto it = data_by_half.find(h);
+        METRIKO_CHECK(it != data_by_half.end(), "no half data for this half");
+
+        auto  curr = it->second;
+        auto& uv_curr = uv_tq[curr->tqid];
+        apply_transition(h, uv, uv_curr);
+
+        vec b(hm.nH, false);
+        for (auto& d: data) { if (d.tqid == curr->tqid) b[d.half.id] = true; }
+        for (auto nh: sequential_mapping(hm, uv_curr, h, b, seam, flag, uv)) stack.emplace(nh);
+    }
+    return uv;
+}
+}
+#endif

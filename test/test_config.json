@@ -1,0 +1,94 @@
+{
+  "directory": "/Users/saki/dev/models",
+"patterns": [
+  {
+     "gridscale": "0.05",
+     "vectorfield": "smoothest",
+     "meshes": [
+       "torus_1",
+       "torus",
+       "icosphere_4",
+       "icosphere_5"
+     ]
+   },
+  {
+    "gridscale": "0.03",
+    "vectorfield": "smoothest",
+    "meshes": [
+      "spot"
+    ]
+  },
+  {
+    "gridscale": "0.02",
+    "vectorfield": "smoothest",
+    "meshes": [
+      "spot",
+      "holes3",
+      "bunny",
+      "fandisk"
+    ]
+  },
+  {
+    "gridscale": "0.01",
+    "vectorfield": "smoothest",
+    "meshes": [
+      "spot",
+      "bunny",
+      "holes3",
+      "elephant",
+      "fandisk",
+      "dancer_25k",
+      "gargoyle",
+      "fertility",
+      "rocker-arm",
+      "soccerball",
+      "rolling_stage_100k"
+    ]
+  },
+  {
+    "gridscale": "0.005",
+    "vectorfield": "smoothest",
+    "meshes": [
+      "botijo",
+      "horsers",
+      "gargoyle",
+      "dancer_25k",
+      "bimba_100k",
+      "elephant",
+      "soccerball",
+      "rolling_stage_100k"
+    ]
+  },
+  {
+    "gridscale": "0.05",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "icosphere_3",
+      "icosphere_4"
+    ]
+  },
+  {
+    "gridscale": "0.03",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "holes3"
+    ]
+  },
+  {
+    "gridscale": "0.02",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "holes3"
+    ]
+  },
+  {
+    "gridscale": "0.01",
+    "vectorfield": "curvature_aligned",
+    "meshes": [
+      "spot",
+      "holes3",
+      "rocker-arm"
+    ]
+  }
+]
+}

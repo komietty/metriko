@@ -1,4 +1,12 @@
 cmake-build-debug/
+cmake-build-plain/
 cmake-build-release/
 build/
+build-test/
+build-cli/
+build-release/
 .idea/
+thesis/
+AGENTS.md
+imgui.ini
+.polyscope.ini

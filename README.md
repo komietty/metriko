@@ -1,58 +1,76 @@
 # metriko
-![fertility](docs/gargoyle.jpg)
+![bimba](example/docs/bimba.jpg)
 
-Metriko is a header-only C++ library designed for mesh parameterization and quad meshing. It provides a fast and robust method suitable for meshes containing over 10k vertices.
+Metriko is a header-only C++ library for quad meshing. It turns a closed triangle mesh into a quad mesh, every quad labelled with the patch of the T-mesh it lies in, in a few seconds for meshes of 10k–30k vertices and well under a minute for 100k+ vertices, without any commercial solver.
 
 ## Why Metriko?
 
 Quad meshing is a technique used to convert triangular meshes into quadrilateral meshes. Quadrilateral meshes are highly desirable in various applications due to their topological and geometric advantages. They perform particularly well in tasks such as animation deformation, uv mapping, and CAD operations.
 
-Many existing quad meshing algorithms rely heavily on Mixed Integer Programming (MIP) or Mixed Integer Non-Linear Programming (MINLP). These approaches typically require commercial solvers such as Gurobi, making them inaccessible to many users. While alternative algorithms exist, some of them are numerically unstable or consumes several hours of computation, and few have publicly available open-source implementations.
+Many existing quad meshing algorithms rely heavily on Mixed Integer Programming (MIP) or Mixed Integer Non-Linear Programming (MINLP). These approaches typically require commercial solvers such as Gurobi, making them inaccessible to many users. While alternative algorithms exist, some of them are numerically unstable or consume several hours of computation, and few have publicly available open-source implementations.
 
 Metriko implements the Quantized Global Parameterization (QGP) algorithm, providing fast and robust quadrilateral parameterization. The algorithm guarantees a valid result and scales linearly with the number of vertices.
 
-![fertility](docs/qgp_1.jpg)
-
-## Current Features and Limitations
-Metriko is currently in early development. Available features include:
-- Globally optimal rotational symmetry tangent fields
-- Basic integration of tangent fields
-- Integer Grid Mapping (IGM) using an iterative rounding algorithm
-- T-mesh implementation based on the motorcycle graph
-- Quantization and mesh generation using T-mesh
-- Extraction of a quad mesh(QEx) from a locally-injective uv map
-
-Known limitations and issues:
-- Quantization results can vary in quality for coarse quads
-- Meshes with boundaries are currently not supported (planned for future support)
-- While the quantization is robust, the meshing technique is not yet optimized for coarse quads. The reparameterization scheme described in Lyon et al. (2021) is currently under implementation.
+## Pipeline
+1. Globally optimal 4-rosy tangent field, combed along a seam
+2. Integer grid map (IGM) by iterative rounding, locally injective
+3. Motorcycle graph of the IGM, giving the T-mesh
+4. Quantization of the T-mesh: integer lengths for every arc, no degenerate patch
+5. Collapse of the zero-length arcs and snapping of the T-mesh onto mesh vertices
+6. Cut along the T-mesh, Tutte embedding of every patch, then SLIM relaxation
+7. Quad extraction (QEx) and conformal relaxation of the quads on the input surface
+8. Every quad labelled with the T-mesh patch it lies in
 
 ## Usage
-Metriko is a header-only library with a minimal dependency on libigl (only the core features are required). To run a demo, install viewer (polyscope), and execute the following commands:
+Meshes with boundaries are currently not supported (planned). Metriko is header-only. It depends on [libigl](https://libigl.github.io/) (core only, which brings Eigen); if [SuiteSparse](https://github.com/DrTimothyAldenDavis/SuiteSparse) and OpenMP are found by CMake they are used automatically and the linear solves get significantly faster than with Eigen alone. The usage is simple: the library offers a single function "compute_quadrangulation".
+
+```cpp
+#include "metriko/lib.h"
+Eigen::MatrixXd V;   // vertices
+Eigen::MatrixXi F;   // triangles
+double scale = 0.01; // quad size
+auto res = metriko::compute_quadrangulation(V, F, scale);
+res->pos; // quad vertices
+res->idx; // quad faces
+res->val; // patch index of each quad
+```
+
+### Demo
+The demo in `example/` shows the input and the quads coloured by patch ([polyscope](https://polyscope.run/), as a submodule).
 ```
 git submodule update --init --recursive
-cd example
-mkdir build && cd build
-cmake .. 
-make
-./metriko_example ../models/icosphere.obj 0.03
+cmake -S example -B example/build
+cmake --build example/build --target example
+./example/build/example example/models/fertility.obj 0.01
 ```
-If SuiteSparse is installed on your machine, it will be automatically integrated via CMake, providing significantly faster matrix computations compared to Eigen.
+
+## Benchmark
+Wall time of `compute_quadrangulation`, including the quad relaxation. Apple M5, Apple clang 17 with `-O2`, SuiteSparse and OpenMP. `scale` is the quad edge length as a fraction of the bounding box diagonal.
+
+| mesh | vertices | triangles | scale | quads | time |
+|---|---:|---:|---:|---:|---:|
+| spot | 2,930 | 5,856 | 0.01 | 7,652 | 1.0 s |
+| fandisk | 6,475 | 12,946 | 0.01 | 10,277 | 0.8 s |
+| rocker-arm | 10,044 | 20,088 | 0.01 | 9,262 | 1.9 s |
+| elephant | 12,362 | 24,732 | 0.01 | 5,796 | 3.0 s |
+| bunny | 14,290 | 28,576 | 0.01 | 8,581 | 2.2 s |
+| gargoyle | 25,953 | 51,902 | 0.01 | 8,038 | 4.5 s |
+| dancer | 12,482 | 24,964 | 0.005 | 6,765 | 2.2 s |
+| bimba (decimated) | 12,322 | 24,640 | 0.005 | 34,479 | 2.3 s |
+| botijo | 12,441 | 24,898 | 0.005 | 32,691 | 4.0 s |
+| rolling stage | 12,448 | 24,920 | 0.005 | 41,749 | 2.5 s |
+| igea | 134,345 | 268,686 | 0.005 | 35,914 | 35.1 s |
+| bimba | 112,455 | 224,906 | 0.003 | 86,770 | 38.0 s |
 
 ## References
--  Bommes, D., Zimmer, H., Kobbelt, L. 2009. Mixedinteger quadrangulation. In Proc. SIGGRAPH 2009, 1–10. DOI: [10.1007/978-3-642-11620-9_5](https://doi.org/10.1007/978-3-642-11620-9_5)
-
-- Bommes, D., Campen, M., Ebke, H.-C., Alliez, P., Kobbelt, L. 2013. Integer-grid maps for reliable quad meshing. In Proc. SIGGRAPH 2013, 98:1–98:12. DOI: [10.1145/2461912.2462005](https://doi.org/10.1145/2461912.2462005)
-
-- Campen, M., Bommes, D., Kobbelt, L. 2015. Quantized global parametrization. ACM Trans. Graph 34(6), 192:1–192:12. DOI: [10.1145/2816795.2818140](https://doi.org/10.1145/2816795.2818140)
-
-- Eppstein, D., GOODRICH, M. T., Kim, E., Tamstorf, R. 2008. Motorcycle Graphs: Canonical Quad Mesh Partitioning. Computer Graphics Forum 27, 5, 1477–1486. DOI: [10.1111/j.1467-8659.2008.01288.x](https://doi.org/10.1111/j.1467-8659.2008.01288.x)
-
-- Knöppel, F., Crane, K., Pinkall, U. & Schröder, P. 2013 Globally optimal direction fields. ACM Trans. Graph. 32, 1–10. DOI: [10.1145/2461912.2462005](https://doi.org/10.1145/2461912.2462005)
-
-- Ebke, H.-C., Bommes, D., Campen, M., Kobbelt, L. 2013. QEx: Robust quad mesh extraction. ACM Trans. Graph. 32(6), Article 168, 1–10. DOI: [10.1145/2508363.2508372](https://doi.org/10.1145/2508363.2508372) 
-
-- Lyon, M., Campen, M., Bommes, D., Kobbelt, L. 2019. Parametrization quantization with free boundaries for trimmed quad meshing. ACM Trans. Graph. 38(4), 51:1–51:14. DOI: [10.1145/3306346.3323010](https://doi.org/10.1145/3306346.3323019)
-
-- Lyon, M., Campen, M., Kobbelt, L. 2021. Quad layouts via constrained T-mesh quantization. Comput. Graph. Forum 40(2), 263–275. DOI: [10.1111/cgf.14263]( https://doi.org/10.1111/cgf.142634)
-
+- Bommes et al. [Mixed-integer quadrangulation](https://doi.org/10.1145/1531326.1531383). SIGGRAPH 2009.
+- Bommes et al. [Integer-grid maps for reliable quad meshing](https://doi.org/10.1145/2461912.2462014). SIGGRAPH 2013.
+- Campen et al. [Quantized global parametrization](https://doi.org/10.1145/2816795.2818140). SIGGRAPH Asia 2015.
+- Ebke et al. [QEx: Robust quad mesh extraction](https://doi.org/10.1145/2508363.2508372). SIGGRAPH Asia 2013.
+- Eppstein et al. [Motorcycle graphs: canonical quad mesh partitioning](https://doi.org/10.1111/j.1467-8659.2008.01288.x). SGP 2008.
+- Knöppel et al. [Globally optimal direction fields](https://doi.org/10.1145/2461912.2462005). SIGGRAPH 2013.
+- Lyon et al. [Parametrization quantization with free boundaries for trimmed quad meshing](https://doi.org/10.1145/3306346.3323019). SIGGRAPH 2019.
+- Lyon et al. [Quad layouts via constrained T-mesh quantization](https://doi.org/10.1111/cgf.142634). Eurographics 2021.
+- Myles et al. [Robust field-aligned global parametrization](https://doi.org/10.1145/2601097.2601154). SIGGRAPH 2014.
+- Rabinovich et al. [Scalable locally injective mappings](https://doi.org/10.1145/2983621). TOG 2017.
+- Bouaziz et al. [Shape-Up: Shaping discrete geometry with projections](https://doi.org/10.1111/j.1467-8659.2012.03171.x). SGP 2012.

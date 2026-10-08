@@ -1,0 +1,84 @@
+//
+// Copyright (C) 2025 Saki Komikado <komietty@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+//
+#ifndef METRIKO_TYPEDEF_H
+#define METRIKO_TYPEDEF_H
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <complex>
+#include <functional>
+#include <iterator>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <queue>
+#include <ranges>
+#include <stack>
+#include <stdexcept>
+#include <format>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
+#include <Eigen/Geometry>
+#include <Eigen/Sparse>
+
+#define METRIKO_FAIL(...) throw std::runtime_error(std::format(__VA_ARGS__))
+#define METRIKO_CHECK(cond, ...) do { if (!(cond)) { __VA_OPT__(METRIKO_FAIL(__VA_ARGS__);) METRIKO_FAIL("{}", #cond); } } while (0)
+
+namespace metriko {
+constexpr double PI = M_PI;
+constexpr double TwoPI = 2 * M_PI;
+constexpr double EPS = 1e-9;
+using complex = std::complex<double>;
+using Row2i = Eigen::RowVector2i;
+using Row2d = Eigen::RowVector2d;
+using Row3i = Eigen::RowVector3i;
+using Row3d = Eigen::RowVector3d;
+using Mat2i = Eigen::Matrix2i;
+using Mat2d = Eigen::Matrix2d;
+using Vec2d = Eigen::Matrix<double, 2, 1>;
+using Vec3d = Eigen::Matrix<double, 3, 1>;
+using VecXi = Eigen::Matrix<int,     Eigen::Dynamic, 1>;
+using VecXb = Eigen::Matrix<bool,    Eigen::Dynamic, 1>;
+using VecXd = Eigen::Matrix<double,  Eigen::Dynamic, 1>;
+using VecXc = Eigen::Matrix<complex, Eigen::Dynamic, 1>;
+using SprsI = Eigen::SparseMatrix<int>;
+using SprsD = Eigen::SparseMatrix<double>;
+using SprsC = Eigen::SparseMatrix<complex>;
+using MatXi = Eigen::Matrix<int,     Eigen::Dynamic, Eigen::Dynamic>;
+using MatXd = Eigen::Matrix<double,  Eigen::Dynamic, Eigen::Dynamic>;
+using MatXc = Eigen::Matrix<complex, Eigen::Dynamic, Eigen::Dynamic>;
+using TripI = Eigen::Triplet<int>;
+using TripD = Eigen::Triplet<double>;
+using TripC = Eigen::Triplet<complex>;
+using MatX3d = Eigen::Matrix<double, Eigen::Dynamic, 3, Eigen::RowMajor>;
+using MatX3i = Eigen::Matrix<int,    Eigen::Dynamic, 3, Eigen::RowMajor>;
+
+namespace rg = std::ranges;
+namespace vw = std::views;
+template <class T> using vec = std::vector<T>;
+template <class S, class T, class... Rest> using umap = std::unordered_map<S, T, Rest...>;
+
+// common representation for range on an element
+struct Erng {
+    int    id = -1;
+    double fr = -1;
+    double to = -1;
+    bool   empty()        const { return fr >= to; }
+    double span()         const { return std::max(0., to - fr); }
+    double lerp(double t) const { return fr + (to - fr) * t; }
+
+    void clip(double lo, double hi) {
+        fr = std::max(fr, lo);
+        to = std::min(to, hi);
+    }
+};
+}
+#endif

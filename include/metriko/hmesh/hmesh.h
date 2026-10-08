@@ -1,0 +1,629 @@
+//
+// Copyright (C) 2025 Saki Komikado <komietty@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+//
+#ifndef METRIKO_HMESH_H
+#define METRIKO_HMESH_H
+#include <array>
+#include <igl/edge_topology.h>
+#include "metriko/common/typedef.h"
+#include "metriko/common/utilities.h"
+
+namespace metriko {
+struct Hmesh;
+struct Half;
+struct Vert;
+struct Edge;
+struct Face;
+struct Crnr;
+struct AdjVH; // Adjacency iterator for verts and halfs
+struct AdjVC; // Adjacency iterator for verts and crnrs
+struct AdjFH; // Adjacency iterator for faces and halfs
+struct AdjLH; // Adjacency iterator for loops and halfs
+template<typename N> struct AdjIter;
+
+struct Elem {
+    int id = -1;
+    Hmesh* m;
+    bool operator==(const Elem &rhs) const { return id == rhs.id; }
+};
+
+struct Face : Elem {
+    [[nodiscard]] Half half() const;
+    [[nodiscard]] Row3d basisX() const;
+    [[nodiscard]] Row3d basisY() const;
+    [[nodiscard]] Row3d normal() const;
+    [[nodiscard]] Row3d center() const;
+    [[nodiscard]] double area() const;
+    [[nodiscard]] Row3d uv2pos(complex uv) const;
+    [[nodiscard]] Row3d to_world(complex v) const;
+    [[nodiscard]] complex to_local(const Row3d& v) const;
+    [[nodiscard]] AdjIter<AdjFH> adjHalfs(bool ccw = true) const;
+    [[nodiscard]] AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true) const;
+    [[nodiscard]] std::array<Half, 3> halfs() const; // curr, next, prev
+    [[nodiscard]] std::array<Vert, 3> verts() const; // tails of halfs above
+    [[nodiscard]] std::array<Edge, 3> edges() const; // edges of halfs above
+    [[nodiscard]] std::array<Crnr, 3> crnrs() const; // crnrs of halfs above
+};
+
+struct Edge : Elem {
+    [[nodiscard]] Half half() const;
+    [[nodiscard]] Vert vert0() const;
+    [[nodiscard]] Vert vert1() const;
+    [[nodiscard]] Face face0() const;
+    [[nodiscard]] Face face1() const;
+    [[nodiscard]] double len() const;
+    [[nodiscard]] double cot() const;
+    [[nodiscard]] bool isBoundary() const;
+    [[nodiscard]] Row3d vec() const;
+    [[nodiscard]] Row3d nml() const;
+    [[nodiscard]] Row3d lerp(double r) const;
+};
+
+struct Vert : Elem {
+    [[nodiscard]] Half half() const;
+    [[nodiscard]] Row3d pos() const;
+    [[nodiscard]] Row3d basisX() const;
+    [[nodiscard]] Row3d basisY() const;
+    [[nodiscard]] Row3d normal() const;
+    [[nodiscard]] bool isBoundary() const;
+    [[nodiscard]] bool isInterior() const;
+    [[nodiscard]] double baryArea() const;
+    [[nodiscard]] double circArea() const;
+    [[nodiscard]] AdjIter<AdjVH> adjHalfs(bool ccw = true) const;
+    [[nodiscard]] AdjIter<AdjVH> adjHalfs(Half h, bool ccw = true) const;
+    [[nodiscard]] AdjIter<AdjVC> adjCrnrs(bool ccw = true) const; // crnrs of adjHalfs, one per half
+};
+
+struct Crnr : Elem {
+    [[nodiscard]] Half half() const;
+    [[nodiscard]] Vert vert() const;
+    [[nodiscard]] Face face() const;
+    [[nodiscard]] Crnr next() const; // next crnr of the same face in ccw
+    [[nodiscard]] Crnr prev() const; // prev crnr of the same face in ccw
+    [[nodiscard]] Row3d pos() const;
+    [[nodiscard]] complex uv() const;
+};
+
+struct Loop : Elem {
+    [[nodiscard]] Half half() const;
+    [[nodiscard]] AdjIter<AdjLH> adjHalfs(bool ccw = true) const;
+};
+
+struct Half : Elem {
+    [[nodiscard]] Half next() const;
+    [[nodiscard]] Half prev() const;
+    [[nodiscard]] Half twin() const;
+    [[nodiscard]] Vert tail() const;
+    [[nodiscard]] Vert head() const;
+    [[nodiscard]] Edge edge() const;
+    [[nodiscard]] Face face() const;
+    [[nodiscard]] Crnr crnr() const;
+    [[nodiscard]] Crnr cr_t() const;
+    [[nodiscard]] Crnr cr_h() const;
+    [[nodiscard]] double len()  const;
+    [[nodiscard]] double cot()  const;
+    [[nodiscard]] double varg() const;
+    [[nodiscard]] double farg() const;
+    [[nodiscard]] double darg() const;
+    [[nodiscard]] bool isBoundary()  const;
+    [[nodiscard]] bool isCanonical() const;
+    [[nodiscard]] Row3d vec() const;
+    [[nodiscard]] Row3d nml() const;
+    [[nodiscard]] Row3d lerp(double r) const;
+    [[nodiscard]] complex uv(double r) const;
+};
+
+struct Hmesh {
+    int nV;
+    int nF;
+    int nE;
+    int nH;
+    int nL;
+    int nC;
+    int nEularChars;
+
+    vec<int> vert2half;
+    vec<int> edge2half;
+    vec<int> face2half;
+    vec<int> loop2half;
+    vec<int> crnr2half;
+    vec<int> next;
+    vec<int> prev;
+    vec<int> twin;
+    vec<int> tail;
+    vec<int> head;
+    vec<int> edge;
+    vec<int> face;
+    vec<int> crnr;
+    vec<bool> isBV;
+    vec<Half> halfs;
+    vec<Vert> verts;
+    vec<Edge> edges;
+    vec<Face> faces;
+    vec<Loop> loops;
+    vec<Crnr> crnrs;
+    MatXd pos;
+    MatXi idx;
+    VecXc cfn;
+    MatXi edge2vert;
+    MatXi edge2face;
+    MatXi face2edge;
+    MatXd vertBasisX;
+    MatXd vertBasisY;
+    MatXd vertNormal;
+    MatXd faceBasisX;
+    MatXd faceBasisY;
+    MatXd faceNormal;
+    VecXd faceArea;
+    VecXd baryDualArea;
+    VecXd circDualArea;
+    VecXd halfCotan;
+    VecXd edgeCotan;
+    MatXd baryCenter;
+    VecXd angleDefect;
+    VecXd dihedralArg;
+    VecXd heArgOnVert;
+    VecXd heArgOnFace;
+    Hmesh(const MatXd& V, const MatXi& F, bool only_topology = false);
+};
+
+struct AdjBase {
+    using value_type      = Half;
+    using difference_type = std::ptrdiff_t;
+    Half h;
+    bool bgn;
+    bool ccw;
+    AdjBase() : h{-1, nullptr}, bgn(false), ccw(true) { }
+    AdjBase(Half h, bool ccw) : h(h), bgn(false), ccw(ccw) { }
+    Half operator*() const { return h; }
+    bool operator==(const AdjBase& a) const { return bgn && h.id == a.h.id; }
+};
+
+struct AdjVH : AdjBase {
+    AdjVH() = default;
+    AdjVH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
+    AdjVH& operator++() { h = ccw ? h.prev().twin() : h.twin().next(); bgn = true; return *this; }
+    AdjVH  operator++(int) { auto t = *this; ++*this; return t; }
+};
+
+struct AdjVC : AdjVH {
+    using value_type = Crnr;
+    using AdjVH::AdjVH;
+    Crnr operator*() const { return h.cr_t(); }
+    AdjVC& operator++() { AdjVH::operator++(); return *this; }
+    AdjVC  operator++(int) { auto t = *this; ++*this; return t; }
+};
+
+struct AdjFH: AdjBase {
+    AdjFH() = default;
+    AdjFH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
+    AdjFH& operator++() { h = ccw ? h.next() : h.prev(); bgn = true; return *this; }
+    AdjFH  operator++(int) { auto t = *this; ++*this; return t; }
+};
+
+struct AdjLH : AdjBase {
+    AdjLH() = default;
+    AdjLH(Hmesh* m, const int hid, bool ccw): AdjBase(Half{hid, m}, ccw) { }
+    AdjLH& operator++() { h = ccw ? h.next() : h.prev(); bgn = true; return *this; }
+    AdjLH  operator++(int) { auto t = *this; ++*this; return t; }
+};
+
+template<typename N>
+struct AdjIter {
+    AdjIter(Hmesh* m, int iX, bool ccw) : bgnNav(N(m, iX, ccw)), endNav(N(m, iX, ccw)) { }
+    N begin() { return bgnNav; }
+    N end()   { return endNav; }
+    N bgnNav, endNav;
+};
+}
+
+// ipp
+namespace metriko {
+inline Half Half::next() const { return {m->next[id], m}; }
+inline Half Half::prev() const { return {m->prev[id], m}; }
+inline Half Half::twin() const { return {m->twin[id], m}; }
+inline Vert Half::tail() const { return {m->tail[id], m}; }
+inline Vert Half::head() const { return {m->head[id], m}; }
+inline Edge Half::edge() const { return {m->edge[id], m}; }
+inline Face Half::face() const { return {m->face[id], m}; }
+inline Crnr Half::crnr() const { return {m->crnr[id], m}; }
+inline Crnr Half::cr_t() const { return next().crnr(); }
+inline Crnr Half::cr_h() const { return prev().crnr(); }
+
+inline Half Vert::half() const { return {m->vert2half[id], m}; }
+inline Half Edge::half() const { return {m->edge2half[id], m}; }
+inline Half Face::half() const { return {m->face2half[id], m}; }
+inline Half Loop::half() const { return {m->loop2half[id], m}; }
+
+inline Half Crnr::half() const { return Half{m->crnr2half[id], m}; }
+inline Vert Crnr::vert() const { return Half{m->crnr2half[id], m}.prev().tail(); }
+inline Face Crnr::face() const { return Half{m->crnr2half[id], m}.face(); }
+inline Crnr Crnr::next() const { return half().cr_t(); }
+inline Crnr Crnr::prev() const { return half().cr_h(); }
+
+inline Vert Edge::vert0() const { return {m->edge2vert(id, 0), m}; }
+inline Vert Edge::vert1() const { return {m->edge2vert(id, 1), m}; }
+inline Face Edge::face0() const { return {m->edge2face(id, 0), m}; }
+inline Face Edge::face1() const { return {m->edge2face(id, 1), m}; }
+
+inline bool Half::isCanonical() const { return edge().half().id == id; }
+
+inline bool Half::isBoundary()  const { return face().id == -1; }
+inline bool Vert::isBoundary()  const { return  m->isBV[id]; }
+inline bool Vert::isInterior()  const { return !m->isBV[id]; }
+inline bool Edge::isBoundary()  const { return half().isBoundary() || half().twin().isBoundary(); }
+
+inline double Edge::len() const { return Half{m->edge2half[id], m}.len(); }
+inline double Half::len() const { return vec().norm(); }
+inline double Half::cot() const { return m->halfCotan[id]; }
+inline double Edge::cot() const { return m->edgeCotan[id]; }
+inline double Half::varg() const { return m->heArgOnVert[id]; }
+inline double Half::farg() const { return m->heArgOnFace[id]; }
+inline double Half::darg() const { return m->dihedralArg[id]; }
+inline double Face::area() const { return m->faceArea[id]; }
+inline double Vert::baryArea() const { return m->baryDualArea[id]; }
+inline double Vert::circArea() const { return m->circDualArea[id]; }
+inline Row3d Half::vec() const { return head().pos()  - tail().pos();  }
+inline Row3d Half::nml() const { Row3d d = face().normal() + twin().face().normal(); return d.norm() > 0 ? d.normalized() : Row3d::Zero(); }
+inline Row3d Edge::nml() const { Row3d d = face0().normal() + face1().normal();      return d.norm() > 0 ? d.normalized() : Row3d::Zero(); }
+inline Row3d Edge::vec() const { return vert1().pos() - vert0().pos(); }
+inline Row3d Vert::pos() const { return m->pos.row(id); }
+inline Row3d Crnr::pos() const { return vert().pos(); }
+inline Row3d Vert::basisX() const { return m->vertBasisX.row(id); }
+inline Row3d Vert::basisY() const { return m->vertBasisY.row(id); }
+inline Row3d Vert::normal() const { return m->vertNormal.row(id); }
+inline Row3d Face::basisX() const { return m->faceBasisX.row(id); }
+inline Row3d Face::basisY() const { return m->faceBasisY.row(id); }
+inline Row3d Face::normal() const { return m->faceNormal.row(id); }
+inline Row3d Face::center() const { return m->baryCenter.row(id); }
+inline Row3d Edge::lerp(double r) const { return vert0().pos() * (1 - r) + vert1().pos() * r; }
+inline Row3d Half::lerp(double r) const { return tail().pos()  * (1 - r) + head().pos()  * r; }
+
+inline complex Crnr::uv() const { return m->cfn(id); }
+inline complex Half::uv(double r) const { return metriko::lerp(cr_t().uv(), cr_h().uv(), r); }
+
+inline complex Face::to_local(const Row3d& v) const { Row3d d = v - half().tail().pos(); return {d.dot(basisX()), d.dot(basisY())}; }
+inline Row3d Face::to_world(complex v) const { return half().tail().pos() + basisX() * v.real() + basisY() * v.imag(); }
+inline Row3d Face::uv2pos(complex uv) const { auto [a, b, c] = crnrs(); return conversion_2d_3d(a.uv(), b.uv(), c.uv(), a.pos(), b.pos(), c.pos(), uv); }
+
+inline std::array<Half, 3> Face::halfs() const { Half h = half(); return {h, h.next(), h.prev()}; }
+inline std::array<Vert, 3> Face::verts() const { auto [h0, h1, h2] = halfs(); return {h0.tail(), h1.tail(), h2.tail()}; }
+inline std::array<Edge, 3> Face::edges() const { auto [h0, h1, h2] = halfs(); return {h0.edge(), h1.edge(), h2.edge()}; }
+inline std::array<Crnr, 3> Face::crnrs() const { auto [h0, h1, h2] = halfs(); return {h0.crnr(), h1.crnr(), h2.crnr()}; }
+
+inline AdjIter<AdjVH> Vert::adjHalfs(bool ccw) const { return {m, m->vert2half[id], ccw}; }
+inline AdjIter<AdjFH> Face::adjHalfs(bool ccw) const { return {m, m->face2half[id], ccw}; }
+inline AdjIter<AdjLH> Loop::adjHalfs(bool ccw) const { return {m, m->loop2half[id], ccw}; }
+inline AdjIter<AdjVC> Vert::adjCrnrs(bool ccw) const { return {m, m->vert2half[id], ccw}; }
+inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) const { METRIKO_CHECK(h.tail().id == id, "half {} is not on vert {}", h.id, id); return {m, h.id, ccw}; }
+inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) const { METRIKO_CHECK(h.face().id == id, "half {} is not on face {}", h.id, id); return {m, h.id, ccw}; }
+
+inline void dcel(
+    const VecXi &D,
+    const MatXi &F,
+    const MatXi &EV,
+    const MatXi &EF,
+    const MatXi &EFi,
+    VecXi &VH,
+    MatXi &EH,
+    MatXi &FH,
+    VecXi &HV,
+    VecXi &HE,
+    VecXi &HF,
+    VecXi &nextH,
+    VecXi &prevH,
+    VecXi &twinH
+) {
+    EH = MatXi::Constant(EV.rows(), 2, -1);
+    int numH = 0;
+
+    for (int i = 0; i < EF.rows(); i++) {
+        if (EF(i, 0) != -1) EH(i, 0) = numH++;
+        if (EF(i, 1) != -1) EH(i, 1) = numH++;
+    }
+
+    HE.conservativeResize(numH);
+    for (int i = 0; i < EH.rows(); i++) {
+        if (EH(i, 0) != -1) HE(EH(i, 0)) = i;
+        if (EH(i, 1) != -1) HE(EH(i, 1)) = i;
+    }
+
+    HV.conservativeResize(numH);
+    VH.conservativeResize(EV.maxCoeff() + 1);
+    for (int i = 0; i < EV.rows(); i++) {
+        if (EH(i, 0) != -1) { HV(EH(i, 0)) = EV(i, 0); VH(EV(i, 0)) = EH(i, 0); }
+        if (EH(i, 1) != -1) { HV(EH(i, 1)) = EV(i, 1); VH(EV(i, 1)) = EH(i, 1); }
+    }
+
+    twinH = Eigen::VectorXi::Constant(numH, -1);
+    for (int i = 0; i < EH.rows(); i++)
+        if (EH(i, 0) != -1 && EH(i, 1) != -1) {
+            twinH(EH(i, 0)) = EH(i, 1);
+            twinH(EH(i, 1)) = EH(i, 0);
+        }
+
+    FH.resize(F.rows(), F.cols());
+    HF.resize(numH);
+    for (int i = 0; i < EF.rows(); i++) {
+        if (EF(i, 0) != -1) { FH(EF(i, 0), EFi(i, 0)) = EH(i, 0); HF(EH(i, 0)) = EF(i, 0); }
+        if (EF(i, 1) != -1) { FH(EF(i, 1), EFi(i, 1)) = EH(i, 1); HF(EH(i, 1)) = EF(i, 1); }
+    }
+
+    nextH.conservativeResize(HE.rows());
+    prevH.conservativeResize(HE.rows());
+    for (int i = 0; i < D.rows(); i++) {
+        for (int j = 0; j < D(i); j++) {
+            nextH(FH(i, j)) = FH(i, (j + 1) % D(i));
+            prevH(FH(i, (j + 1) % D(i))) = FH(i, j);
+        }
+    }
+}
+
+inline Hmesh::Hmesh(
+    const MatXd &V,
+    const MatXi &F,
+    bool only_topology
+) {
+    igl::edge_topology(V, F, edge2vert, face2edge, edge2face);
+    pos = V;
+    idx = F;
+    nV = static_cast<int>(pos.rows());
+    nF = static_cast<int>(idx.rows());
+    nE = static_cast<int>(edge2vert.rows());
+    nH = static_cast<int>(edge2vert.rows() * 2);
+    nC = nF * 3;
+    nEularChars = nV - nE + nF;
+    vert2half.assign(nV, -1);
+    edge2half.assign(nE, -1);
+    face2half.assign(nF, -1);
+    crnr2half.assign(nC, -1);
+    next.assign(nH, -1);
+    prev.assign(nH, -1);
+    twin.assign(nH, -1);
+    head.assign(nH, -1);
+    tail.assign(nH, -1);
+    edge.assign(nH, -1);
+    face.assign(nH, -1);
+    crnr.assign(nH, -1);
+
+    int nP = static_cast<int>(idx.cols());
+    auto pair = [&](int a, int b) {
+        twin[a] = b;
+        twin[b] = a;
+    };
+
+    // option 1
+    //for (int iF = 0; iF < nF; ++iF) {
+    //    for (int iP = 0, iHbgn = iF * nP; iP < nP; ++iP) {
+    //        int iV = idx(iF, iP);
+    //        int iE = face2edge(iF, iP);
+    //        int iH = iHbgn + iP;
+    //        next[iH] = iHbgn + (iP + 1) % nP;
+    //        prev[iH] = iHbgn + (iP - 1 + nP) % nP;
+    //        head[iH] = idx(iF, (iP + 1) % nP);
+    //        tail[iH] = iV;
+    //        edge[iH] = iE;
+    //        face[iH] = iF;
+    //        if (face2half[iF] == -1) face2half[iF] = iH;
+    //        if (vert2half[iV] == -1) vert2half[iV] = iH;
+    //        if (edge2half[iE] == -1) edge2half[iE] = iH;
+    //        else pair(iH, edge2half[iE]);
+    //    }
+    //}
+
+    // set up topology
+    MatXi EFi, EH, FH;
+    VecXi VH, HV, HE, HF, nextH, prevH, twinH;
+    VecXi D = VecXi::Constant(idx.rows(), 3);
+    EFi = MatXi::Constant(edge2face.rows(), 2, -1); // number of an edge inside the face
+    for (int i = 0; i < edge2face.rows(); i++) {
+        for (int k = 0; k < 2; k++) {
+            if (edge2face(i, k) == -1) continue;
+            for (int j = 0; j < 3; j++) if (face2edge(edge2face(i, k), j) == i) EFi(i, k) = j;
+        }
+    }
+    dcel(D, idx, edge2vert, edge2face, EFi, VH, EH, FH, HV, HE, HF, nextH, prevH, twinH);
+
+    for (int iV = 0; iV < nV; ++iV) vert2half[iV] = VH[iV];
+    for (int iE = 0; iE < nE; ++iE) edge2half[iE] = EH.row(iE)[0];
+    for (int iF = 0; iF < nF; ++iF) face2half[iF] = FH.row(iF)[0];
+    for (int iH = 0; iH < HV.rows(); ++iH) {
+        head[iH] = HV[nextH[iH]];
+        tail[iH] = HV[iH];
+        edge[iH] = HE[iH];
+        face[iH] = HF[iH];
+        next[iH] = nextH[iH];
+        prev[iH] = prevH[iH];
+        if (twinH[iH] != -1) twin[iH] = twinH[iH];
+    }
+
+    // setup boundaries
+    for (int iH = 0, iB = nF * nP; iH < nF * nP; ++iH) {
+        if (twin[iH] != -1)
+            continue;
+        int jH = iH;
+        int jB = iB;
+        while (true) {
+            tail[iB] = head[jH];
+            head[iB] = tail[jH];
+            edge[iB] = edge[jH];
+            prev[iB] = iB - 1;
+            next[iB] = iB + 1;
+            pair(jH, iB);
+
+            jH = prev[jH];
+            while (twin[jH] != -1) {
+                if (jH == iH) goto loop_done;
+                jH = prev[twin[jH]];
+            }
+            iB++;
+        }
+    loop_done:
+        prev[jB] = iB;
+        next[iB] = jB;
+        loop2half.push_back(jB);
+        iB++;
+    }
+    nL = static_cast<int>(loop2half.size());
+
+    // setup edge->half on boundary
+    for (int iE = 0; iE < nE; ++iE) if (edge2half[iE] == -1) edge2half[iE] = twin[EH.row(iE)[1]];
+
+    for (int iL = 0; iL < nL; ++iL) loops.emplace_back(Loop{iL, this});
+    for (int iF = 0; iF < nF; ++iF) faces.emplace_back(Face{iF, this});
+    for (int iV = 0; iV < nV; ++iV) verts.emplace_back(Vert{iV, this});
+    for (int iE = 0; iE < nE; ++iE) edges.emplace_back(Edge{iE, this});
+    for (int iH = 0; iH < nH; ++iH) halfs.emplace_back(Half{iH, this});
+    for (int iC = 0; iC < nC; ++iC) crnrs.emplace_back(Crnr{iC, this});
+
+    // setup crnr_half & half_crnr
+    for (int iF = 0; iF < nF; ++iF) {
+        for (int it = 0; it < 3; ++it) {
+            int vid = F(iF, it);
+            int cid = iF * 3 + it;
+            for (Half h: faces[iF].halfs()) {
+                if (h.tail().id != vid && h.head().id != vid) {
+                    crnr2half[cid] = h.id;
+                    crnr[h.id] = cid;
+                }
+            }
+        }
+    }
+
+    // set up a filter to check whether a vertex is on boundary or not
+    isBV.assign(nV, false);
+    for (Edge e: edges) {
+        if (e.isBoundary()) {
+            isBV[e.half().tail().id] = true;
+            isBV[e.half().head().id] = true;
+        }
+    }
+
+    if (only_topology) return;
+
+    vertNormal.setZero(nV, 3);
+    vertBasisX.setZero(nV, 3);
+    vertBasisY.setZero(nV, 3);
+    faceBasisX.setZero(nF, 3);
+    faceBasisY.setZero(nF, 3);
+    faceNormal.setZero(nF, 3);
+    faceArea.resize(nF);
+    halfCotan.resize(nH);
+    edgeCotan.resize(nE);
+    angleDefect.resize(nV);
+    dihedralArg.resize(nH);
+    heArgOnVert.resize(nH);
+    heArgOnFace.resize(nH);
+    baryCenter.resize(nF, 3);
+    baryDualArea.resize(nV);
+    circDualArea.resize(nV);
+
+    for (Face f: faces) {
+        Row3d x = f.half().vec();
+        Row3d t = f.half().prev().vec() * -1;
+        Row3d n = x.cross(t);
+        Row3d p = Row3d::Zero();
+
+        // set up  basis of face
+        faceBasisX.row(f.id) = x.normalized();
+        faceBasisY.row(f.id) = -x.cross(n).normalized();
+        faceNormal.row(f.id) = n.normalized();
+
+        // set up barycenter of face
+        for (Half h: f.adjHalfs()) p += h.tail().pos();
+        baryCenter.row(f.id) = p / nP;
+
+        // set up area of face
+        faceArea[f.id] = n.norm() * 0.5;
+    }
+
+    // set up halfedge angle on face coordinate
+    for (Face f: faces) {
+        double sum = 0;
+        for (Half h: f.adjHalfs()) {
+            Row3d v1 = h.vec().normalized();
+            Row3d v2 = h.prev().vec().normalized();
+            if ((v1 - f.basisX()).norm() > 1e-10) sum += acos(v1.dot(v2));
+            heArgOnFace[h.id] = sum;
+        }
+    }
+
+    // set up vertex orthogonal coordinate
+    for (int iF = 0; iF < nF; ++iF) {
+        for (int iP = 0; iP < nP; iP++) {
+            int i_curr = idx(iF, iP);
+            int i_next = idx(iF, (iP + nP + 1) % nP);
+            int i_prev = idx(iF, (iP + nP - 1) % nP);
+            Row3d d0 = (pos.row(i_next) - pos.row(i_curr)).normalized();
+            Row3d d1 = (pos.row(i_prev) - pos.row(i_curr)).normalized();
+            double d = d1.dot(d0);
+            double phi;
+            if      (d >=  1) phi = 0;
+            else if (d <= -1) phi = PI;
+            else              phi = acos(d);
+            vertNormal.row(idx(iF, iP)).array() += faceNormal.row(iF).array() * phi;
+        }
+    }
+    vertNormal.rowwise().normalize();
+
+    for (Vert v: verts) {
+        Row3d v_ = pos.row(v.half().head().id) - pos.row(v.id);
+        Row3d n = vertNormal.row(v.id);
+        Row3d x = (v_ - v_.dot(n) * n).normalized();
+        vertBasisX.row(v.id) = x;
+        vertBasisY.row(v.id) = n.cross(x);
+    }
+
+    // set up a dihedral angle for each halfedge
+    for (Half h: halfs) {
+        if (h.edge().isBoundary()) { dihedralArg[h.id] = 0; continue; }
+        Row3d n1 = faceNormal.row(h.face().id);
+        Row3d n2 = faceNormal.row(h.twin().face().id);
+        Row3d v = h.vec() / h.len();
+        Row3d c = n1.cross(n2);
+        dihedralArg[h.id] = atan2(v.dot(c), n1.dot(n2));
+    }
+
+    // set up halfedge cotan and edge cotan
+    for (Half h: halfs) {
+        if (h.isBoundary()) { halfCotan[h.id] = 0.; continue; }
+        Row3d vn = h.next().vec();
+        Row3d vp = h.prev().vec() * -1;
+        halfCotan[h.id] = vp.dot(vn) / vp.cross(vn).norm();
+    }
+    for (Edge e: edges) {
+        edgeCotan[e.id] = (e.half().cot() + e.half().twin().cot()) * 0.5;
+    }
+
+    // set up dual area of vertex
+    for (Vert v: verts) {
+        double a1 = 0.;
+        double a2 = 0.;
+        for (Half h: v.adjHalfs()) {
+            if (h.face().id != -1) a1 += faceArea[h.face().id];
+            a2 += h.cot() * h.vec().squaredNorm();
+            a2 += h.prev().cot() * h.prev().vec().squaredNorm();
+        }
+        baryDualArea[v.id] = a1 / 3.;
+        circDualArea[v.id] = a2 * 0.125;
+    }
+
+    // set up halfedge angle on vertex coordinate, and angle defect on vertex
+    for (Vert v: verts) {
+        double sum = 0;
+        for (Half h: v.adjHalfs()) {
+            heArgOnVert[h.id] = sum;
+            Row3d v1 = h.vec().normalized();
+            Row3d v2 = h.prev().twin().vec().normalized();
+            sum += acos(v1.dot(v2));
+        }
+        angleDefect[v.id] = v.isBoundary() ? PI - sum : TwoPI - sum;
+        for (Half h: v.adjHalfs()) heArgOnVert[h.id] *= TwoPI / sum;
+    }
+}
+}
+#endif
