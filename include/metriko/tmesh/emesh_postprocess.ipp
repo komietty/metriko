@@ -40,6 +40,24 @@ inline void Emesh::collapse_tedge_snap(bool flag) {
         // only the consecutive run of in-star nodes at the joint end is trimmed: not leave and come back case...
         for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; j = 0;               while (j + 1 < nids.size() && is_in_star(v, tnodes[nids[j + 1]])) ++j; }
         for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; j = nids.size() - 1; while (j > 0               && is_in_star(v, tnodes[nids[j - 1]])) --j; }
+
+        // todo: apply this
+        // the legs the snap leaves: from v to the first node each joint tedge keeps. they must not cross or touch any
+        // other segment (the trimmed part of their own tedge aside), or the contact is one the repair cannot undo
+        // struct Leg { int teid; int keep; int k0; int k1; }; // the kept node, and the replaced segments [k0, k1)
+        // vec<Leg> legs;
+        // for (auto& [i, j]: te_tails) { int n = tedges[i].nids.size(); int p = std::min(std::max(j, 1), n - 1); legs.emplace_back(i, p, 0, p); }
+        // for (auto& [i, j]: te_heads) { int n = tedges[i].nids.size(); int p = std::max(std::min(j, n - 2), 0); legs.emplace_back(i, p, p, n - 1); }
+        // for (auto& [lt, keep, k0, k1]: legs) {
+        //     const HmLoc& l = tnodes[tedges[lt].nids[keep]];
+        //     for (Face g: v.adjHalfs() | vw::transform(&Half::face) | vw::filter([&](auto g) { return is_in_face(g, l); })) {
+        //         for (auto& [id, ns]: live_tedges()) {
+        //             for (int k = 0; k + 1 < ns.size(); ++k) {
+        //                 if (rg::any_of(legs, [&](const Leg& o) { return o.teid == id && k >= o.k0 && k < o.k1; })) continue;
+        //                 if (has_contact(g, l, HmLocOnV{v.id}, tnodes[ns[k]], tnodes[ns[k + 1]])) return;
+        //             }}}
+        // }
+
         for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; if (j >= 2)              nids.erase(nids.begin() + 1, nids.begin() + j);   }
         for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; if (j + 2 < nids.size()) nids.erase(nids.begin() + j + 1, nids.end() - 1); }
         tnodes[nid] = HmLocOnV{.id = v.id};
