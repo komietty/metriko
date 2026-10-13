@@ -97,7 +97,7 @@ public:
         xCurr = x;
         xInit = x;
         xPrev = x;
-        return fixedIdcs.empty() ? -1. : (v.array() - v.array().round()).abs().maxCoeff() <= 10e-7;
+        return fixedIdcs.empty() || (v.array() - v.array().round()).abs().maxCoeff() <= 10e-7;
     }
 
     SeamlessIntegration(

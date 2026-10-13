@@ -120,7 +120,7 @@ namespace metriko {
             const SprsD Z   = sparse_null_space(constMat, fixedVals, xp);
             const SprsD Ey  = Z.transpose() * E * Z;
             const VecXd rhs = Z.transpose() * (f - E * xp);
-            SparseLLT llt(Ey);
+            SparseLLT<SprsD> llt(Ey); // type annotation is needed for wasm
             const VecXd y = llt.solve(rhs);
             // a (nearly) singular E passes the factorization but not the solve
             if (llt.info() == Eigen::Success && y.allFinite() && (Ey * y - rhs).norm() <= 1e-8 * std::max(rhs.norm(), 1.)) { XSmall = xp + Z * y; }
