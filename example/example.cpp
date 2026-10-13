@@ -5,6 +5,7 @@
 #include <igl/readOBJ.h>
 #include <polyscope/surface_mesh.h>
 #include <polyscope/curve_network.h>
+#include <GLFW/glfw3.h>
 #include "metriko/lib.h"
 
 using namespace metriko;
@@ -135,6 +136,7 @@ int main(int argc, char** argv) {
     polyscope::options::giveFocusOnShow = true;   // bring the window to the front on show (off by default)
     polyscope::options::programName = "metriko";   // the window title
     polyscope::init();
+    glfwMaximizeWindow(glfwGetCurrentContext());   // the window fills the screen
     polyscope::view::bgColor = std::array<float, 4>{0.02, 0.02, 0.02, 1};
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
     auto* base = polyscope::registerSurfaceMesh("base mesh", V, F);
@@ -155,12 +157,13 @@ int main(int argc, char** argv) {
     apply();
     polyscope::state::userCallback = [&] {
         if (ImGui::IsKeyPressed(ImGuiKey_Space, false)) { view = (view + 1) % views.size(); apply(); }
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) polyscope::unshow();
         const ImVec2 size = ImGui::GetIO().DisplaySize;
         constexpr float margin = 24;
         ImGui::SetNextWindowPos({margin, size.y - margin - 30});
         ImGui::SetNextWindowSize({size.x - 2 * margin, 30});
         ImGui::Begin("help", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
-        ImGui::Text("press space to switch to the %s", views[(view + 1) % views.size()].c_str());
+        ImGui::Text("press space to switch to the %s, escape to quit", views[(view + 1) % views.size()].c_str());
         ImGui::End();
     };
     polyscope::show();
