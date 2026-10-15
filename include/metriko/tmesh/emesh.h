@@ -17,7 +17,6 @@ namespace metriko {
 struct Emesh;
 struct Equad;
 struct Chart;
-struct Xf;
 
 struct Tqpoint {
     int    nid = -1; // tnode of this point
@@ -221,7 +220,6 @@ struct Emesh {
     // a region bounded by the thalfs, unfolded into one chart, and the path between two of its boundary nodes
     Chart unfold(const vec<int>& thids) const;
     vec<HmLoc> retrace(const Chart& c, int a, int b) const;
-    vec<std::pair<Face, Xf>> fan(const HmLoc& loc, Face f, Xf xf, Face stop) const;
 
     auto live_tedges()       { return tedges | vw::filter([](      Eedge& te) { return te.id != -1; }); }
     auto live_tquads()       { return tquads | vw::filter([](      Equad& tq) { return tq.id != -1; }); }

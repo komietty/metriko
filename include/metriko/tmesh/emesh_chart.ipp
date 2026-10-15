@@ -14,7 +14,7 @@ namespace metriko {
 
 constexpr double CHART_HAIR = 1e-4;   // how far a path bend is pushed off the boundary, in grid units
 
-// a transition of the integer-grid map between two charts: uv' = rot * uv + off, rot a power of i
+// a transition between two charts of the integer-grid map: uv' = rot * uv + off, rot a power of i
 struct Xf {
     complex rot = 1;
     complex off = 0;
@@ -23,34 +23,64 @@ struct Xf {
     Xf inv() const { return {1. / rot, -off / rot}; }
 };
 
-// uv_f = T(uv_g) for the faces f, g across the edge e
-inline Xf transition(const Hmesh& hm, Face f, Face g, Edge e) {
-    auto uf = [&](Vert v) { return try_get_crnr(hm, v.id, f.id).value().uv(); };
-    auto ug = [&](Vert v) { return try_get_crnr(hm, v.id, g.id).value().uv(); };
-    const complex d   = (uf(e.vert1()) - uf(e.vert0())) / (ug(e.vert1()) - ug(e.vert0()));
-    const complex rot = std::polar(1., PI / 2 * std::lround(std::arg(d) / (PI / 2)));
-    return {rot, uf(e.vert0()) - rot * ug(e.vert0())};
-}
+// a face placed in the chart: uv in the chart = x(uv in the face)
+struct Pface {
+    Face f;
+    Xf   x = {};
 
-// the uv of a location in the chart of face fid
-inline complex face_uv(const Hmesh& hm, const HmLoc& loc, int fid) {
-    if (auto* l = std::get_if<HmLocOnF>(&loc)) {
-        Face f = hm.faces[fid];
-        auto [a, b, c] = f.verts();
-        auto uv = [&](Vert v) { return try_get_crnr(hm, v.id, fid).value().uv(); };
-        const complex w = calc_coefficient(f.to_local(a.pos()), f.to_local(b.pos()), f.to_local(c.pos()), l->xy);
-        return uv(a) + (uv(b) - uv(a)) * w.real() + (uv(c) - uv(a)) * w.imag();
+    complex uv(Vert v) const { return x(try_get_crnr(*f.m, v.id, f.id).value().uv()); }
+    complex uv(const HmLoc& loc) const {
+        return std::visit(overloaded{
+            [&](const HmLocOnV& l) { return uv(f.m->verts[l.id]); },
+            [&](const HmLocOnE& l) { Edge e = f.m->edges[l.id]; return lerp(uv(e.vert0()), uv(e.vert1()), l.r); },
+            [&](const HmLocOnF& l) {
+                auto [a, b, c] = f.verts();
+                const complex w = calc_coefficient(f.to_local(a.pos()), f.to_local(b.pos()), f.to_local(c.pos()), l.xy);
+                return uv(a) + (uv(b) - uv(a)) * w.real() + (uv(c) - uv(a)) * w.imag();
+            },
+            [&](const auto& l) -> complex { METRIKO_FAIL("{} has no uv", loc_str(l)); },
+        }, loc);
     }
-    return get_face_uv(loc, fid, hm);
+    std::array<complex, 3> corners() const { auto [a, b, c] = f.verts(); return {uv(a), uv(b), uv(c)}; }   // corner k is the tail of halfs()[k]
+    double depth(complex q) const {   // how far inside the face (negative outside)
+        auto [a, b, c] = corners();
+        return std::min({side_distance(a, b, q), side_distance(b, c, q), side_distance(c, a, q)});
+    }
+
+    // the face across the edge e, placed so that the two agree along e
+    Pface across(Edge e) const {
+        const Face g  = e.face0() == f ? e.face1() : e.face0();
+        const Pface p = {g};
+        const complex d   = (uv(e.vert1()) - uv(e.vert0())) / (p.uv(e.vert1()) - p.uv(e.vert0()));
+        const complex rot = std::polar(1., PI / 2 * std::lround(std::arg(d) / (PI / 2)));
+        return {g, {rot, uv(e.vert0()) - rot * p.uv(e.vert0())}};
+    }
+    // the faces around the vertex v, counter-clockwise from this one up to stop (all of them when stop is f)
+    vec<Pface> around(Vert v, Face stop) const {
+        vec<Pface> res = {*this};
+        const Half h = try_get_crnr(*f.m, v.id, f.id).value().half().prev();   // the half of f leaving v
+        for (Half g: v.adjHalfs(h)) {   // g.edge() leads from the previous face into g.face()
+            if (g.face() == f) continue;
+            res.push_back(res.back().across(g.edge()));
+            if (g.face() == stop) break;
+        }
+        return res;
+    }
+};
+
+// the faces a line may run into from a node of p: both sides of an edge node, the fan of a vertex node up to stop
+inline vec<Pface> fan(const Hmesh& hm, const HmLoc& loc, const Pface& p, Face stop) {
+    if (auto* e = std::get_if<HmLocOnE>(&loc)) return {p, p.across(hm.edges[e->id])};
+    if (auto* v = std::get_if<HmLocOnV>(&loc)) return p.around(hm.verts[v->id], stop);
+    return {p};
 }
 
 // the boundary of a region as a polygon in one chart. the region lies on the left of the boundary
 struct Chart {
-    vec<int>     nids;   // the boundary nodes in order
-    vec<complex> uvs;    // their uv in the chart
-    vec<int>     fids;   // the face carrying the segment nids[k] -> nids[k + 1]
-    vec<Xf>      xfs;    // uv of that face -> uv of the chart
-    vec<int>     heads;  // the k-th thalf of the boundary starts at nids[heads[k]]
+    vec<int>     nids;    // the boundary nodes in order
+    vec<complex> uvs;     // their uv in the chart
+    vec<Pface>   faces;   // faces[k] carries the segment nids[k] -> nids[k + 1]
+    vec<int>     heads;   // the k-th thalf of the boundary starts at nids[heads[k]]
 
     int n()         const { return nids.size(); }
     int next(int i) const { return (i + 1) % n(); }
@@ -63,27 +93,6 @@ struct Chart {
     }
 };
 
-// the faces around a node with their transforms: counter-clockwise from f up to stop (all of them when stop is f).
-// at a boundary node, from the segment leaving it to the segment entering it is the inside wedge; a singular
-// vertex is only ever met there, and the other way round would pick up its holonomy
-inline vec<std::pair<Face, Xf>> Emesh::fan(const HmLoc& loc, Face f, Xf xf, Face stop) const {
-    vec<std::pair<Face, Xf>> res = {{f, xf}};
-    if (auto* e = std::get_if<HmLocOnE>(&loc)) {
-        Edge ed = hm.edges[e->id];
-        Face g  = ed.face0() == f ? ed.face1() : ed.face0();
-        res.emplace_back(g, xf * transition(hm, f, g, ed));
-    }
-    if (auto* v = std::get_if<HmLocOnV>(&loc)) {
-        Half h = try_get_crnr(hm, v->id, f.id).value().half().prev();   // the half of f leaving the vertex
-        for (Half g: hm.verts[v->id].adjHalfs(h)) {                      // g.edge() leads from the previous face into g.face()
-            if (g.face() == f) continue;
-            res.emplace_back(g.face(), res.back().second * transition(hm, res.back().first, g.face(), g.edge()));
-            if (g.face() == stop) break;
-        }
-    }
-    return res;
-}
-
 inline Chart Emesh::unfold(const vec<int>& thids) const {
     Chart c;
     for (int thid: thids) {   // the nodes of each thalf in its direction, its last node left to the next thalf
@@ -94,37 +103,29 @@ inline Chart Emesh::unfold(const vec<int>& thids) const {
         c.nids.insert(c.nids.end(), ns.begin(), ns.end() - 1);
     }
     const int n = c.n();
+    auto face_of = [&](int k) {   // a face carrying segment k (either one when it runs along a mesh edge)
+        auto f = try_get_face(hm, tnodes[c.nids[k]], tnodes[c.nids[c.next(k)]]);
+        METRIKO_CHECK(f, "boundary segment {} -> {} lies in no face", loc_str(tnodes[c.nids[k]]), loc_str(tnodes[c.nids[c.next(k)]]));
+        return *f;
+    };
 
-    // the face of every segment. a segment along a mesh edge takes the face on its left
-    for (int k = 0; k < n; ++k) {
-        const HmLoc& a = tnodes[c.nids[k]];
-        const HmLoc& b = tnodes[c.nids[c.next(k)]];
-        if (auto e = try_get_edge(hm, a, b)) {
-            auto t = [&](const HmLoc& l) { auto* v = std::get_if<HmLocOnV>(&l); return v ? (v->id == e->vert0().id ? 0. : 1.) : std::get<HmLocOnE>(l).r; };
-            c.fids.push_back((t(a) < t(b) ? e->half() : e->half().twin()).face().id);
-        } else {
-            auto f = try_get_face(hm, a, b);
-            METRIKO_CHECK(f, "boundary segment {} -> {} lies in no face", loc_str(a), loc_str(b));
-            c.fids.push_back(f->id);
-        }
-    }
-
-    // the transform of every face: the chart is the first face, the next ones are reached through the shared node
-    c.xfs.push_back({});
+    // the faces are placed one after the other through the node they share. around a vertex the way goes through
+    // the inside wedge, from the segment leaving it to the one entering it: a singular vertex is only met on the
+    // boundary, and the other way round would pick up its holonomy
+    c.faces.push_back({face_of(0)});
     for (int k = 1; k < n; ++k) {
-        const Face f = hm.faces[c.fids[k - 1]];
-        const Face g = hm.faces[c.fids[k]];
+        const Pface& p = c.faces.back();
+        const Face   g = face_of(k);
         const HmLoc& l = tnodes[c.nids[k]];
-        Xf x = c.xfs.back();
-        if (f != g) x = std::holds_alternative<HmLocOnV>(l) ? x * fan(l, g, {}, f).back().second.inv()   // around the inside wedge, g to f
-                                                            : x * transition(hm, f, g, try_get_edge(hm, l, l).value());
-        c.xfs.push_back(x);
+        if (g == p.f)                                 c.faces.push_back(p);
+        else if (auto* v = std::get_if<HmLocOnV>(&l)) c.faces.push_back({g, p.x * Pface{g}.around(hm.verts[v->id], p.f).back().x.inv()});
+        else                                          c.faces.push_back(p.across(try_get_edge(hm, l, l).value()));
     }
-    for (int k = 0; k < n; ++k) c.uvs.push_back(c.xfs[k](face_uv(hm, tnodes[c.nids[k]], c.fids[k])));
+    for (int k = 0; k < n; ++k) c.uvs.push_back(c.faces[k].uv(tnodes[c.nids[k]]));
 
     // a disk closes: the first node seen from the last segment is where it started
-    const complex back = c.xfs[n - 1](face_uv(hm, tnodes[c.nids[0]], c.fids[n - 1]));
-    METRIKO_CHECK(std::abs(back - c.uvs[0]) < 1e-6, "the region does not unfold into one chart (closure error {})", std::abs(back - c.uvs[0]));
+    const double gap = std::abs(c.faces[n - 1].uv(tnodes[c.nids[0]]) - c.uvs[0]);
+    METRIKO_CHECK(gap < 1e-6, "the region does not unfold into one chart (closure error {})", gap);
     return c;
 }
 
@@ -187,61 +188,47 @@ inline vec<HmLoc> Emesh::retrace(const Chart& c, int a, int b) const {
     if (pts.empty()) return {};
     vec<HmLoc> path = {tnodes[c.nids[a]]};
 
-    auto corners = [&](Face f, const Xf& x) {
-        std::array<Half, 3> h = f.halfs();
-        std::array<complex, 3> p;
-        for (int k = 0; k < 3; ++k) p[k] = x(try_get_crnr(hm, h[k].tail().id, f.id).value().uv());
-        return std::pair{p, h};
-    };
-    auto depth = [&](Face f, const Xf& x, complex q) {   // how far inside f (negative outside)
-        auto [p, h] = corners(f, x);
-        return std::min({side_distance(p[0], p[1], q), side_distance(p[1], p[2], q), side_distance(p[2], p[0], q)});
-    };
-    // the face among those around the current node that the segment p -> q runs into: the first one when a step
-    // along the segment stays in it, otherwise the one that step lies deepest in
-    auto enter = [&](const vec<std::pair<Face, Xf>>& fan, complex p, complex q) {
+    // the placed face a line from p toward q runs into, among those around the current node: the first one when a
+    // step along the line stays in it, otherwise the one that step lies deepest in
+    auto enter = [&](const vec<Pface>& around, complex p, complex q) {
         const complex step = p + (q - p) * 1e-6;
-        if (depth(fan[0].first, fan[0].second, step) > 0) return fan[0];
-        return *rg::max_element(fan, {}, [&](auto& fx) { return depth(fx.first, fx.second, step); });
+        if (around[0].depth(step) > 0) return around[0];
+        return *rg::max_element(around, {}, [&](const Pface& pf) { return pf.depth(step); });
     };
-    // a point of f as a location: on a vertex or an edge of f when it lies there, inside otherwise
-    auto locate = [&](Face f, const Xf& x, complex q) -> HmLoc {
-        auto [p, h] = corners(f, x);
+    // a point of the placed face as a location: on a vertex or an edge when it lies there, inside otherwise
+    auto locate = [&](const Pface& p, complex q) -> HmLoc {
+        const auto cs = p.corners();
+        const auto hs = p.f.halfs();
         for (int k = 0; k < 3; ++k) {
-            if (std::abs(side_distance(p[k], p[(k + 1) % 3], q)) > EPS) continue;
-            const double r = std::abs(q - p[k]) / std::abs(p[(k + 1) % 3] - p[k]);
-            if (r < EPS)     return HmLocOnV{h[k].tail().id};
-            if (r > 1 - EPS) return HmLocOnV{h[k].head().id};
-            return HmLocOnE{h[k].edge().id, h[k].isCanonical() ? r : 1 - r};
+            if (std::abs(side_distance(cs[k], cs[(k + 1) % 3], q)) > EPS) continue;
+            const double r = std::abs(q - cs[k]) / std::abs(cs[(k + 1) % 3] - cs[k]);
+            if (r < EPS)     return HmLocOnV{hs[k].tail().id};
+            if (r > 1 - EPS) return HmLocOnV{hs[k].head().id};
+            return HmLocOnE{hs[k].edge().id, hs[k].isCanonical() ? r : 1 - r};
         }
-        return HmLocOnF{f.id, f.to_local(f.uv2pos(x.inv()(q)))};
+        return HmLocOnF{p.f.id, p.f.to_local(p.f.uv2pos(p.x.inv()(q)))};
     };
 
-    const Face f0 = hm.faces[c.fids[a]];
-    auto [f, x] = enter(fan(path.back(), f0, c.xfs[a], hm.faces[c.fids[c.prev(a)]]), pts[0], pts[1]);
+    Pface p = enter(fan(hm, path.back(), c.faces[a], c.faces[c.prev(a)].f), pts[0], pts[1]);   // the inside wedge at a
     for (size_t s = 0; s + 1 < pts.size(); ++s) {
-        complex p = pts[s];
+        complex u = pts[s];
         const complex q = pts[s + 1];
-        if (s > 0) std::tie(f, x) = enter(fan(path.back(), f, x, f), p, q);
-        while (depth(f, x, q) < -EPS) {   // leave f through the edge the line crosses first
-            auto [cs, hs] = corners(f, x);
+        if (s > 0) p = enter(fan(hm, path.back(), p, p.f), u, q);
+        while (p.depth(q) < -EPS) {   // leave the face through the edge the line crosses first
+            const auto cs = p.corners();
             double best = 2, r = 0; int k = -1;
             for (int j = 0; j < 3; ++j) {
                 double se, tp;
-                if (!find_extended_intersection(cs[j], cs[(j + 1) % 3], p, q, se, tp)) continue;
+                if (!find_extended_intersection(cs[j], cs[(j + 1) % 3], u, q, se, tp)) continue;
                 if (tp > EPS && se > -EPS && se < 1 + EPS && tp < best) { best = tp; k = j; r = se; }
             }
-            METRIKO_CHECK(k != -1, "the traced line leaves face {} through no edge", f.id);
-            p = cs[k] + (cs[(k + 1) % 3] - cs[k]) * r;
-            path.push_back(locate(f, x, p));
-            if (std::holds_alternative<HmLocOnV>(path.back())) {   // through a vertex: pick the face it continues into
-                std::tie(f, x) = enter(fan(path.back(), f, x, f), p, q);
-            } else {
-                x = x * transition(hm, f, hs[k].twin().face(), hs[k].edge());
-                f = hs[k].twin().face();
-            }
+            METRIKO_CHECK(k != -1, "the traced line leaves face {} through no edge", p.f.id);
+            u = lerp(cs[k], cs[(k + 1) % 3], r);
+            path.push_back(locate(p, u));
+            p = std::holds_alternative<HmLocOnV>(path.back()) ? enter(fan(hm, path.back(), p, p.f), u, q)   // through a vertex
+                                                              : p.across(p.f.halfs()[k].edge());
         }
-        if (s + 2 < pts.size()) path.push_back(locate(f, x, q));
+        if (s + 2 < pts.size()) path.push_back(locate(p, q));
     }
     path.push_back(tnodes[c.nids[b]]);
     return path;
