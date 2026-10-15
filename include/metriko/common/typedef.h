@@ -66,19 +66,5 @@ namespace vw = std::views;
 template <class T> using vec = std::vector<T>;
 template <class S, class T, class... Rest> using umap = std::unordered_map<S, T, Rest...>;
 
-// common representation for range on an element
-struct Erng {
-    int    id = -1;
-    double fr = -1;
-    double to = -1;
-    bool   empty()        const { return fr >= to; }
-    double span()         const { return std::max(0., to - fr); }
-    double lerp(double t) const { return fr + (to - fr) * t; }
-
-    void clip(double lo, double hi) {
-        fr = std::max(fr, lo);
-        to = std::min(to, hi);
-    }
-};
 }
 #endif
