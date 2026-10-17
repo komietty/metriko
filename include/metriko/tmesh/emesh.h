@@ -268,12 +268,10 @@ inline void Eedge::insert_locs(const vec<int>& locs) {
     else if (nids.back()  == b) { vec<int> s(locs.begin(), locs.end() - 1); rg::reverse(s); nids.insert(nids.end(),   s.begin(), s.end()); } // append  reverse([f..b-1])
     else METRIKO_FAIL("merge_into: the chains share no end node");
 }
-
-
 }
 #include "emesh_collapse_path.h"
 #include "emesh_collapse_th.ipp"
-#include "emesh_collapse_tq_0.ipp"
-#include "emesh_collapse_tq_1.ipp"
+#include "emesh_collapse_tq_prepare.ipp"
+#include "emesh_collapse_tq_execute.ipp"
 #include "emesh_postprocess.ipp"
 #endif
