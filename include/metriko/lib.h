@@ -1,7 +1,6 @@
 #ifndef METRIKO_LIB_H
 #define METRIKO_LIB_H
 #include <expected>
-#include <igl/slim.h>
 #include "hmesh/hmesh.h"
 #include "nvec/face_rosy_field.h"
 #include "igm/parameterization.h"
@@ -10,6 +9,7 @@
 #include "tmesh/emesh_validate.h"
 #include "metriko/tutte/tutte_cutting.h"
 #include "metriko/tutte/tutte_params.h"
+#include "metriko/tutte/tutte_slim.h"
 #include "metriko/qex/sanitization.h"
 #include "metriko/qex/gen_q_vert.h"
 #include "metriko/qex/gen_q_port.h"
@@ -25,6 +25,8 @@ struct RemeshStage {
     std::unique_ptr<Hmesh> hmesh;
     std::unique_ptr<Mgrph> mgrph;
     std::unique_ptr<Emesh> emesh;
+    std::unique_ptr<Hmesh> hmesh_cut; // the mesh with the t-mesh embedded, cut along the seam
+    MatXd                  uv;        // per vertex of hmesh_cut: the slim result
     vec<qex::Qport>        q_ports;
     vec<qex::Qedge>        q_edges;
     vec<qex::Qface>        q_faces;
@@ -104,28 +106,15 @@ inline RemeshStage compute_quadrangulation_impl(
 
     MatXd uv_ebd = compute_tutte_parameterization(*hm_emb, *tm, seam1, hdata);
     MatXd uv_cut(hm_cut->nV, 2);
-
-    vec<int> bnd;
     for (auto v: hm_cut->verts) uv_cut.row(v.id) = uv_ebd.row(v.half().next().crnr().id);
-    for (auto v: hm_cut->verts) if (v.isBoundary()) bnd.push_back(v.id);
-    const VecXi b = Eigen::Map<VecXi>(bnd.data(), bnd.size());
-
-    igl::SLIMData curr;
-    slim_precompute(hm_cut->pos, hm_cut->idx, uv_cut, curr, igl::MappingEnergyType::SYMMETRIC_DIRICHLET, b, uv_cut(b, Eigen::indexing::all), 1e9);
-
-    double prev = std::numeric_limits<double>::infinity();
-    for (int i = 0; i < slim_max_iter; ++i) {
-        slim_solve(curr, 1);
-        if (std::abs(prev - curr.energy) < slim_rel_tol * std::abs(curr.energy)) break;
-        prev = curr.energy;
-    }
+    MatXd uv = seamless_slim(*hm_emb, *hm_cut, seam1, singular1, uv_cut, slim_max_iter, slim_rel_tol);
 
     // ------ qex on the slim result ------
     hm_emb->cfn = VecXc(hm_emb->nF * 3);
     for (int i = 0; i < hm_cut->nF; ++i) {
     for (int j = 0; j < 3; ++j) {
         int k = hm_cut->idx(i, j);
-        hm_emb->cfn(i * 3 + j) = complex(curr.V_o(k, 0), curr.V_o(k, 1));
+        hm_emb->cfn(i * 3 + j) = complex(uv(k, 0), uv(k, 1));
     }}
 
     qex::sanitization(*hm_emb, matching1, singular1, 4);
@@ -146,6 +135,8 @@ inline RemeshStage compute_quadrangulation_impl(
         std::move(hm),
         std::move(mg),
         std::move(tm),
+        std::move(hm_cut),
+        std::move(uv),
         std::move(q_ports),
         std::move(q_edges),
         std::move(q_faces),
