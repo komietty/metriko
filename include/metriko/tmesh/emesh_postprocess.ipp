@@ -172,24 +172,29 @@ inline void Emesh::collapse_tedge_snap_dedup(int teid) {
     }
 }
 
-// re-trace a tedge inside the union corridor of its two tquads. used to resolve
-// tedge-tedge contacts created by snapping: the corridor walls are the other
-// boundary tedges, so the new path cannot touch them by construction
+// retrace a tedge inside its two tquads together, to resolve a contact made by snapping
 inline bool Emesh::reroute_tedge(int teid) {
-    auto ths = thalfs | vw::filter([&](const Ehalf& th) { return th.id != -1 && th.teid == teid; });
-    auto tq0 = -1;
-    auto tq1 = -1;
-    for (auto& th: ths) (th.cano ? tq0 : tq1) = th.tqid;
-    if (tq0 < 0 || tq1 < 0) return false;
-
-    auto  allw = allowed_range_tquads({tq0, tq1});
+    auto th = rg::find_if(thalfs, [&](const Ehalf& th) { return th.id != -1 && th.teid == teid && th.cano; });
+    if (th == thalfs.end() || th->tqid < 0 || th->twin().tqid < 0) return false;
     auto& nids = tedges[teid].nids;
-    auto  path = approx_shortest_path(30, hm, tnodes[nids.front()], tnodes[nids.back()], allw);
-    if (path.size() < 2) return false;
+    if (nids.front() == nids.back()) return false;   // a closed tedge: no two ends to join
+
+    // the boundary of the two tquads together, the tedge itself left out: from its head around to its tail
+    auto rest = [&](const Equad& tq, int thid) {
+        vec<int> res;
+        for (auto it = circular_next(tq.data, tq.find_of(thid)); it->thid != thid; it = circular_next(tq.data, it)) res.push_back(it->thid);
+        return res;
+    };
+    vec<int> loop = rest(th->tquad(), th->id);
+    const int tail = loop.size();
+    for (int t: rest(th->twin().tquad(), th->twid)) loop.push_back(t);
+    const Chart chart = unfold(loop);
+    const auto  path  = retrace(chart, chart.at(tail, nids.front()), chart.at(0, nids.back()));
+    if (path.empty()) return false;
     nids = add_new_path(path, nids.front(), nids.back());
 
     auto r = path_length(nids);
-    for (auto& th: ths) th.r = r;
+    for (auto& t: thalfs) if (t.id != -1 && t.teid == teid) t.r = r;
     return true;
 }
 }

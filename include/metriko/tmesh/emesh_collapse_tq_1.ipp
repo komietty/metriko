@@ -31,27 +31,14 @@ inline void Emesh::collapse_tquad_execute(Tqaux& aux) {
         return {};
     };
 
-    auto along_band = [&](int n0, int n1) -> vec<HmLoc> {
-        const auto& tz  = thalfs[rg::contains(std::array{ th_l.nid_fr(), th_l.nid_to() }, n1) ? aux.thid_l : aux.thid_r];
-        const int   end = tz.nid_fr() == n1 ? tz.nid_to() : tz.nid_fr();
-        auto thids = lateral_run(n0, end);
-        if (thids.empty()) return {};
-        thids.push_back(tz.id);
-        vec<int> nids = { n0 };
-        for (int t: thids) {
-            auto ns = thalfs[t].tedge().nids;
-            if (ns.back()  == nids.back()) rg::reverse(ns);
-            if (ns.front() != nids.back()) return {};
-            nids.insert(nids.end(), ns.begin() + 1, ns.end());
-        }
-        if (nids.back() != n1) return {};
-        vec<HmLoc> path;
-        for (int n: nids) path.push_back(tnodes[n]);
-        return path;
+    // the band in its chart: a piece between two points on opposite sides is the shortest line between them
+    const Chart chart = unfold(tquads[aux.tqid].data | vw::transform(&Edata::thid) | rg::to<vec<int>>());
+    auto index_of = [&](int nid, bool top) {   // the position of a node of the top / bottom side
+        const auto& data = tquads[aux.tqid].data;
+        for (size_t k = 0; k < data.size(); ++k)
+            if (rg::contains(top ? aux.thids_t : aux.thids_b, data[k].thid) && rg::contains(thalfs[data[k].thid].tedge().nids, nid)) return chart.at(k, nid);
+        METRIKO_FAIL("node {} is not on the {} side of tquad {}", nid, top ? "top" : "bottom", aux.tqid);
     };
-
-    const auto rngs = allowed_range_tquads({ aux.tqid });
-    const bool tube = compute_eular(hm, rngs) == 0; // a band around a tube
 
     struct Piece { int thid; bool t_fr; bool t_to; };
     vec<Piece> pieces;
@@ -65,9 +52,8 @@ inline void Emesh::collapse_tquad_execute(Tqaux& aux) {
             continue;
         }
 
-        auto path = tube ? along_band(n0, n1) : vec<HmLoc>{};
-        if (path.empty()) path = approx_shortest_path(30, hm, tnodes[n0], tnodes[n1], rngs);
-        METRIKO_CHECK(path.size() >= 2, "no path within the allowed region: tqid {}", aux.tqid);
+        const auto path = retrace(chart, index_of(n0, s0), index_of(n1, s1));
+        METRIKO_CHECK(!path.empty(), "no path through tquad {} between nodes {} and {}", aux.tqid, n0, n1);
 
         const auto   nids  = add_new_path(path, n0, n1);
         const int    teid  = tedges.size();

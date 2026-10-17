@@ -33,17 +33,16 @@ inline void Emesh::collapse_thalf(int thid) {
         bool collapse_to_prev = it_crr->side != it_prv->side;
         if (is_fixed(collapse_to_prev ? th_crr.nid_fr() : th_crr.nid_to())) collapse_to_prev = !collapse_to_prev;
 
-        auto [n_fr, n_to] = [&]{
-            if ( collapse_to_prev &&  th_prv.cano) return std::pair{th_prv.nid_fr(), th_crr.nid_to()};
-            if ( collapse_to_prev && !th_prv.cano) return std::pair{th_crr.nid_to(), th_prv.nid_fr()};
-            if (!collapse_to_prev &&  th_nxt.cano) return std::pair{th_crr.nid_fr(), th_nxt.nid_to()};
-            if (!collapse_to_prev && !th_nxt.cano) return std::pair{th_nxt.nid_to(), th_crr.nid_fr()};
-            throw std::runtime_error("unreachable");
-        }();
-
-        auto rng  = allowed_range_tquads({tq_crr.id});
-        auto path = approx_shortest_path(30, hm, tnodes[n_fr], tnodes[n_to], rng);
-        auto nids = add_new_path(path, n_fr, n_to);
+        // the merged tedge joins the far end of the neighbour (own) to the far end of te_crr (oth) by the shortest
+        // line inside tq_crr, ordered like the neighbour
+        const Chart chart = unfold(tq_crr.data | vw::transform(&Edata::thid) | rg::to<vec<int>>());
+        auto at = [&](auto it, int nid) { return chart.at(it - tq_crr.data.begin(), nid); };
+        const int own = collapse_to_prev ? at(it_prv, th_prv.nid_fr()) : at(it_nxt, th_nxt.nid_to());
+        const int oth = collapse_to_prev ? at(it_crr, th_crr.nid_to()) : at(it_crr, th_crr.nid_fr());
+        const auto [i_fr, i_to] = collapse_to_prev == (collapse_to_prev ? th_prv : th_nxt).cano ? std::pair{own, oth} : std::pair{oth, own};
+        auto path = retrace(chart, i_fr, i_to);
+        METRIKO_CHECK(!path.empty(), "no path through tquad {} between nodes {} and {}", tq_crr.id, chart.nids[i_fr], chart.nids[i_to]);
+        auto nids = add_new_path(path, chart.nids[i_fr], chart.nids[i_to]);
 
         { // Count duplication of verts for checking loc-inj
             vec<HmLoc> locs;

@@ -11,12 +11,12 @@
 #include <set>
 #include "motorcycle.h"
 #include "metriko/hmesh/hmloc.h"
-#include "metriko/hmesh/hpath.h"
 #include "metriko/hmesh/utilities.h"
 
 namespace metriko {
 struct Emesh;
 struct Equad;
+struct Chart;
 
 struct Tqpoint {
     int    nid = -1; // tnode of this point
@@ -217,8 +217,9 @@ struct Emesh {
     int step_next(int thid) const { auto& [_, d] = thalfs[thid].tquad(); auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step next failed"); return circular_next(d, it)->thid; };
     int step_prev(int thid) const { auto& [_, d] = thalfs[thid].tquad(); auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step prev failed"); return circular_prev(d, it)->thid; };
 
-    vec<Erng> allowed_range_thalfs(const vec<int>& thids) const;
-    vec<Erng> allowed_range_tquads(const vec<int>& tqids) const;
+    // a region bounded by the thalfs, unfolded into one chart, and the path between two of its boundary nodes
+    Chart unfold(const vec<int>& thids) const;
+    vec<HmLoc> retrace(const Chart& c, int a, int b) const;
 
     auto live_tedges()       { return tedges | vw::filter([](      Eedge& te) { return te.id != -1; }); }
     auto live_tquads()       { return tquads | vw::filter([](      Equad& tq) { return tq.id != -1; }); }
@@ -272,22 +273,9 @@ inline void Eedge::insert_locs(const vec<int>& locs) {
     else METRIKO_FAIL("merge_into: the chains share no end node");
 }
 
-inline int compute_eular(const Hmesh& hm, const vec<Erng>& rngs) {
-    std::set<int> fs, vs, es;
-    for (auto& [eid, r0, r1]: rngs) {
-        fs.insert(hm.edges[eid].face0().id);
-        fs.insert(hm.edges[eid].face1().id);
-    }
-    for (auto fid: fs)
-        for (auto h: hm.faces[fid].adjHalfs()) {
-            vs.insert(h.tail().id);
-            es.insert(h.edge().id);
-        }
-    return (int)vs.size() - (int)es.size() + (int)fs.size();
-}
 
 }
-#include "emesh_collapse_rg.ipp"
+#include "emesh_chart.ipp"
 #include "emesh_collapse_th.ipp"
 #include "emesh_collapse_tq_0.ipp"
 #include "emesh_collapse_tq_1.ipp"
