@@ -178,7 +178,8 @@ inline MatXd seamless_slim(
     };
 
     constexpr double proximal = 1e-4; // as in libigl
-    SparseLLT<SprsD> solver;
+    SparseLLT<SprsD>  llt;   // fast, but a nearly degenerate face can make it fail
+    SparseLDLT<SprsD> ldlt;  // then this one
     VecXd  z  = shrink(uv0);
     MatXd  uv = expand(z);
     double e  = energy(uv);
@@ -242,10 +243,16 @@ inline MatXd seamless_slim(
             K.valuePtr()[diag[2 * g + i]] += proximal * copies[g];
             rhs(2 * g + i) += proximal * copies[g] * z(2 * g + i);
         }
-        if (it == 0) solver.analyzePattern(K);
-        solver.factorize(K);
-        METRIKO_CHECK(solver.info() == Eigen::Success, "the slim system is not positive definite");
-        MatXd dst = expand(solver.solve(rhs));
+        if (it == 0) llt.analyzePattern(K);
+        llt.factorize(K);
+        VecXd zd;
+        if (llt.info() == Eigen::Success) zd = llt.solve(rhs);
+        else {
+            ldlt.compute(K);
+            METRIKO_CHECK(ldlt.info() == Eigen::Success, "the slim system is singular");
+            zd = ldlt.solve(rhs);
+        }
+        MatXd dst = expand(zd);
 
         // 6: the step toward it that flips no face, and the energy there
         double e_new = igl::flip_avoiding_line_search(hc.idx, uv, dst, energy, e);
