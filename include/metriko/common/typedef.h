@@ -64,6 +64,7 @@ using MatX3i = Eigen::Matrix<int,    Eigen::Dynamic, 3, Eigen::RowMajor>;
 namespace rg = std::ranges;
 namespace vw = std::views;
 template <class T> using vec = std::vector<T>;
+template <class T, size_t N> using arr = std::array<T, N>;
 template <class S, class T, class... Rest> using umap = std::unordered_map<S, T, Rest...>;
 
 }

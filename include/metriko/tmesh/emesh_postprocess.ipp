@@ -188,8 +188,8 @@ inline bool Emesh::reroute_tedge(int teid) {
     vec<int> loop = rest(th->tquad(), th->id);
     const int tail = loop.size();
     for (int t: rest(th->twin().tquad(), th->twid)) loop.push_back(t);
-    const Chart chart = unfold(loop);
-    const auto  path  = retrace(chart, chart.at(tail, nids.front()), chart.at(0, nids.back()));
+    const Unfolded chart = unfold(*this, loop);
+    const auto  path  = retrace(*this, chart, chart.at(tail, nids.front()), chart.at(0, nids.back()));
     if (path.empty()) return false;
     nids = add_new_path(path, nids.front(), nids.back());
 

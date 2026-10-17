@@ -32,8 +32,8 @@ inline void Emesh::collapse_tquad_execute(Tqaux& aux) {
     };
 
     // the band in its chart: a piece between two points on opposite sides is the shortest line between them
-    const Chart chart = unfold(tquads[aux.tqid].data | vw::transform(&Edata::thid) | rg::to<vec<int>>());
-    auto index_of = [&](int nid, bool top) {   // the position of a node of the top / bottom side
+    const Unfolded chart = unfold(*this, tquads[aux.tqid].data | vw::transform(&Edata::thid) | rg::to<vec<int>>());
+    auto index_of = [&](int nid, bool top) { // the position of a node of the top / bottom side
         const auto& data = tquads[aux.tqid].data;
         for (size_t k = 0; k < data.size(); ++k)
             if (rg::contains(top ? aux.thids_t : aux.thids_b, data[k].thid) && rg::contains(thalfs[data[k].thid].tedge().nids, nid)) return chart.at(k, nid);
@@ -52,7 +52,7 @@ inline void Emesh::collapse_tquad_execute(Tqaux& aux) {
             continue;
         }
 
-        const auto path = retrace(chart, index_of(n0, s0), index_of(n1, s1));
+        const auto path = retrace(*this, chart, index_of(n0, s0), index_of(n1, s1));
         METRIKO_CHECK(!path.empty(), "no path through tquad {} between nodes {} and {}", aux.tqid, n0, n1);
 
         const auto   nids  = add_new_path(path, n0, n1);
