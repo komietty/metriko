@@ -35,12 +35,12 @@ inline void Emesh::collapse_thalf(int thid) {
 
         // the merged tedge joins the far end of the neighbour (own) to the far end of te_crr (oth) by the shortest
         // line inside tq_crr, ordered like the neighbour
-        const Chart chart = unfold(tq_crr.data | vw::transform(&Edata::thid) | rg::to<vec<int>>());
+        const Unfolded chart = unfold(*this, tq_crr.data | vw::transform(&Edata::thid) | rg::to<vec<int>>());
         auto at = [&](auto it, int nid) { return chart.at(it - tq_crr.data.begin(), nid); };
         const int own = collapse_to_prev ? at(it_prv, th_prv.nid_fr()) : at(it_nxt, th_nxt.nid_to());
         const int oth = collapse_to_prev ? at(it_crr, th_crr.nid_to()) : at(it_crr, th_crr.nid_fr());
         const auto [i_fr, i_to] = collapse_to_prev == (collapse_to_prev ? th_prv : th_nxt).cano ? std::pair{own, oth} : std::pair{oth, own};
-        auto path = retrace(chart, i_fr, i_to);
+        auto path = retrace(*this, chart, i_fr, i_to);
         METRIKO_CHECK(!path.empty(), "no path through tquad {} between nodes {} and {}", tq_crr.id, chart.nids[i_fr], chart.nids[i_to]);
         auto nids = add_new_path(path, chart.nids[i_fr], chart.nids[i_to]);
 

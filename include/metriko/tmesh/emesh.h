@@ -16,7 +16,6 @@
 namespace metriko {
 struct Emesh;
 struct Equad;
-struct Chart;
 
 struct Tqpoint {
     int    nid = -1; // tnode of this point
@@ -217,9 +216,6 @@ struct Emesh {
     int step_next(int thid) const { auto& [_, d] = thalfs[thid].tquad(); auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step next failed"); return circular_next(d, it)->thid; };
     int step_prev(int thid) const { auto& [_, d] = thalfs[thid].tquad(); auto it = rg::find(d, thid, &Edata::thid); METRIKO_CHECK(it != d.end(), "step prev failed"); return circular_prev(d, it)->thid; };
 
-    // a region bounded by the thalfs, unfolded into one chart, and the path between two of its boundary nodes
-    Chart unfold(const vec<int>& thids) const;
-    vec<HmLoc> retrace(const Chart& c, int a, int b) const;
 
     auto live_tedges()       { return tedges | vw::filter([](      Eedge& te) { return te.id != -1; }); }
     auto live_tquads()       { return tquads | vw::filter([](      Equad& tq) { return tq.id != -1; }); }
@@ -275,7 +271,7 @@ inline void Eedge::insert_locs(const vec<int>& locs) {
 
 
 }
-#include "emesh_chart.ipp"
+#include "emesh_collapse_path.h"
 #include "emesh_collapse_th.ipp"
 #include "emesh_collapse_tq_0.ipp"
 #include "emesh_collapse_tq_1.ipp"
