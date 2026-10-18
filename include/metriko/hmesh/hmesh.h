@@ -8,7 +8,6 @@
 #ifndef METRIKO_HMESH_H
 #define METRIKO_HMESH_H
 #include <array>
-#include <igl/edge_topology.h>
 #include "metriko/common/typedef.h"
 #include "metriko/common/utilities.h"
 
@@ -302,6 +301,50 @@ inline AdjIter<AdjVC> Vert::adjCrnrs(bool ccw) const { return {m, m->vert2half[i
 inline AdjIter<AdjVH> Vert::adjHalfs(Half h, bool ccw) const { METRIKO_CHECK(h.tail().id == id, "half {} is not on vert {}", h.id, id); return {m, h.id, ccw}; }
 inline AdjIter<AdjFH> Face::adjHalfs(Half h, bool ccw) const { METRIKO_CHECK(h.face().id == id, "half {} is not on face {}", h.id, id); return {m, h.id, ccw}; }
 
+// igl::edge_topology without its per-entry allocations: the (v1 < v2, face, slot) records of every face side sorted
+// lexicographically, here bucketed by v1 first, so that the edges come out in the same order
+inline void edge_topology(const MatXi& F, int nV, MatXi& EV, MatXi& FE, MatXi& EF) {
+    const int nF = F.rows();
+    vec<int> bp(nV + 1, 0);
+    for (int f = 0; f < nF; ++f) for (int i = 0; i < 3; ++i) ++bp[std::min(F(f, i), F(f, (i + 1) % 3)) + 1];
+    for (int v = 0; v < nV; ++v) bp[v + 1] += bp[v];
+    vec<std::array<int, 3>> r(3 * size_t(nF)); // v2, face, slot
+    {
+        vec<int> at(bp.begin(), bp.end() - 1);
+        for (int f = 0; f < nF; ++f) for (int i = 0; i < 3; ++i) {
+            int a = F(f, i), b = F(f, (i + 1) % 3);
+            r[at[std::min(a, b)]++] = {std::max(a, b), f, i};
+        }
+    }
+    for (int v = 0; v < nV; ++v) std::sort(r.begin() + bp[v], r.begin() + bp[v + 1]);
+
+    int nE = 0;
+    for (int v = 0; v < nV; ++v) for (int k = bp[v]; k < bp[v + 1]; ++k) if (k + 1 == bp[v + 1] || r[k][0] != r[k + 1][0]) ++nE;
+    EV = MatXi::Constant(nE, 2, -1);
+    FE = MatXi::Constant(nF, 3, -1);
+    EF = MatXi::Constant(nE, 2, -1);
+    int e = 0;
+    for (int v = 0; v < nV; ++v)
+    for (int k = bp[v]; k < bp[v + 1]; ++k, ++e) {
+        EV(e, 0) = v;
+        EV(e, 1) = r[k][0];
+        EF(e, 0) = r[k][1];
+        FE(r[k][1], r[k][2]) = e;
+        if (k + 1 < bp[v + 1] && r[k][0] == r[k + 1][0]) {
+            ++k;
+            EF(e, 1) = r[k][1];
+            FE(r[k][1], r[k][2]) = e;
+        }
+    }
+    // the first face is the one on the left of v1 -> v2
+    for (int i = 0; i < nE; ++i) {
+        int f = EF(i, 0);
+        bool flip = true;
+        for (int j = 0; j < 3; ++j) if (F(f, j) == EV(i, 0) && F(f, (j + 1) % 3) == EV(i, 1)) flip = false;
+        if (flip) std::swap(EF(i, 0), EF(i, 1));
+    }
+}
+
 inline void dcel(
     const VecXi &D,
     const MatXi &F,
@@ -368,7 +411,7 @@ inline Hmesh::Hmesh(
     const MatXi &F,
     bool only_topology
 ) {
-    igl::edge_topology(V, F, edge2vert, face2edge, edge2face);
+    edge_topology(F, V.rows(), edge2vert, face2edge, edge2face);
     pos = V;
     idx = F;
     nV = static_cast<int>(pos.rows());
@@ -522,7 +565,10 @@ inline Hmesh::Hmesh(
     baryDualArea.resize(nV);
     circDualArea.resize(nV);
 
-    for (Face f: faces) {
+    const bool par = nF > 20000; // per element below unless noted: the order of the elements does not matter
+    #pragma omp parallel for if(par)
+    for (int iF = 0; iF < nF; ++iF) {
+        Face f = faces[iF];
         Row3d x = f.half().vec();
         Row3d t = f.half().prev().vec() * -1;
         Row3d n = x.cross(t);
@@ -542,7 +588,9 @@ inline Hmesh::Hmesh(
     }
 
     // set up halfedge angle on face coordinate
-    for (Face f: faces) {
+    #pragma omp parallel for if(par)
+    for (int iF = 0; iF < nF; ++iF) {
+        Face f = faces[iF];
         double sum = 0;
         for (Half h: f.adjHalfs()) {
             Row3d v1 = h.vec().normalized();
@@ -552,7 +600,9 @@ inline Hmesh::Hmesh(
         }
     }
 
-    // set up vertex orthogonal coordinate
+    // set up vertex orthogonal coordinate: the angle weighted face normals, summed per vertex in face order
+    VecXd phis(nF * nP);
+    #pragma omp parallel for if(par)
     for (int iF = 0; iF < nF; ++iF) {
         for (int iP = 0; iP < nP; iP++) {
             int i_curr = idx(iF, iP);
@@ -565,12 +615,25 @@ inline Hmesh::Hmesh(
             if      (d >=  1) phi = 0;
             else if (d <= -1) phi = PI;
             else              phi = acos(d);
-            vertNormal.row(idx(iF, iP)).array() += faceNormal.row(iF).array() * phi;
+            phis(iF * nP + iP) = phi;
         }
     }
-    vertNormal.rowwise().normalize();
+    {
+        vec<int> vp(nV + 1, 0), vc(nF * nP);
+        for (int k = 0; k < nF * nP; ++k) ++vp[idx(k / nP, k % nP) + 1];
+        for (int v = 0; v < nV; ++v) vp[v + 1] += vp[v];
+        vec<int> at(vp.begin(), vp.end() - 1);
+        for (int k = 0; k < nF * nP; ++k) vc[at[idx(k / nP, k % nP)]++] = k;
+        #pragma omp parallel for if(par)
+        for (int v = 0; v < nV; ++v) {
+            for (int j = vp[v]; j < vp[v + 1]; ++j) vertNormal.row(v).array() += faceNormal.row(vc[j] / nP).array() * phis(vc[j]);
+            vertNormal.row(v).normalize();
+        }
+    }
 
-    for (Vert v: verts) {
+    #pragma omp parallel for if(par)
+    for (int iV = 0; iV < nV; ++iV) {
+        Vert v = verts[iV];
         Row3d v_ = pos.row(v.half().head().id) - pos.row(v.id);
         Row3d n = vertNormal.row(v.id);
         Row3d x = (v_ - v_.dot(n) * n).normalized();
@@ -579,7 +642,9 @@ inline Hmesh::Hmesh(
     }
 
     // set up a dihedral angle for each halfedge
-    for (Half h: halfs) {
+    #pragma omp parallel for if(par)
+    for (int iH = 0; iH < nH; ++iH) {
+        Half h = halfs[iH];
         if (h.edge().isBoundary()) { dihedralArg[h.id] = 0; continue; }
         Row3d n1 = faceNormal.row(h.face().id);
         Row3d n2 = faceNormal.row(h.twin().face().id);
@@ -589,18 +654,24 @@ inline Hmesh::Hmesh(
     }
 
     // set up halfedge cotan and edge cotan
-    for (Half h: halfs) {
+    #pragma omp parallel for if(par)
+    for (int iH = 0; iH < nH; ++iH) {
+        Half h = halfs[iH];
         if (h.isBoundary()) { halfCotan[h.id] = 0.; continue; }
         Row3d vn = h.next().vec();
         Row3d vp = h.prev().vec() * -1;
         halfCotan[h.id] = vp.dot(vn) / vp.cross(vn).norm();
     }
-    for (Edge e: edges) {
+    #pragma omp parallel for if(par)
+    for (int iE = 0; iE < nE; ++iE) {
+        Edge e = edges[iE];
         edgeCotan[e.id] = (e.half().cot() + e.half().twin().cot()) * 0.5;
     }
 
     // set up dual area of vertex
-    for (Vert v: verts) {
+    #pragma omp parallel for if(par)
+    for (int iV = 0; iV < nV; ++iV) {
+        Vert v = verts[iV];
         double a1 = 0.;
         double a2 = 0.;
         for (Half h: v.adjHalfs()) {
@@ -613,7 +684,9 @@ inline Hmesh::Hmesh(
     }
 
     // set up halfedge angle on vertex coordinate, and angle defect on vertex
-    for (Vert v: verts) {
+    #pragma omp parallel for if(par)
+    for (int iV = 0; iV < nV; ++iV) {
+        Vert v = verts[iV];
         double sum = 0;
         for (Half h: v.adjHalfs()) {
             heArgOnVert[h.id] = sum;

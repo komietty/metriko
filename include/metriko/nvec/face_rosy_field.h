@@ -8,9 +8,9 @@
 #ifndef METRIKO_FACE_ROSY_FIELD_H
 #define METRIKO_FACE_ROSY_FIELD_H
 #include <queue>
+#include <deque>
 #include <set>
 #include <igl/adjacency_list.h>
-#include <igl/cut_mesh_from_singularities.h>
 #include <igl/dijkstra.h>
 #include <igl/triangle_triangle_adjacency.h>
 #include <igl/vertex_triangle_adjacency.h>
@@ -302,6 +302,69 @@ inline MatXd compute_extrinsic_field(const FaceRosyField& field, int rosyN) {
     return ext;
 }
 
+// igl::cut_mesh_from_singularities with no mismatch: the face sides left uncut by a breadth first flood fill of the
+// faces, then the dangling cuts retracted. a cut side (f, s) is dissolved when its start vertex F(f, s) ends no other
+// cut; a cut inside the mesh is seen from both its faces, one on the boundary only from its face. a cut that becomes
+// dissolvable stays so, so the result does not depend on the order: igl sweeps the faces until nothing changes, here
+// a queue of the vertices ending a single cut does the same
+inline void cut_mesh_spanning(const MatXi& F, int nV, const MatXi& TT, const MatXi& TTi, MatXi& cuts) {
+    const int nF = F.rows();
+    cuts.setConstant(nF, 3, 1);
+
+    // 1: flood fill
+    vec<char> visited(nF, 0);
+    std::deque<int> d;
+    for (int start = 0; start < nF; ++start) {
+        if (visited[start]) continue;
+        visited[start] = 1;
+        d.push_back(start);
+        while (!d.empty()) {
+            int f = d.front(); d.pop_front();
+            for (int s = 0; s < 3; ++s) {
+                int g = TT(f, s), j = TTi(f, s);
+                if (j == -1) { g = f; j = s; }
+                if (visited[g]) continue;
+                cuts(f, s) = 0;
+                cuts(g, j) = 0;
+                visited[g] = 1;
+                d.push_back(g);
+            }
+        }
+    }
+
+    // 2: the cut sides starting at each vertex, and the number of cuts ending there
+    vec<int> deg(nV, 0), sp(nV + 1, 0), sides;
+    for (int f = 0; f < nF; ++f) for (int s = 0; s < 3; ++s) {
+        if (!cuts(f, s)) continue;
+        ++sp[F(f, s) + 1];
+        if (TT(f, s) == -1 || f < TT(f, s) || (f == TT(f, s) && s < TTi(f, s))) { ++deg[F(f, s)]; ++deg[F(f, (s + 1) % 3)]; }
+    }
+    for (int v = 0; v < nV; ++v) sp[v + 1] += sp[v];
+    sides.resize(sp[nV]);
+    {
+        vec<int> at(sp.begin(), sp.end() - 1);
+        for (int f = 0; f < nF; ++f) for (int s = 0; s < 3; ++s) if (cuts(f, s)) sides[at[F(f, s)]++] = 3 * f + s;
+    }
+
+    // 3: retract
+    vec<int> q;
+    for (int v = 0; v < nV; ++v) if (deg[v] == 1) q.push_back(v);
+    while (!q.empty()) {
+        int v = q.back(); q.pop_back();
+        if (deg[v] != 1) continue;
+        for (int k = sp[v]; k < sp[v + 1]; ++k) {
+            int f = sides[k] / 3, s = sides[k] % 3;
+            if (!cuts(f, s)) continue;
+            cuts(f, s) = 0;
+            if (TT(f, s) != -1) cuts(TT(f, s), TTi(f, s)) = 0;
+            int w = F(f, (s + 1) % 3);
+            --deg[v];
+            if (--deg[w] == 1) q.push_back(w);
+            break;
+        }
+    }
+}
+
 inline void cut_mesh_with_singularities(
     const MatXd &V,
     const MatXi &F,
@@ -313,7 +376,7 @@ inline void cut_mesh_with_singularities(
     Eigen::MatrixXi &cuts
 ) {
     //first, get a spanning tree for the mesh (no missmatch needed)
-    igl::cut_mesh_from_singularities(V, F, MatXd::Zero(F.rows(), 3).eval(), cuts);
+    cut_mesh_spanning(F, V.rows(), TT, TTi, cuts);
 
     std::set<int> vertices_in_cut;
     for (int i = 0; i < cuts.rows(); ++i) {

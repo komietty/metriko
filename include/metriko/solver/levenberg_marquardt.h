@@ -18,18 +18,16 @@ namespace metriko {
         double currLambda;
 
 
+        // J with the row sqrt(lambda |J e_c|^2) e_c' appended for every column c
         void build_damped_matrix(const SprsD& J, SprsD& dampJ) const {
-            VecXd dampVec = VecXd::Zero(J.cols());
-            vec<TripD> dampJTris;
-            for (const auto& [r, c, v]: nonzeros(J)) {
-                dampVec(c) += currLambda * v * v;
-                dampJTris.emplace_back(r, c, v);
-            }
-            for (int i = 0; i < dampVec.size(); i++)
-                dampJTris.emplace_back(J.rows() + i, i, std::sqrt(dampVec(i)));
-
-            dampJ.resize(J.rows() + J.cols(), J.cols());
-            dampJ.setFromTriplets(dampJTris.begin(), dampJTris.end());
+            sparse_by_columns(J.rows() + J.cols(), J.cols(), dampJ,
+                [&](int c) { return J.col(c).nonZeros() + 1; },
+                [&](int c, int* ri, double* rv) {
+                    double d = 0;
+                    for (SprsD::InnerIterator it(J, c); it; ++it) { d += currLambda * it.value() * it.value(); *ri++ = it.row(); *rv++ = it.value(); }
+                    *ri = J.rows() + c;
+                    *rv = std::sqrt(d);
+                });
         }
 
         void init( const SprsD& J, SprsD& dampJ) const { build_damped_matrix(J, dampJ); }

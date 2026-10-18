@@ -64,16 +64,24 @@ struct  Mgrph {
     vec<Mport> mports;
     vec<Mnode> mnodes;
     vec<Mcurv> mcurvs;
+    vec<vec<Msgmt>> face_sgmts; // while tracing: the segments in each face, by curve and along it
+    vec<int> vert_node;         // while tracing: the first node on each vertex, -1 if none
+
+    int add_node(const Mnode& n) {
+        if (auto* l = std::get_if<HmLocOnV>(&n.loc); l && vert_node[l->id] == -1) vert_node[l->id] = mnodes.size();
+        mnodes.push_back(n);
+        return mnodes.size() - 1;
+    }
 
     Mgrph(
         const Hmesh &hm,
         const VecXi &matching,
         const VecXi &singular
-    ) : hm(hm) {
+    ) : hm(hm), face_sgmts(hm.nF), vert_node(hm.nV, -1) {
         gen_ports(singular);
 
         for (auto v: hm.verts | vw::filter([&](auto& v) { return singular[v.id]; }))
-            mnodes.push_back({.jt = JunctionType::F, .loc = HmLocOnV{v.id}});
+            add_node({.jt = JunctionType::F, .loc = HmLocOnV{v.id}});
 
         // 1: Add the first segment for each curve
         mcurvs.reserve(mports.size());
@@ -103,6 +111,8 @@ struct  Mgrph {
         }
 
         sort_node_adjacency();
+        face_sgmts = {};
+        vert_node  = {};
 
         for (auto &c: mcurvs) {
         for (int i = 0; i < c.sgmts.size(); ++i) {
@@ -215,12 +225,16 @@ inline void Mcurv::add_segment(const Hmesh &hm) {
 
     vec<std::tuple<double, double, Msgmt>> candidates;
 
-    auto sgs = vw::all(mg->mcurvs) |
-               vw::filter([&](const Mcurv &c) { return c.id != id; }) |
-               vw::filter([&](const Mcurv &c) { if (bgn) return hm.crnrs[mg->mports[c.id].crnr_id].vert() != hm.crnrs[mg->mports[id].crnr_id].vert(); return true; }) |
-               vw::transform([](const Mcurv &c) -> const auto& { return c.sgmts; }) |
-               vw::join |
-               vw::filter([&](const auto &s) { return s.face_id == fid; });
+    auto sgs = mg->face_sgmts[fid] |
+               vw::filter([&](const Msgmt &s) { return s.curv_id != id; }) |
+               vw::filter([&](const Msgmt &s) { if (bgn) return hm.crnrs[mg->mports[s.curv_id].crnr_id].vert() != hm.crnrs[mg->mports[id].crnr_id].vert(); return true; });
+
+    // a segment goes to the end of its curve, and to the end of the curve's segments in its face
+    auto push = [&](const Msgmt& s) {
+        sgmts.push_back(s);
+        auto& fs = mg->face_sgmts[s.face_id];
+        fs.insert(rg::upper_bound(fs, s.curv_id, {}, &Msgmt::curv_id), s);
+    };
 
     for (auto &s: sgs) {
         double ab, cd;
@@ -248,23 +262,18 @@ inline void Mcurv::add_segment(const Hmesh &hm) {
         auto ml = to_chart_free(hm, buff.loc); // OnC -> OnV, OnH -> OnE
 
         // if hit to other Mnode on a vert, return
-        if (std::holds_alternative<HmLocOnV>(ml)) {
-            for (int i = 0; i < mg->mnodes.size(); ++i) {
-                auto& mn = mg->mnodes[i];
-                if (mn.loc == ml) {
-                    mn.jt = JunctionType::T;
-                    sg.to_nid = i;
-                    sgmts.push_back(sg);
-                    buff.end = true;
-                    return;
-                }
-            }
+        if (auto* l = std::get_if<HmLocOnV>(&ml); l && mg->vert_node[l->id] != -1) {
+            int i = mg->vert_node[l->id];
+            mg->mnodes[i].jt = JunctionType::T;
+            sg.to_nid = i;
+            push(sg);
+            buff.end = true;
+            return;
         }
 
         // otherwise
-        mg->mnodes.push_back(Mnode{.loc = ml});
-        sg.to_nid = mg->mnodes.size() - 1;
-        sgmts.push_back(sg);
+        sg.to_nid = mg->add_node(Mnode{.loc = ml});
+        push(sg);
     }
     // intersection happens
     else {
@@ -282,9 +291,9 @@ inline void Mcurv::add_segment(const Hmesh &hm) {
             if (jt == JunctionType::F || jt == JunctionType::C) return false;
             // if (jt == JunctionType::None) return false;
 
-            for (const auto& c: mg->mcurvs) {
-            for (const auto& s: c.sgmts) {
-                 if (s.to_nid == nid && s.face_id == fid) {
+            {
+            for (const auto& s: mg->face_sgmts[fid]) {
+                 if (s.to_nid == nid) {
                      auto o  = get_face_uv(mg->mnodes[nid].loc, fid, hm);
                      auto d0 = get_face_uv(mg->mnodes[s.fr_nid].loc , fid, hm) - o;
                      auto d1 = get_face_uv(mg->mnodes[sg.fr_nid].loc, fid, hm) - o;
@@ -296,7 +305,7 @@ inline void Mcurv::add_segment(const Hmesh &hm) {
 
             mg->mnodes[nid].jt = JunctionType::T;
             sg.to_nid = nid;
-            sgmts.push_back(sg);
+            push(sg);
             return true;
         };
 
@@ -304,18 +313,21 @@ inline void Mcurv::add_segment(const Hmesh &hm) {
         if (cd_end_snappable && snap(it->to_nid)) { std::cout << "cd end snappable, fid: " << fid << std::endl; return; }
 
         { // hit in middle case, or close to singular node
-            auto mn = Mnode{.jt = JunctionType::T, .loc = HmLocOnP{fid, lerp(uv0, uv3, ab)}};
-            mg->mnodes.push_back(mn);
-            auto nid = mg->mnodes.size() - 1;
+            auto nid = mg->add_node(Mnode{.jt = JunctionType::T, .loc = HmLocOnP{fid, lerp(uv0, uv3, ab)}});
 
             sg.to_nid = nid;
-            sgmts.push_back(sg);
+            push(sg);
 
+            // split the crashed segment, on its curve and in its face
+            auto& fs = mg->face_sgmts[it->face_id];
+            auto ft  = rg::find_if(fs, [&](const Msgmt& s) { return s.curv_id == it->curv_id && s.fr_nid == it->fr_nid && s.to_nid == it->to_nid; });
             Msgmt s1   = *it;
             s1.fr_nid  = nid;
             it->to_nid = nid;
+            ft->to_nid = nid;
 
             cv.sgmts.insert(it + 1, s1);
+            fs.insert(ft + 1, s1);
         }
     }
 }

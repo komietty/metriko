@@ -144,35 +144,36 @@ inline vec<int> sequential_mapping(
     const Hmesh& hm,
     const SprsD& uv_in,
     const Half half_in,
-    const vec<bool>& boun, // flag if a halfedge is the boundary of the tquad
-    const vec<bool>& seam, // need to be altered for new cut hmesh
-          vec<bool>& flag, // the flag to check a face is already marked
+    const vec<int>& half_tq, // the tquad a halfedge bounds, -1 inside a tquad
+    const int tqid,          // the tquad being mapped
+    const vec<bool>& seam,   // need to be altered for new cut hmesh
+          vec<bool>& flag,   // the flag to check a face is already marked
+          vec<bool>& visit,  // all false on entry and on return
     MatXd& uv_all
 ) {
     vec<int> nextH; // the halfedges to the other tquad
-    vec visit(hm.nE, false);
+    vec<int> touched;
     std::queue<Half> Q;
     Q.push(half_in);
     if (flag[half_in.face().id]) return nextH;
 
     while (!Q.empty()) {
         auto f = Q.front().face();
-        auto [c0, c1, c2] = f.crnrs();
-        uv_all.row(c0.id) = uv_in.row(c0.id);
-        uv_all.row(c1.id) = uv_in.row(c1.id);
-        uv_all.row(c2.id) = uv_in.row(c2.id);
+        for (Crnr c: f.crnrs()) uv_all.row(c.id) = Row2d(uv_in.coeff(c.id, 0), uv_in.coeff(c.id, 1));
         flag[f.id] = true;
         Q.pop();
 
         for (Half h: f.adjHalfs()) {
             Edge e = h.edge();
-            if (seam[e.id])  continue;                                  // 1: if hit the seam, just stops
-            if (visit[e.id]) continue;                                  // 2: if hit the visited edge, just stops
-            if (boun[h.id]) { nextH.push_back(h.twin().id); continue; } // 3: if hit boundary, puts it as a bridge to the next tquad
-            visit[e.id] = true;                                         // 4: inside tquad. add it to the queue
+            if (seam[e.id])  continue;                                             // 1: if hit the seam, just stops
+            if (visit[e.id]) continue;                                             // 2: if hit the visited edge, just stops
+            if (half_tq[h.id] == tqid) { nextH.push_back(h.twin().id); continue; } // 3: if hit boundary, puts it as a bridge to the next tquad
+            visit[e.id] = true;                                                    // 4: inside tquad. add it to the queue
+            touched.push_back(e.id);
             Q.push(h.twin());
         }
     }
+    for (int e: touched) visit[e] = false;
     return nextH;
 }
 
@@ -231,6 +232,9 @@ inline MatXd compute_tutte_parameterization(
     }
 
     auto flag = vec(hm.nF, false);
+    auto visit = vec(hm.nE, false);
+    vec<int> half_tq(hm.nH, -1);
+    for (auto& d: data) half_tq[d.half.id] = d.tqid;
     std::stack<int> stack;
 
     std::unordered_map<Half, const HalfData*, HalfHash> data_by_half;
@@ -240,9 +244,7 @@ inline MatXd compute_tutte_parameterization(
     { // 1: process the first tquad
         auto h = data.begin()->half;
         auto i = data.begin()->tqid;
-        vec b(hm.nH, false);
-        for (auto& d: data) { if (d.tqid == i) b[d.half.id] = true; }
-        for (auto nh: sequential_mapping(hm, uv_tq[i], h, b, seam, flag, uv)) stack.emplace(nh);
+        for (auto nh: sequential_mapping(hm, uv_tq[i], h, half_tq, i, seam, flag, visit, uv)) stack.emplace(nh);
     }
 
     // 2: other tquads
@@ -257,9 +259,7 @@ inline MatXd compute_tutte_parameterization(
         auto& uv_curr = uv_tq[curr->tqid];
         apply_transition(h, uv, uv_curr);
 
-        vec b(hm.nH, false);
-        for (auto& d: data) { if (d.tqid == curr->tqid) b[d.half.id] = true; }
-        for (auto nh: sequential_mapping(hm, uv_curr, h, b, seam, flag, uv)) stack.emplace(nh);
+        for (auto nh: sequential_mapping(hm, uv_curr, h, half_tq, curr->tqid, seam, flag, visit, uv)) stack.emplace(nh);
     }
     return uv;
 }

@@ -90,32 +90,33 @@ inline void reduce_to_linearly_independent(SprsD& mat) {
     mat.setFromTriplets(T.begin(), T.end());
 }
 
-template<typename Scalar>
-void sparse_block(
-    const MatXi &idcs,
-    const vec<Eigen::SparseMatrix<Scalar> *> &mats,
-    Eigen::SparseMatrix<Scalar> &result
-) {
-    //assessing dimensions
-    int row_oft = idcs.rows();
-    int col_oft = idcs.cols();
-    VecXi row_offsets = VecXi::Zero(row_oft);
-    VecXi col_offsets = VecXi::Zero(col_oft);
-    for (int i = 1; i < row_oft; i++) row_offsets(i) = row_offsets(i - 1) + mats[idcs(i - 1, 0)]->rows();
-    for (int i = 1; i < col_oft; i++) col_offsets(i) = col_offsets(i - 1) + mats[idcs(0, i - 1)]->cols();
+// a column-major sparse matrix written column by column in parallel: column c gets count(c) entries,
+// written by fill(c, rows, values) in ascending row order
+template<class Count, class Fill>
+void sparse_by_columns(int nr, int nc, SprsD& res, Count&& count, Fill&& fill) {
+    res.resize(nr, nc);
+    int* op = res.outerIndexPtr();
+    #pragma omp parallel for
+    for (int c = 0; c < nc; ++c) op[c + 1] = count(c);
+    for (int c = 0; c < nc; ++c) op[c + 1] += op[c];
+    res.resizeNonZeros(op[nc]);
+    #pragma omp parallel for
+    for (int c = 0; c < nc; ++c) fill(c, res.innerIndexPtr() + op[c], res.valuePtr() + op[c]);
+}
 
-    result.conservativeResize(
-        row_offsets(row_oft - 1) + mats[idcs(row_oft - 1, 0)]->rows(),
-        col_offsets(col_oft - 1) + mats[idcs(0, col_oft - 1)]->cols()
-    );
-
-    vec<Eigen::Triplet<Scalar>> T;
-    for (int i = 0; i < row_offsets.size(); i++)
-    for (int j = 0; j < col_offsets.size(); j++)
-    for (const auto& [r, c, v]: nonzeros(*mats[i]))
-        T.emplace_back(row_offsets(i) + r, col_offsets(j) + c, v);
-
-    result.setFromTriplets(T.begin(), T.end());
+// the matrices, all with the same columns, stacked on top of each other
+inline void sparse_vstack(const vec<const SprsD*>& mats, SprsD& res) {
+    int nr = 0;
+    for (auto m: mats) nr += m->rows();
+    sparse_by_columns(nr, mats[0]->cols(), res,
+        [&](int c) { int n = 0; for (auto m: mats) n += m->col(c).nonZeros(); return n; },
+        [&](int c, int* ri, double* rv) {
+            int oft = 0;
+            for (auto m: mats) {
+                for (SprsD::InnerIterator it(*m, c); it; ++it) { *ri++ = oft + it.row(); *rv++ = it.value(); }
+                oft += m->rows();
+            }
+        });
 }
 
 // for each row, the columns holding a nonzero on it, in column order

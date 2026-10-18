@@ -9,15 +9,48 @@
 
 namespace metriko {
 inline void Emesh::collapse_tedge_snap(bool flag) {
-    auto snap_valid = [&](Vert v) {
-        for (auto& [id, nids]: live_tedges()) {
-            if (rg::any_of(nids, [&](int nid) {
-                auto* l = std::get_if<HmLocOnV>(&tnodes[nid]);
-                return l && l->id == v.id;
-            })) return false;
-        }
-        return true;
+    // the tedges with a segment in each face (a segment lies in the faces both its ends touch): an intersection test
+    // in a face only needs these. a snap only adds segments next to the node it moves, so the faces of those are
+    // added; a tedge that has left a face stays listed there, which costs a test but changes no answer
+    vec<vec<int>> face_tes(hm.nF), node_tes(tnodes.size());
+    for (auto& [id, ns]: live_tedges()) for (int n: ns) node_tes[n].push_back(id);
+    auto add_segment = [&](int te, int k) {
+        const auto& ns = tedges[te].nids;
+        auto fb = get_ptloc_faces(hm, tnodes[ns[k + 1]]);
+        for (int f: get_ptloc_faces(hm, tnodes[ns[k]]))
+            if (rg::contains(fb, f) && !rg::contains(face_tes[f], te)) face_tes[f].push_back(te);
     };
+    for (auto& [id, ns]: live_tedges()) for (int k = 0; k + 1 < std::ssize(ns); ++k) add_segment(id, k);
+    auto reindex_node = [&](int nid) {  // the segments next to a moved node
+        for (int te: node_tes[nid]) {
+            const auto& ns = tedges[te].nids;
+            for (int k = 0; k < std::ssize(ns); ++k) {
+                if (ns[k] != nid) continue;
+                if (k > 0) add_segment(te, k - 1);
+                if (k + 1 < std::ssize(ns)) add_segment(te, k);
+            }
+        }
+    };
+    // the nodes on each vertex, and how often the live tedges pass each node
+    vec<vec<int>> vert_nodes(hm.nV);
+    vec<int> passes(tnodes.size(), 0);
+    for (int n = 0; n < std::ssize(tnodes); ++n) if (auto* l = std::get_if<HmLocOnV>(&tnodes[n])) vert_nodes[l->id].push_back(n);
+    for (auto& [id, ns]: live_tedges()) for (int n: ns) ++passes[n];
+    auto erase_nodes = [&](vec<int>& ns, int b, int e) {
+        for (int k = b; k < e; ++k) --passes[ns[k]];
+        ns.erase(ns.begin() + b, ns.begin() + e);
+    };
+    auto move_node = [&](int nid, Vert v) {
+        tnodes[nid] = HmLocOnV{.id = v.id};
+        vert_nodes[v.id].push_back(nid);
+        reindex_node(nid);
+    };
+    auto in_faces = [&](auto&& faces, auto&& test) {   // test(teid, k) on every segment of a tedge in one of the faces
+        for (Face f: faces) for (int te: face_tes[f.id]) { const auto& ns = tedges[te].nids; for (int k = 0; k + 1 < ns.size(); ++k) if (test(f, te, k)) return true; }
+        return false;
+    };
+
+    auto snap_valid = [&](Vert v) { return rg::none_of(vert_nodes[v.id], [&](int n) { return passes[n] > 0; }); };
 
     auto snap_joint = [&](int teid, Vert v) {
         auto  nid = tedges[teid].nids.back();
@@ -25,11 +58,11 @@ inline void Emesh::collapse_tedge_snap(bool flag) {
         if (!loc || !snap_valid(v)) return;
 
         auto f = hm.faces[loc->id];
-        for (auto& [id, nids]: live_tedges()) {
-        for (int k = 0; k + 1 < nids.size(); ++k) {
-            if (nids[k] == nid || nids[k + 1] == nid) continue;
-            if (find_strict_intersection(f, *loc, HmLocOnV{v.id}, tnodes[nids[k]], tnodes[nids[k+1]])) return;
-        }}
+        if (in_faces(std::array{f}, [&](Face f, int te, int k) {
+            const auto& nids = tedges[te].nids;
+            if (nids[k] == nid || nids[k + 1] == nid) return false;
+            return find_strict_intersection(f, *loc, HmLocOnV{v.id}, tnodes[nids[k]], tnodes[nids[k + 1]]);
+        })) return;
 
         vec<std::pair<int, int>> te_tails; // teid, the biggest  nid
         vec<std::pair<int, int>> te_heads; // teid, the smallest nid
@@ -58,9 +91,9 @@ inline void Emesh::collapse_tedge_snap(bool flag) {
         //             }}}
         // }
 
-        for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; if (j >= 2)              nids.erase(nids.begin() + 1, nids.begin() + j);   }
-        for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; if (j + 2 < nids.size()) nids.erase(nids.begin() + j + 1, nids.end() - 1); }
-        tnodes[nid] = HmLocOnV{.id = v.id};
+        for (auto& [i, j]: te_tails) { auto& nids = tedges[i].nids; if (j >= 2)              erase_nodes(nids, 1, j); }
+        for (auto& [i, j]: te_heads) { auto& nids = tedges[i].nids; if (j + 2 < nids.size()) erase_nodes(nids, j + 1, nids.size() - 1); }
+        move_node(nid, v);
     };
 
     auto snap_inter = [&](int teid, int nid, Vert v) -> bool {
@@ -73,16 +106,16 @@ inline void Emesh::collapse_tedge_snap(bool flag) {
         int R = hi > i ? hi : i + 1;
 
         for (auto& l: {tnodes[nids[L]], tnodes[nids[R]]}) {
-        for (auto f: v.adjHalfs() | vw::transform(&Half::face) | vw::filter( [&](auto f) { return is_in_face(f, l); })) {
-        for (auto& [id, ns]: live_tedges()) {
-        for (int k = 0; k + 1 < ns.size(); ++k) {
-            if (id == teid && k >= L && k < R) continue;
-            if (find_strict_intersection(f, l, HmLocOnV{v.id}, tnodes[ns[k]], tnodes[ns[k + 1]])) return false;
-        }}}}
+            if (in_faces(v.adjHalfs() | vw::transform(&Half::face) | vw::filter([&](auto f) { return is_in_face(f, l); }), [&](Face f, int id, int k) {
+                const auto& ns = tedges[id].nids;
+                if (id == teid && k >= L && k < R) return false;
+                return find_strict_intersection(f, l, HmLocOnV{v.id}, tnodes[ns[k]], tnodes[ns[k + 1]]);
+            })) return false;
+        }
 
-        if (hi - i >= 2) nids.erase(nids.begin() + i + 1, nids.begin() + hi);
-        if (i - lo >= 2) nids.erase(nids.begin() + lo + 1, nids.begin() + i);
-        tnodes[nid] = HmLocOnV{.id = v.id};
+        if (hi - i >= 2) erase_nodes(nids, i + 1, hi);
+        if (i - lo >= 2) erase_nodes(nids, lo + 1, i);
+        move_node(nid, v);
         return true;
     };
 

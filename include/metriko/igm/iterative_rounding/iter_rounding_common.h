@@ -71,9 +71,8 @@ namespace metriko {
             const bool loop
         ) {
             if (localInjectivity) {
-                SprsD gBarrier;
-                VecXd fBarrier;
-                barrier->update(field, updateJ, fBarrier, gBarrier);
+                VecXd fBarrier, barDer;
+                barrier->update(field, updateJ, fBarrier, barDer);
                 E.resize(fInteg.size() + fClose.size() + fConst.size() + fBarrier.size());
                 E << fInteg * wInteg, fClose * wClose, fConst * wConst, fBarrier * wBarrier;
                 if (updateJ) {
@@ -84,12 +83,10 @@ namespace metriko {
                     // driving force. using wBarrier here instead leaves it 1e8 times weaker and nefertiti
                     // at gridscale 0.02 hits the iteration cap with 10 inverted faces. the only consistent
                     // variant that still converges raises wBarrier to wInteg, at 24 instead of 13 iterations
-                    gBarrier = loop?
-                        gBarrier * barrier->gen_image_filed(field) * X2F * wBarrier :
-                        gBarrier * barrier->gen_image_filed(field) * gClose * wInteg; // maybe wBarrier??
-                    MatXi I(4, 1);
-                    I << 0, 1, 2, 3;
-                    sparse_block(I, {&gInteg, &gClose, &gConst, &gBarrier}, J);
+                    SprsD gBarrier = loop?
+                        barrier->jacobian(barDer, X2F, wBarrier) :
+                        barrier->jacobian(barDer, gClose, wInteg); // maybe wBarrier??
+                    sparse_vstack({&gInteg, &gClose, &gConst, &gBarrier}, J);
                 }
                 return;
             }
@@ -97,9 +94,7 @@ namespace metriko {
             E.resize(fInteg.size() + fClose.size() + fConst.size());
             E << fInteg * wInteg, fClose * wClose, fConst * wConst;
             if (updateJ) {
-                MatXi I(3, 1);
-                I << 0, 1, 2;
-                sparse_block(I, {&gInteg, &gClose, &gConst}, J);
+                sparse_vstack({&gInteg, &gClose, &gConst}, J);
             }
         }
     };

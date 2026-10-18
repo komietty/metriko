@@ -370,15 +370,24 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     singular1 = VecXi::Zero(hm_cut->nV);
     singular1.head(hm.nV) = singular0;
 
-    std::map<std::pair<int, int>, Half> half_by_verts;
-    for (Half h: hm_cut->halfs)
-        half_by_verts.insert({{h.tail().id, h.head().id}, h});
+    // the half from a to b: the halfs grouped by their tail
+    vec<int> tp(hm_cut->nV + 1, 0), th(hm_cut->nH);
+    for (int i = 0; i < hm_cut->nH; ++i) ++tp[hm_cut->tail[i] + 1];
+    for (int v = 0; v < hm_cut->nV; ++v) tp[v + 1] += tp[v];
+    {
+        vec<int> at(tp.begin(), tp.end() - 1);
+        for (int i = 0; i < hm_cut->nH; ++i) th[at[hm_cut->tail[i]]++] = i;
+    }
+    auto half_between = [&](int a, int b) -> std::optional<Half> {
+        for (int k = tp[a]; k < tp[a + 1]; ++k) if (hm_cut->head[th[k]] == b) return hm_cut->halfs[th[k]];
+        return std::nullopt;
+    };
 
     for (Edge e: hm.edges) {
         if (!seam0[e.id]) continue;
         auto ch = chain_of(auxs, e.half());
         for (int k = 0; k + 1 < ch.size(); ++k) {
-            Half h = half_by_verts.at({ch[k], ch[k + 1]}); // same direction as h
+            Half h = half_between(ch[k], ch[k + 1]).value(); // same direction as h
             seam1[h.edge().id] = true;
             matching1(h.edge().id) = h.isCanonical() ? matching0(e.id) : -matching0(e.id);
         }
@@ -387,10 +396,10 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
     // annotate the cut halfedges: both directions pushed adjacently, twin = index ^ 1
     data.clear();
     for (auto& [i0, i1, d0, d1]: sgms) {
-        auto it = half_by_verts.find({i0, i1});
-        METRIKO_CHECK(it != half_by_verts.end(), "no half between vertices");
-        d0.half = it->second;
-        d1.half = it->second.twin();
+        auto h = half_between(i0, i1);
+        METRIKO_CHECK(h.has_value(), "no half between vertices");
+        d0.half = *h;
+        d1.half = h->twin();
         data.push_back(d0);
         data.push_back(d1);
     }

@@ -80,10 +80,32 @@ inline void conformalize_on_surface(MatXd& pos, const MatXi& idx, const MatXd& V
         }
         return true;
     };
-    vec<char> guarded(idx.rows());
+    vec<char> guarded(idx.rows()), ok(idx.rows()), stale(idx.rows(), 0);
+    vec<int> touched;
     for (int q = 0; q < idx.rows(); ++q) guarded[q] = convex(pos, I, q);
 
     vec<Eigen::Matrix<double, 3, 4>> fit(idx.rows());
+    // the corners (4 quad + corner) on each vertex, in quad order: a vertex sums what its quads ask for in that order
+    vec<int> vq_p(pos.rows() + 1, 0), vq(idx.size());
+    for (int i = 0; i < idx.rows(); ++i) for (int j = 0; j < 4; ++j) ++vq_p[idx(i, j) + 1];
+    for (int v = 0; v < pos.rows(); ++v) vq_p[v + 1] += vq_p[v];
+    {
+        vec<int> at(vq_p.begin(), vq_p.end() - 1);
+        for (int i = 0; i < idx.rows(); ++i) for (int j = 0; j < 4; ++j) vq[at[idx(i, j)]++] = 4 * i + j;
+    }
+    // the closest points on the surface, point by point as igl's batch query does, in parallel at any size
+    auto project = [&](const MatXd& P, VecXi& Ip, MatXd& Cp) {
+        Ip.resize(P.rows());
+        Cp.resize(P.rows(), 3);
+        #pragma omp parallel for schedule(dynamic, 256)
+        for (int v = 0; v < P.rows(); ++v) {
+            Eigen::RowVector3d c;
+            int i;
+            tree.squared_distance(V, F, Eigen::RowVector3d(P.row(v)), i, c);
+            Ip(v) = i;
+            Cp.row(v) = c;
+        }
+    };
     for (int it = 0; it < max_iter; ++it) {
         #pragma omp parallel for schedule(static)
         for (int i = 0; i < idx.rows(); ++i) {
@@ -92,25 +114,38 @@ inline void conformalize_on_surface(MatXd& pos, const MatXi& idx, const MatXd& V
             const Eigen::Matrix4d T = Eigen::umeyama(square, p, true);
             fit[i] = (T.topLeftCorner<3, 3>() * square).colwise() + T.topRightCorner<3, 1>();
         }
-        MatXd next = MatXd::Zero(pos.rows(), 3);
-        for (int i = 0; i < idx.rows(); ++i) for (int j = 0; j < 4; ++j) next.row(idx(i, j)) += fit[i].col(j).transpose();
-        for (int v = 0; v < pos.rows(); ++v) next.row(v) = n_quads(v) > 0 ? Row3d(next.row(v) / n_quads(v)) : Row3d(pos.row(v));
+        MatXd next(pos.rows(), 3);
+        #pragma omp parallel for schedule(static)
+        for (int v = 0; v < pos.rows(); ++v) {
+            Row3d sum = Row3d::Zero();
+            for (int k = vq_p[v]; k < vq_p[v + 1]; ++k) sum += fit[vq[k] / 4].col(vq[k] % 4).transpose();
+            next.row(v) = n_quads(v) > 0 ? Row3d(sum / n_quads(v)) : Row3d(pos.row(v));
+        }
 
         VecXi I_next;
-        tree.squared_distance(V, F, next, sqrD, I_next, C);
+        project(next, I_next, C);
+        // the sweep is sequential: a quad sees the corners reverted by the quads before it. the convexity of every quad
+        // is computed up front in parallel and recomputed in the sweep only when one of its corners was reverted since
         for (bool changed = true; changed; ) {
             changed = false;
+            #pragma omp parallel for schedule(static)
+            for (int q = 0; q < idx.rows(); ++q) ok[q] = !guarded[q] || convex(C, I_next, q);
             for (int q = 0; q < idx.rows(); ++q) {
-                if (!guarded[q] || convex(C, I_next, q)) continue;
+                if (!guarded[q]) continue;
+                if (stale[q] ? convex(C, I_next, q) : ok[q]) continue;
                 for (int j = 0; j < 4; ++j) {
                     const int v = idx(q, j);
                     if (C.row(v) == pos.row(v)) continue;
                     C.row(v) = pos.row(v);
                     I_next(v) = I(v);
                     changed = true;
+                    for (int k = vq_p[v]; k < vq_p[v + 1]; ++k) if (vq[k] / 4 > q) { stale[vq[k] / 4] = 1; touched.push_back(vq[k] / 4); }
                 }
             }
+            for (int q: touched) stale[q] = 0;
+            touched.clear();
         }
+        #pragma omp parallel for schedule(static)
         for (int q = 0; q < idx.rows(); ++q) if (!guarded[q]) guarded[q] = convex(C, I_next, q);
 
         const double move = (C - pos).rowwise().norm().maxCoeff(); // in grid units: the pipeline runs on V / grid_unit

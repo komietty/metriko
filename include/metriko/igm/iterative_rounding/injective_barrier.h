@@ -8,6 +8,7 @@
 #ifndef METRIKO_INJECTIVE_BARRIER_H
 #define METRIKO_INJECTIVE_BARRIER_H
 #include "metriko/common/typedef.h"
+#include "metriko/solver/matrix_ops.h"
 
 namespace metriko {
     class InjectiveBarrier {
@@ -17,6 +18,7 @@ namespace metriko {
         MatXi J;
         MatXd S;
         MatXd V; // field volume
+        vec<vec<std::pair<int, int>>> readers; // for each field entry, the barrier rows (row, slot) reading it, rows ascending
     public:
 
         InjectiveBarrier(const int N_, const int nF_, const VecXd& F2) : N(N_), nF(nF_) {
@@ -41,23 +43,41 @@ namespace metriko {
                 Row2d v1 = F2.segment(oft + 2 * ((j + 1) % N), 2);
                 V(i, j) = v0.norm() * v1.norm();
             }}
-        }
 
-        SprsD gen_image_filed(const VecXd &currField) const {
-            SprsD m(N * nF, currField.size());
-            vec<TripD> T;
+            readers.resize(2 * N * nF);
             for (int i = 0; i < I.rows(); i++)
                 for (int j = 0; j < I.cols(); j++)
-                    T.emplace_back(I(i, j), J(i, j), S(i, j));
-            m.setFromTriplets(T.begin(), T.end());
-            return m;
+                    readers[J(i, j)].emplace_back(I(i, j), j);
+        }
+
+        // diag(barDer) * (the image of the field) * G * w, summed in the order of the sparse products
+        SprsD jacobian(const VecXd& barDer, const SprsD& G, double w) const {
+            auto merge = [&](int c, vec<std::pair<int, double>>& acc) {
+                acc.clear();
+                for (SprsD::InnerIterator g(G, c); g; ++g)
+                for (auto [r, k]: readers[g.row()]) {
+                    double x = barDer(r) * S(r, k) * g.value();
+                    auto it = rg::find(acc, r, &std::pair<int, double>::first);
+                    if (it == acc.end()) acc.emplace_back(r, x); else it->second += x;
+                }
+                rg::sort(acc);
+            };
+            SprsD res;
+            sparse_by_columns(N * nF, G.cols(), res,
+                [&](int c) { thread_local vec<std::pair<int, double>> acc; merge(c, acc); return (int) acc.size(); },
+                [&](int c, int* ri, double* rv) {
+                    thread_local vec<std::pair<int, double>> acc;
+                    merge(c, acc);
+                    for (auto [r, x]: acc) { *ri++ = r; *rv++ = x * w; }
+                });
+            return res;
         }
 
         void update(
             const VecXd &field, // todo: does not change??
             const bool updateJ,
             VecXd &fBarrier,
-            SprsD &gBarrier
+            VecXd &barDer
         ) {
             const double s = 0.5;
 
@@ -95,12 +115,9 @@ namespace metriko {
 
             if (updateJ) {
                 constexpr double inf = std::numeric_limits<double>::infinity();
-                VecXd barDer = -splineDerivative.array() / barSpline.array().square();
-                barDer   = (fBarrier.array().abs() < 10e-9).select(0., (fBarrier.array() == inf).select(inf, barDer));
-                gBarrier = SprsD(barDer.asDiagonal());
+                barDer = -splineDerivative.array() / barSpline.array().square();
+                barDer = (fBarrier.array().abs() < 10e-9).select(0., (fBarrier.array() == inf).select(inf, barDer));
             }
-
-            //gBarrier = gBarrier * gen_image_filed(field);
         }
     };
 }

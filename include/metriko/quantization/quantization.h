@@ -188,6 +188,7 @@ namespace metriko {
                     if (n2 <= e && compute_validation(mg, tm, x2)) { X = x2; e = n2; goto exit_loops; }
                 }
             }
+            break; // nothing moved: every further pass would repeat this one
             exit_loops:
             counter = prev_e == e ? counter + 1 : 0;
         }
