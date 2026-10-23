@@ -1,5 +1,5 @@
 # metriko
-![bimba](example/docs/bimba.jpg)
+![elephant](example/docs/elephant.jpg)
 
 Metriko is a header-only C++ library for quad meshing. It turns a closed triangle mesh into a quad mesh, every quad labelled with the patch of the T-mesh it lies in, in a few seconds for meshes of 10k–30k vertices and well under a minute for 100k+ vertices, without any commercial solver.
 
