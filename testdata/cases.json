@@ -1,0 +1,26 @@
+{
+  "comment": "golden cases: <models>/<mesh> at <scale>, dumped to testdata/golden/<commit of rust/PORTED_FROM>/<stem>@<scale>/. models: $METRIKO_MODELS, default below. scale is a string so that C++ (std::stod) and Rust (str::parse) read the same double and the directory name is stable",
+  "models_default": "/Users/saki/dev/models",
+  "cases": [
+    {
+      "mesh": "spot.obj",
+      "scale": "0.01"
+    },
+    {
+      "mesh": "fandisk.obj",
+      "scale": "0.01"
+    },
+    {
+      "mesh": "fertility.obj",
+      "scale": "0.01"
+    },
+    {
+      "mesh": "torus.obj",
+      "scale": "0.05"
+    },
+    {
+      "mesh": "icosphere_4.obj",
+      "scale": "0.05"
+    }
+  ]
+}

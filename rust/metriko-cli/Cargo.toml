@@ -1,0 +1,15 @@
+[package]
+name = "metriko-cli"
+description = "Command line front end of the Rust metriko: prints the same summary and hash as metriko_web's cli.cpp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "metriko"
+path = "src/main.rs"
+
+[dependencies]
+metriko = { path = "../metriko" }
+parity = { path = "../parity" }

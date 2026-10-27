@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["metriko", "parity", "metriko-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MPL-2.0"
+authors = ["Saki Komikado <komietty@gmail.com>"]
+repository = "https://github.com/komietty/metriko"
+homepage = "https://github.com/komietty/metriko"
+
+[workspace.dependencies]
+faer = { version = "=0.24.4", default-features = false, features = ["std", "sparse-linalg"] }
+glam = "0.32.1"
+num-complex = "0.4.6"
+rayon = "1.12.0"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

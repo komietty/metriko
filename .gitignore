@@ -10,3 +10,7 @@ thesis/
 AGENTS.md
 imgui.ini
 .polyscope.ini
+
+# rust port
+rust/target/
+testdata/golden/
