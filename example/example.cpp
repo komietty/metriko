@@ -1,4 +1,7 @@
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <numeric>
 #include <functional>
 #include <map>
 #include <set>
@@ -70,6 +73,41 @@ static vec<double> four_colour_patches(const MatXi& qidx, const VecXi& tqid) {
     vec<double> res(tqid.size(), -1);
     for (int q = 0; q < res.size(); ++q) if (tqid(q) >= 0) res[q] = col[pid.at(tqid(q))] / 3.;
     return res;
+}
+
+// the quad mesh as obj, one material per patch: the faces are written patch by patch in tqid order (the quads without a
+// patch last), so blender makes one slot per patch in that order and material_index is the patch rank. the mtl gives
+// every patch its four-colour palette entry as the diffuse colour
+static void export_quad_patch(const std::filesystem::path& obj, const MatXd& qv, const MatXi& qidx, const VecXi& tqid) {
+    constexpr std::array<std::array<double, 3>, 4> palette = {{{0.90, 0.35, 0.30}, {0.30, 0.60, 0.90}, {0.95, 0.80, 0.30}, {0.40, 0.75, 0.45}}};
+    const auto col = four_colour_patches(qidx, tqid);
+    auto name = [](int t) { return t < 0 ? std::string("patch_none") : std::format("patch_{}", t); };
+
+    // 1: the quads ordered by patch, the unlabeled ones last
+    vec<int> order(qidx.rows());
+    std::iota(order.begin(), order.end(), 0);
+    rg::stable_sort(order, {}, [&](int q) { return tqid(q) < 0 ? INT_MAX : tqid(q); });
+
+    // 2: the materials, in the order the obj uses them
+    auto mtl = std::filesystem::path(obj).replace_extension(".mtl");
+    std::ofstream m(mtl);
+    for (int i = 0; i < order.size(); ++i) {
+        const int q = order[i];
+        if (i > 0 && tqid(q) == tqid(order[i - 1])) continue;
+        const auto& c = tqid(q) < 0 ? std::array{0.5, 0.5, 0.5} : palette[std::lround(col[q] * 3)];
+        std::println(m, "newmtl {}\nKd {} {} {}\n", name(tqid(q)), c[0], c[1], c[2]);
+    }
+
+    // 3: the vertices, and the faces patch by patch
+    std::ofstream o(obj);
+    std::println(o, "mtllib {}", mtl.filename().string());
+    for (int v = 0; v < qv.rows(); ++v) std::println(o, "v {:.17g} {:.17g} {:.17g}", qv(v, 0), qv(v, 1), qv(v, 2));
+    for (int i = 0; i < order.size(); ++i) {
+        const int q = order[i];
+        if (i == 0 || tqid(q) != tqid(order[i - 1])) std::println(o, "usemtl {}", name(tqid(q)));
+        std::println(o, "f {} {} {} {}", qidx(q, 0) + 1, qidx(q, 1) + 1, qidx(q, 2) + 1, qidx(q, 3) + 1);
+    }
+    std::println("[export] {} ({} quads)", obj.string(), qidx.rows());
 }
 
 // the quads coloured by patch, and the patch boundaries (quad edges between two patches, or on the mesh boundary)
@@ -155,15 +193,17 @@ int main(int argc, char** argv) {
         lines->setEnabled(view == 1);
     };
     apply();
+    const auto out = std::filesystem::path(argv[1]).stem().string() + "_quad.obj";   // written to the working directory
     polyscope::state::userCallback = [&] {
         if (ImGui::IsKeyPressed(ImGuiKey_Space, false)) { view = (view + 1) % views.size(); apply(); }
+        if (ImGui::IsKeyPressed(ImGuiKey_E, false)) export_quad_patch(out, res->pos, res->idx, res->val.col(0));
         if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) polyscope::unshow();
         const ImVec2 size = ImGui::GetIO().DisplaySize;
         constexpr float margin = 24;
         ImGui::SetNextWindowPos({margin, size.y - margin - 30});
         ImGui::SetNextWindowSize({size.x - 2 * margin, 30});
         ImGui::Begin("help", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
-        ImGui::Text("press space to switch to the %s, escape to quit", views[(view + 1) % views.size()].c_str());
+        ImGui::Text("press space to switch to the %s, e to export %s, escape to quit", views[(view + 1) % views.size()].c_str(), out.c_str());
         ImGui::End();
     };
     polyscope::show();
