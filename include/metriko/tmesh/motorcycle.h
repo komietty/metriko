@@ -216,10 +216,8 @@ inline void Mcurv::add_segment(const Hmesh &hm) {
     vec<std::tuple<double, double, Msgmt>> candidates;
 
     auto sgs = vw::all(mg->mcurvs) |
-               vw::filter([&](const Mcurv &c) { return c.id != id; }) |
                vw::filter([&](const Mcurv &c) { if (bgn) return hm.crnrs[mg->mports[c.id].crnr_id].vert() != hm.crnrs[mg->mports[id].crnr_id].vert(); return true; }) |
-               vw::transform([](const Mcurv &c) -> const auto& { return c.sgmts; }) |
-               vw::join |
+               vw::transform([](const Mcurv &c) -> const auto& { return c.sgmts; }) | vw::join |
                vw::filter([&](const auto &s) { return s.face_id == fid; });
 
     for (auto &s: sgs) {
@@ -308,14 +306,13 @@ inline void Mcurv::add_segment(const Hmesh &hm) {
             mg->mnodes.push_back(mn);
             auto nid = mg->mnodes.size() - 1;
 
-            sg.to_nid = nid;
-            sgmts.push_back(sg);
-
             Msgmt s1   = *it;
             s1.fr_nid  = nid;
             it->to_nid = nid;
 
             cv.sgmts.insert(it + 1, s1);
+            sg.to_nid = nid;
+            sgmts.push_back(sg);
         }
     }
 }

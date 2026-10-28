@@ -12,6 +12,7 @@
 namespace metriko {
 
 inline void Emesh::collapse_tquad_execute(Tqaux& aux) {
+    thalfs.reserve(thalfs.size() + 2 * aux.pts.size()); // prevent reallocation
     const auto& th_l = thalfs[aux.thid_l];
     const auto& th_r = thalfs[aux.thid_r];
 
