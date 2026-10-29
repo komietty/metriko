@@ -14,29 +14,19 @@
 #include "hmloc.h"
 
 namespace metriko {
-inline std::optional<Crnr> try_get_crnr(const Hmesh& hm, int vid, int fid) {
-    Face f = hm.faces[fid];
-    Vert v = hm.verts[vid];
-    for (auto h: f.adjHalfs())
-        if (h.crnr().vert() == v) return h.crnr();
-    return std::nullopt;
-}
-
-inline std::optional<Half> try_get_half(const Hmesh& hm, int eid, int fid) {
-    Face f = hm.faces[fid];
-    Edge e = hm.edges[eid];
-    for (auto h: f.adjHalfs())
-        if (h.edge() == e) return h;
-    return std::nullopt;
-}
-
 inline complex get_face_uv(const HmLoc& loc, int fid, const Hmesh& hm) {
     return std::visit(overloaded {
-        [&](const HmLocOnP& f) -> complex { return f.uv; },
-        [&](const HmLocOnV& v) -> complex { return try_get_crnr(hm, v.id, fid).value().uv(); },
-        [&](const HmLocOnE& e) -> complex {
-            auto h = try_get_half(hm, e.id, fid).value();
-            return h.uv(h.isCanonical() ? e.r : 1 - e.r);
+        [&](const HmLocOnP& l) -> complex { return l.uv; },
+        [&](const HmLocOnV& l) -> complex {
+            Face f = hm.faces[fid];
+            Vert v = hm.verts[l.id];
+            return f.try_get_crnr(v).value().uv();
+        },
+        [&](const HmLocOnE& l) -> complex {
+            Face f = hm.faces[fid];
+            Edge e = hm.edges[l.id];
+            Half h = f.try_get_half(e).value();
+            return h.uv(h.isCanonical() ? l.r : 1 - l.r);
         },
         [&](const auto& _) -> complex { METRIKO_FAIL("no impl"); },
     }, loc);

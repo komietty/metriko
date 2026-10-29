@@ -53,7 +53,7 @@ inline HmFlat flat_across(const HmFlat& c, Edge e) {
 
 inline vec<HmFlat> flat_around(const HmFlat& c, Vert v, Face stop, bool ccw = true) {
     vec res = {c};
-    Half h = try_get_crnr(*c.f.m, v.id, c.f.id).value().half().prev();   // the half of f leaving v
+    Half h = c.f.try_get_crnr(c.f.m->verts[v.id]).value().half().prev(); // the half of f leaving v
     Half p = h;
     for (Half g: v.adjHalfs(h, ccw)) {
         if (g.face() == c.f) continue;

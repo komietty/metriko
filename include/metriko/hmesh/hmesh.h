@@ -43,6 +43,8 @@ struct Face : Elem {
     [[nodiscard]] complex to_local(const Row3d& v) const;
     [[nodiscard]] AdjIter<AdjFH> adjHalfs(bool ccw = true) const;
     [[nodiscard]] AdjIter<AdjFH> adjHalfs(Half h, bool ccw = true) const;
+    [[nodiscard]] std::optional<Crnr> try_get_crnr(Vert v) const;
+    [[nodiscard]] std::optional<Half> try_get_half(Edge e) const;
     [[nodiscard]] std::array<Half, 3> halfs() const; // curr, next, prev
     [[nodiscard]] std::array<Vert, 3> verts() const; // tails of halfs above
     [[nodiscard]] std::array<Edge, 3> edges() const; // edges of halfs above
@@ -250,8 +252,10 @@ inline Vert Edge::vert1() const { return {m->edge2vert(id, 1), m}; }
 inline Face Edge::face0() const { return {m->edge2face(id, 0), m}; }
 inline Face Edge::face1() const { return {m->edge2face(id, 1), m}; }
 
-inline bool Half::isCanonical() const { return edge().half().id == id; }
+inline std::optional<Crnr> Face::try_get_crnr(Vert v) const { for (auto c: crnrs()) if (c.vert() == v) return c; return std::nullopt; }
+inline std::optional<Half> Face::try_get_half(Edge e) const { for (auto h: halfs()) if (h.edge() == e) return h; return std::nullopt; }
 
+inline bool Half::isCanonical() const { return edge().half().id == id; }
 inline bool Half::isBoundary()  const { return face().id == -1; }
 inline bool Vert::isBoundary()  const { return  m->isBV[id]; }
 inline bool Vert::isInterior()  const { return !m->isBV[id]; }
@@ -362,6 +366,7 @@ inline void dcel(
         }
     }
 }
+
 
 inline Hmesh::Hmesh(
     const MatXd &V,
