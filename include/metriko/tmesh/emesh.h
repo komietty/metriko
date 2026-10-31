@@ -11,7 +11,7 @@
 #include <set>
 #include "motorcycle.h"
 #include "metriko/hmesh/hmloc.h"
-#include "metriko/hmesh/utilities.h"
+#include "metriko/hmesh/hmloc.h"
 
 namespace metriko {
 struct Emesh;

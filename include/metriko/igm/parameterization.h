@@ -8,7 +8,7 @@
 #ifndef METRIKO_PARAMETERIZATION_H
 #define METRIKO_PARAMETERIZATION_H
 #include "../hmesh/hmesh.h"
-#include "../hmesh/utilities.h"
+#include "../hmesh/hmloc.h"
 #include "iterative_rounding/iter_rounding.h"
 
 namespace metriko {

@@ -12,7 +12,7 @@
 #include "../hmesh/hmesh.h"
 #include "metriko/hmesh/hmloc.h"
 #include "metriko/hmesh/hmray.h"
-#include "metriko/hmesh/utilities.h"
+#include "metriko/hmesh/hmloc.h"
 
 namespace metriko {
 constexpr double TOLERANCE_EDGE_AB = 1e-6; // tolerance on two curvs crash close to an edge

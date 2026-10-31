@@ -8,7 +8,7 @@
 #ifndef METRIKO_HMFLAT_H
 #define METRIKO_HMFLAT_H
 #include "metriko/hmesh/hmloc.h"
-#include "metriko/hmesh/utilities.h"
+#include "metriko/hmesh/hmloc.h"
 
 namespace metriko {
 

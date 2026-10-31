@@ -9,6 +9,7 @@
 #define METRIKO_HMLOC_H
 #include <format>
 #include "metriko/common/utilities.h"
+#include "metriko/common/predicates.h"
 #include "metriko/hmesh/hmesh.h"
 
 namespace metriko {
