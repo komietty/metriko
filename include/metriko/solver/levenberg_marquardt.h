@@ -97,14 +97,13 @@ namespace metriko {
             currObjective.resize(ST->ESize);
         }
 
-        bool solve(const bool verbose) {
+        bool solve() {
             using namespace Eigen;
             ST->initial_solution(x0);
             prevx << x0;
 
             VectorXd rhs(ST->xSize);
             VectorXd dir;
-            if (verbose) std::cout << "******Beginning Optimization******" << std::endl;
 
             //estimating initial miu
             SprsD dampJ;

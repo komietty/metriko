@@ -36,13 +36,11 @@ namespace metriko {
 
         MatXd rawF2(cut.nF, 2 * N);
         for (int i = 0; i < N; i++)
-            rawF2.middleCols(2 * i, 2) <<
-                    ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisX).rowwise().sum(),
-                    ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisY).rowwise().sum();
+            rawF2.middleCols(2 * i, 2) << ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisX).rowwise().sum(),
+                                          ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisY).rowwise().sum();
 
-        //------ generating locally_injectivity_check -----
         auto locally_injectivity_check = [&](const VecXd &X) {
-            if (!localInjectivity) return false;
+            if (!locInj) return false;
             const VecXd NF = fullx2Nfunc * X;
             const MatXd nfn_ = NF.reshaped<Eigen::RowMajor>(cut.nV, N);
             for (Face f: cut.faces) {
@@ -54,33 +52,12 @@ namespace metriko {
                 Row2d d2 = c - a;
                 if (d1.x() * d2.y() - d1.y() * d2.x() <= 0) return false;
             }
-            if (verbose) std::cout << "now the map is locally injective" << std::endl;
             return true;
         };
 
-        bool success = iterative_rounding(
-            fixedIdcs,
-            fixedVals,
-            compute_poisson_weight_matrix(raw, singlars, gridscale, 2 * N),
-            singularIdcs,
-            integerIdcs,
-            (cut.pos.colwise().maxCoeff() - cut.pos.colwise().minCoeff()).norm() * gridscale / avg_norm(ext, 3, N, cut.nF),
-            Cfull,
-            G2 * fullx2Nfunc,
-            N,
-            n,
-            cut.nF,
-            seamless,
-            roundSeams,
-            localInjectivity,
-            verbose,
-            rawF2.reshaped<Eigen::RowMajor>().transpose(),
-            locally_injectivity_check,
-            fullx
-        );
-
-        if (!success && verbose) std::cout << "Rounding has failed!" << std::endl;
-
+        SprsD W = SprsD(raw.faceArea.replicate(1, 2 * N).transpose().reshaped().asDiagonal());
+        auto l = (cut.pos.colwise().maxCoeff() - cut.pos.colwise().minCoeff()).norm() * gridscale / avg_norm(ext, 3, N, cut.nF);
+        auto s = iterative_rounding(fixedIdcs, fixedVals, W, singularIdcs, integerIdcs, l, Cfull, G2 * fullx2Nfunc, N, n, cut.nF, seamless, roundSeams, locInj, rawF2.reshaped<Eigen::RowMajor>().transpose(), locally_injectivity_check, fullx);
 
         VecXd NF = fullx2Nfunc * fullx;
         nfn = NF.reshaped<Eigen::RowMajor>(cut.nV, N);
@@ -88,24 +65,6 @@ namespace metriko {
         cfn.resize(raw.nF, N * 3);
         for (int j = 0; j < 3; j++) cfn.middleCols(N * j, N) = nfn(cut.idx.col(j), Eigen::indexing::all);
 
-#ifdef METRIKO_DEBUG
-        //----- check the derivative of the map is close to the original tangent field ----//
-        double evaluation = 0;
-        VecXd G_NF = G3 * NF;
-        MatXd vf(ext.rows(), ext.cols());
-        for (int i = 0; i < ext.rows(); i++) {
-            vf.row(i) << G_NF.segment(3 * N * i, 3 * N).transpose();
-        }
-        for (int i = 0; i < ext.rows(); i++) {
-            for (int j = 0; j < N; j++) {
-                Row3d v1 = ext.row(i).segment(j * 3, 3).normalized();
-                Row3d v2 = vf.row(i).segment(j * 3, 3).normalized();
-                evaluation += (v1 - v2).norm();
-            }
-        }
-        std::cout << "Deviation of the recovered tf from the original : " << evaluation / (ext.rows() * N) << std::endl;
-#endif
-
-        return success;
+        return s;
     }
 }

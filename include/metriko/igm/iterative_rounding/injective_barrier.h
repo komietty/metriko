@@ -27,11 +27,10 @@ namespace metriko {
             for (int i = 0; i < nF; i++) {
             for (int j = 0; j < N; j++) {
                 I.row(i * N + j) = VecXi::Constant(4, i * N + j);
-                J.row(i * N + j) <<
-                        2 * N * i + 2 * j,
-                        2 * N * i + 2 * j + 1,
-                        2 * N * i + 2 * ((j + 1) % N),
-                        2 * N * i + 2 * ((j + 1) % N) + 1;
+                J.row(i * N + j) << 2 * N * i + 2 * j,
+                                    2 * N * i + 2 * j + 1,
+                                    2 * N * i + 2 * ((j + 1) % N),
+                                    2 * N * i + 2 * ((j + 1) % N) + 1;
             }}
 
             for (int i = 0; i < nF; i++) {
@@ -84,11 +83,10 @@ namespace metriko {
                         if (r <= 0) d = std::numeric_limits<double>::infinity();
                         if (r >= s) d = 0;
                         splineDerivative(N * i + j) = d;
-                        S.row(N * i + j) <<
-                                v1(1) / v,
-                               -v1(0) / v,
-                               -v0(1) / v,
-                                v0(0) / v;
+                        S.row(N * i + j) << v1(1) / v,
+                                           -v1(0) / v,
+                                           -v0(1) / v,
+                                            v0(0) / v;
                     }
                 }
             }

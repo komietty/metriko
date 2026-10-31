@@ -61,7 +61,6 @@ inline RemeshStage compute_quadrangulation_impl(
     auto extf = compute_extrinsic_field(*cmbf, 4);
 
     auto rp = RosyParameterization(*hm, *cutm, extf, cmbf->singular, cmbf->matching, seam, 4, scale);
-    rp.localInjectivity = true;
     rp.setup();
     rp.integ();
 

@@ -25,7 +25,7 @@ namespace metriko {
         const double wConst; // a factor so that the fixed value do not move
         const double wClose;
         const double wBarrier;
-        const bool localInjectivity;
+        const bool locInj;
         InjectiveBarrier *barrier;
         SprsD gInteg;
         SprsD gClose;
@@ -48,7 +48,7 @@ namespace metriko {
             F2(intrinsicField_),
             N(N_),
             n(n_),
-            localInjectivity(locInj_),
+            locInj(locInj_),
             length(length_),
             wInteg(wInteg_),
             wConst(wConst_),
@@ -70,7 +70,7 @@ namespace metriko {
             SprsD &J,
             const bool loop
         ) {
-            if (localInjectivity) {
+            if (locInj) {
                 SprsD gBarrier;
                 VecXd fBarrier;
                 barrier->update(field, updateJ, fBarrier, gBarrier);

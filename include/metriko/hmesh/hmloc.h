@@ -189,7 +189,7 @@ inline Face get_chart_face(const Hmesh& hm, const HmLoc& loc) {
 inline HmLoc to_chart_free(const Hmesh& hm, const HmLoc& loc) {
     return std::visit(overloaded{
         [&](const HmLocOnC& l) -> HmLoc { return HmLocOnV{hm.crnrs[l.id].vert().id}; },
-        [&](const HmLocOnH& l) -> HmLoc { auto [e, r] = try_get_edge_ratio(hm, l).value(); return HmLocOnE{e.id, r}; },
+        [&](const HmLocOnH& l) -> HmLoc { auto [e, r] = try_get_edge_ratio(hm, l).value(); return HmLocOnE{.id = e.id, .r = r}; },
         [&](const auto& l)     -> HmLoc { return l; },
     }, loc);
 }
@@ -200,6 +200,15 @@ inline complex get_chart_uv(const Hmesh& hm, const HmLoc& loc) {
         [&](const HmLocOnH& l) -> complex { return hm.halfs[l.id].uv(l.r); },
         [&](const HmLocOnP& l) -> complex { return l.uv; },
         [&](const auto& _)     -> complex { METRIKO_FAIL("{} has no chart", loc_str(loc)); },
+    }, loc);
+}
+
+inline complex get_face_uv(const HmLoc& loc, int fid, const Hmesh& hm) {
+    return std::visit(overloaded {
+        [&](const HmLocOnP& l) -> complex { return l.uv; },
+        [&](const HmLocOnV& l) -> complex { auto c = hm.faces[fid].try_get_crnr(hm.verts[l.id]).value(); return c.uv(); },
+        [&](const HmLocOnE& l) -> complex { auto h = hm.faces[fid].try_get_half(hm.edges[l.id]).value(); return h.uv(h.isCanonical() ? l.r : 1 - l.r); },
+        [&](const auto& _)     -> complex { METRIKO_FAIL("no impl"); },
     }, loc);
 }
 }

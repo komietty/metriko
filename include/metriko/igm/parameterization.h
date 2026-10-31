@@ -19,30 +19,29 @@ namespace metriko {
         const VecXi &singlars;
         const VecXi &matching;
         const vec<bool> &seam;
-        double gridscale;      // Global scaling of the grid
-        int nT;                // Number of transitions
-        int nR;                // Number of vertices that are inside the raw mesh plus nT
-        int nS;                // Number of vertices that are singular but not on  boundaries
+        double gridscale;       // Global scaling of the grid
+        int nT;                 // Number of transitions
+        int nR;                 // Number of vertices that are inside the raw mesh plus nT
+        int nS;                 // Number of vertices that are singular but not on  boundaries
     public:
-        int N;                 // Uncompressed parametric functions
-        int n;                 // Independent parameteric functions
-        SprsD vtrans2cut;      // Map between the whole mesh (vertex + translational jump) representation to the vertex-based representation on the cut mesh
-        SprsD constraint;      // Linear constraints (resulting from non-singular nodes)
-        SprsD uncompress;      // Global uncompression of n->N
-        VecXi he2matching;     // Table of halfedge index to matching index
-        VecXi he2transidx;     // Table of halfedge index to transiton index. Range from -nT to nT except 0. Sub 1 (or Add 1) when using as idx
-        VecXi integerIdcs;     // Indices to be integer (n * transition)
-        VecXi singularIdcs;    // Indices of singulars (used if singular has to be integer)
-        VecXi fixedIdcs;       // Translation fixing indices
-        VecXd fixedVals;       // Translation fixed values at fixed indices
-        MatXi lreductor;       // Linear Reduction tying the n dofs to the full N
-        VecXd fullx;           // Result: computed result
-        MatXd nfn;             // Result: vertex-uv value on cut mesh
-        MatXd cfn;             // Result: corner-uv value on raw mesh
-        bool verbose = false;  // Output the integration log.
-        bool seamless = false; // Whether to do full translational seamless.
-        bool roundSeams;       // Whether to round seams or round singularities
-        bool localInjectivity; // Enforce local injectivity; might result in failure!
+        int N;                  // Uncompressed parametric functions
+        int n;                  // Independent parameteric functions
+        SprsD vtrans2cut;       // Map between the whole mesh (vertex + translational jump) representation to the vertex-based representation on the cut mesh
+        SprsD constraint;       // Linear constraints (resulting from non-singular nodes)
+        SprsD uncompress;       // Global uncompression of n->N
+        VecXi he2matching;      // Table of halfedge index to matching index
+        VecXi he2transidx;      // Table of halfedge index to transiton index. Range from -nT to nT except 0. Sub 1 (or Add 1) when using as idx
+        VecXi integerIdcs;      // Indices to be integer (n * transition)
+        VecXi singularIdcs;     // Indices of singulars (used if singular has to be integer)
+        VecXi fixedIdcs;        // Translation fixing indices
+        VecXd fixedVals;        // Translation fixed values at fixed indices
+        MatXi lreductor;        // Linear Reduction tying the n dofs to the full N
+        VecXd fullx;            // Result: computed result
+        MatXd nfn;              // Result: vertex-uv value on cut mesh
+        MatXd cfn;              // Result: corner-uv value on raw mesh
+        bool seamless = false;  // Whether to do full translational seamless.
+        bool roundSeams = true; // Whether to round seams or round singularities
+        bool locInj = true;     // Enforce local injectivity; might result in failure!
 
         explicit RosyParameterization(
             const Hmesh &raw,
@@ -53,18 +52,7 @@ namespace metriko {
             const vec<bool> &seam,
             const int degree,
             const double ratio = 0.02
-        ) : raw(raw),
-            cut(cut),
-            ext(ext),
-            singlars(singlars),
-            matching(matching),
-            seam(seam),
-            gridscale(ratio),
-            seamless(false),
-            roundSeams(true),
-            verbose(false),
-            localInjectivity(false)
-        {
+        ) : raw(raw), cut(cut), ext(ext), singlars(singlars), matching(matching), seam(seam), gridscale(ratio) {
             N = degree;
             if (N % 2 == 0) set_sign_symmetry(N);
             else { lreductor = MatXi::Identity(N, N); n = N; }
@@ -99,18 +87,16 @@ namespace metriko {
             if (N % 2 == 0) {
                 n = N / 3;
                 lreductor.resize(N, N / 3);
-                lreductor.block(0, 0, N / 2, N / 3) <<
-                        MatXi::Identity(N / 3, N / 3),
-                       -MatXi::Identity(N / 6, N / 6),
-                        MatXi::Identity(N / 6, N / 6);
+                lreductor.block(0, 0, N / 2, N / 3) << MatXi::Identity(N / 3, N / 3),
+                                                      -MatXi::Identity(N / 6, N / 6),
+                                                       MatXi::Identity(N / 6, N / 6);
                 lreductor.block(N / 2, 0, N / 2, N / 3) = -lreductor.block(0, 0, N / 2, N / 3);
             } else {
                 n = 2 * N / 3;
                 lreductor.resize(N, 2 * N / 3);
-                lreductor <<
-                    MatXi::Identity(2 * N / 3, 2 * N / 3),
-                   -MatXi::Identity(N / 3, N / 3),
-                   -MatXi::Identity(N / 3, N / 3);
+                lreductor << MatXi::Identity(2 * N / 3, 2 * N / 3),
+                            -MatXi::Identity(N / 3, N / 3),
+                            -MatXi::Identity(N / 3, N / 3);
             }
         }
 

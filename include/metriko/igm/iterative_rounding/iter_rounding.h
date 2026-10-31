@@ -113,8 +113,7 @@ public:
         const int nF,
         const bool seamless,
         const bool roundSeams,
-        const bool localInjectivity,
-        const bool verbose,
+        const bool locInj,
         const VecXd& intrinsicField,
         const std::function<bool(const VecXd& x)> &iter_cb,
         VecXd& fullx
@@ -124,34 +123,21 @@ public:
 
         CholeskyWrapper llt_ni, llt_si;
 
-        DiagonalDamping<NI> dd_ni(localInjectivity ? 0.01 : 0);
+        DiagonalDamping<NI> dd_ni(locInj ? 0.01 : 0);
         LMSolver<CholeskyWrapper, NI, DiagonalDamping<NI> > isLM;
 
         InjectiveBarrier barrier(N, nF, intrinsicField);
 
-        NI ni(
-            G2,
-            Cfull,
-            intrinsicField,
-            fixedIdcs,
-            fixedVals,
-            weightMatrix,
-            length,
-            localInjectivity,
-            N,
-            n,
-            iter_cb,
-            &barrier
-        );
+        NI ni(G2, Cfull, intrinsicField, fixedIdcs, fixedVals, weightMatrix, length, locInj, N, n, iter_cb, &barrier);
 
         //----- Naive Solution -----//
         if (!seamless) {
             // Either it doesn't need loc_inj or it is already loc_inj (because post_iteration has loc_inj check)
-            if (!localInjectivity || ni.post_iteration(ni.XF_Small)) { fullx = ni.x0; return true; }
+            if (!locInj || ni.post_iteration(ni.XF_Small)) { fullx = ni.x0; return true; }
         }
 
         isLM.init(&llt_ni, &ni, &dd_ni);
-        isLM.solve(verbose);
+        isLM.solve();
 
         // todo need to assign minix!
         fullx = (ni.UExt * isLM.x).head(ni.UFull.rows());
@@ -164,19 +150,16 @@ public:
 
         bool success = true;
         bool rounded = false;
-        DiagonalDamping<SI> dd_si(localInjectivity ? 0.01 : 0);
+        DiagonalDamping<SI> dd_si(locInj ? 0.01 : 0);
         LMSolver<CholeskyWrapper, SI, DiagonalDamping<SI> > irLM;
 
         while (!si.leftIdcs.empty()) {
             if (!si.initFixedIndices()) continue;
             rounded = true;
-            dd_si.currLambda = localInjectivity ? 0.01 : 0.;
+            dd_si.currLambda = locInj ? 0.01 : 0.;
             irLM.init(&llt_si, &si, &dd_si, 100, 1e-7, 1e-7);
-            irLM.solve(verbose);
-            if (!si.post_checking(irLM.x)) {
-                success = false;
-                break;
-            }
+            irLM.solve();
+            if (!si.post_checking(irLM.x)) { success = false; break; }
         }
 
         fullx = rounded ? ni.UFull * irLM.x : ni.x0;

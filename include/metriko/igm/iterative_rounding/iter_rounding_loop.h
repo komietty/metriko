@@ -107,7 +107,7 @@ public:
             const VecXi& iIdcs,
             const VecXi& sIdcs,
             const bool roundSeams_
-    ): Integration(ni.G2, F2_, ni.N, ni.n, ni.localInjectivity, ni.length, 1., 10e4, 0.01, ni.wBarrier, ni.barrier),
+    ): Integration(ni.G2, F2_, ni.N, ni.n, ni.locInj, ni.length, 1., 10e4, 0.01, ni.wBarrier, ni.barrier),
        UFull(ni.UFull), frac(1.), xInit(xInit_), roundSeams(roundSeams_)
     {
         integerIdcs  = vec<int>(iIdcs.data(), iIdcs.data() + iIdcs.size());
