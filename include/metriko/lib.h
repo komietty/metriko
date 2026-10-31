@@ -2,6 +2,7 @@
 #define METRIKO_LIB_H
 #include <expected>
 #include "hmesh/hmesh.h"
+#include "hmesh/cleanup.h"
 #include "nvec/face_rosy_field.h"
 #include "igm/parameterization.h"
 #include "quantization/quantization.h"
@@ -48,8 +49,11 @@ inline RemeshStage compute_quadrangulation_impl(
     const bool calign = false,
     const bool refine = true
 ) {
-    auto unit = grid_unit(V, scale);
-    auto hm   = std::make_unique<Hmesh>(MatXd(V / unit), F);
+    MatXd Vc = V;
+    MatXi Fc = F;
+    cleanup_mesh(Vc, Fc);
+    auto unit = grid_unit(Vc, scale);
+    auto hm   = std::make_unique<Hmesh>(MatXd(Vc / unit), Fc);
     auto rawf = FaceRosyField(*hm, 4, calign? FieldType::CurvatureAligned : FieldType::Smoothest);
     auto seam = compute_seam(rawf);
     auto cutm = compute_cut_mesh(*hm, seam);

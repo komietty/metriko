@@ -85,10 +85,10 @@ inline void Emesh::collapse_tquad_execute(Tqaux& aux) {
         return res;
     };
 
-    const auto [nid_bgn, v_bgn, o_bgn, top_bgn] = aux.pts.front();
-    const auto [nid_end, v_end, o_end, top_end] = aux.pts.back();
-    vec<int> run_bgn = take_run(nid_bgn, !top_bgn,  top_bgn);
-    vec<int> run_end = take_run(nid_end, !top_end, !top_end);
+    auto [nid_bgn, v_bgn, o_bgn, top_bgn] = aux.pts.front();
+    auto [nid_end, v_end, o_end, top_end] = aux.pts.back();
+    auto run_bgn = take_run(nid_bgn, !top_bgn,  top_bgn);
+    auto run_end = take_run(nid_end, !top_end, !top_end);
     vec<vec<int>> runs;
     auto is_head = [&](const Piece& q) { return rg::none_of(pieces, [&](const Piece& p) { return thalfs[p.thid].nid_to() == thalfs[q.thid].nid_fr(); }); };
     auto is_tail = [&](const Piece& q) { return rg::none_of(pieces, [&](const Piece& p) { return thalfs[p.thid].nid_fr() == thalfs[q.thid].nid_to(); }); };

@@ -301,19 +301,18 @@ inline void Mcurv::add_segment(const Hmesh &hm) {
         if (cd_bgn_snappable && snap(it->fr_nid)) { std::cout << "cd bgn snappable, fid: " << fid << std::endl; return; }
         if (cd_end_snappable && snap(it->to_nid)) { std::cout << "cd end snappable, fid: " << fid << std::endl; return; }
 
-        { // hit in middle case, or close to singular node
-            auto mn = Mnode{.jt = JunctionType::T, .loc = HmLocOnP{fid, lerp(uv0, uv3, ab)}};
-            mg->mnodes.push_back(mn);
-            auto nid = mg->mnodes.size() - 1;
+        // hit in middle case, or close to singular node
+        auto mn = Mnode{.jt = JunctionType::T, .loc = HmLocOnP{fid, lerp(uv0, uv3, ab)}};
+        mg->mnodes.push_back(mn);
+        auto nid = mg->mnodes.size() - 1;
 
-            Msgmt s1   = *it;
-            s1.fr_nid  = nid;
-            it->to_nid = nid;
+        Msgmt s1   = *it;
+        s1.fr_nid  = nid;
+        it->to_nid = nid;
 
-            cv.sgmts.insert(it + 1, s1);
-            sg.to_nid = nid;
-            sgmts.push_back(sg);
-        }
+        cv.sgmts.insert(it + 1, s1);
+        sg.to_nid = nid;
+        sgmts.push_back(sg);
     }
 }
 }
