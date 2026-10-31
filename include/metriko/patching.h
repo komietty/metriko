@@ -134,31 +134,39 @@ inline std::pair<MatXd, MatXi> extract_quad_mesh(const Hmesh& hm, const vec<qex:
 // patch labeling: replay the t-mesh on the quad mesh
 //------------------------------------------------------------------------------
 
-// the quad mesh as directed edges
+// the quad mesh by its halfedges: corner c = 4 i + j of quad i runs from its vertex j to its vertex j + 1. the twin of
+// a halfedge is found by its q-halfedge (the two q-halfedges of a q-edge are 2 k and 2 k + 1), not by its two ends:
+// round a cone of index 3 (a vertex of valence 1) one quad folds onto itself and two of its edges join the same two
+// vertices
 struct QuadGraph {
     const MatXi& idx;
-    std::map<std::pair<int, int>, std::pair<int, int>> corner; // directed edge a -> b: (quad on its left, corner a)
-    vec<vec<int>> nbrs;                                        // quad vertex -> neighbours
-    umap<int, int> qv_of_vid;                                  // mesh vertex -> quad vertex (q-vertices on a vertex)
+    vec<int> qh;                // corner -> its q-halfedge
+    umap<int, int> corner_of;   // q-halfedge -> corner
+    vec<int> out;               // quad vertex -> a corner leaving it
+    umap<int, int> qv_of_vid;   // mesh vertex -> quad vertex (q-vertices on a vertex)
 
-    QuadGraph(const vec<qex::Qface>& qfaces, const MatXi& idx): idx(idx), nbrs(idx.size() ? idx.maxCoeff() + 1 : 0) {
+    QuadGraph(const vec<qex::Qface>& qfaces, const MatXi& idx): idx(idx), qh(4 * idx.rows()), out(idx.size() ? idx.maxCoeff() + 1 : 0, -1) {
         for (int i = 0; i < idx.rows(); ++i)
         for (int j = 0; j < 4; ++j) {
-            int a = idx(i, j), b = idx(i, (j + 1) % 4);
-            corner[{a, b}] = {i, j};
-            nbrs[a].push_back(b);
-            if (int v = qfaces[i].qhalfs[j].port1().vid; v >= 0) qv_of_vid[v] = a;
+            qh[4 * i + j] = qfaces[i].qhalfs[j].idx;
+            corner_of[qh[4 * i + j]] = 4 * i + j;
+            out[idx(i, j)] = 4 * i + j;
+            if (int v = qfaces[i].qhalfs[j].port1().vid; v >= 0) qv_of_vid[v] = idx(i, j);
         }
     }
-    int quad(int a, int b)     const { return corner.at({a, b}).first; }                              // quad on the left of a -> b
-    int valence(int v)         const { return (int)nbrs[v].size(); }
-    int rot(int v, int w)      const { auto [q, j] = corner.at({v, w}); return idx(q, (j + 3) % 4); } // neighbour of v after w, CCW
-    int straight(int t, int v) const { return rot(v, rot(v, t)); }                                    // arrived t -> v: keep going
-    vec<int> ring(int v, int first) const {                                                           // neighbours of v, CCW from `first`
-        vec<int> r = {first};
-        while ((int)r.size() < valence(v)) r.push_back(rot(v, r.back()));
+    int quad(int c)  const { return c / 4; }
+    int tail(int c)  const { return idx(c / 4, c % 4); }
+    int head(int c)  const { return idx(c / 4, (c % 4 + 1) % 4); }
+    int edge(int c)  const { return qh[c] / 2; }
+    int twin(int c)  const { return corner_of.at(qh[c] ^ 1); }
+    int rot(int c)   const { return twin(c / 4 * 4 + (c % 4 + 3) % 4); } // the next corner leaving tail(c), CCW
+    int straight(int c) const { return rot(rot(twin(c))); }              // arrived along c: the corner going on
+    vec<int> ring(int c) const {                                          // the corners leaving tail(c), CCW from c
+        vec<int> r = {c};
+        for (int d = rot(c); d != c; d = rot(d)) r.push_back(d);
         return r;
     }
+    int valence(int v) const { return out[v] < 0 ? 0 : (int)ring(out[v]).size(); }
 };
 
 // the t-mesh as seen from the quad mesh, built once and never changed
@@ -213,11 +221,11 @@ struct TmeshView {
 // walk every tedge on the quad mesh, labeling the quads on its two sides. the state of the walk only: a replay is
 // copied to try the rotations at a singular
 struct Replay {
-    struct Job { int teid; bool fwd; int from; int to; };   // walk teid starting with the quad edge from -> to
+    struct Job { int teid; bool fwd; int c; };   // walk teid starting along corner c
 
     const TmeshView* tv;                   // pointer, so that a replay can be copied and assigned
     VecXi tqid_of_quad;                    // the labels so far, -1 when none
-    std::set<std::pair<int, int>> track;   // quad edges (min, max) lying on a tedge
+    std::set<int> track;                   // quad edges lying on a tedge
     umap<int, int> node_qv;                // node -> quad vertex
     vec<bool> done;                        // per tedge
     std::queue<Job> jobs;
@@ -225,29 +233,31 @@ struct Replay {
 
     explicit Replay(const TmeshView& tv): tv(&tv), tqid_of_quad(VecXi::Constant(tv.g.idx.rows(), -1)), done(tv.tm.tedges.size(), false) {}
 
-    // anchor a node at a quad vertex and queue the tedges leaving it, the first at slot `rot`
+    // anchor a node at a quad vertex and queue the tedges leaving it, the first at slot `rot` of the corners around it
     void anchor(int nid, int qv, const vec<TmeshView::Branch>& branches, const vec<int>& ring, int rot) {
         node_qv[nid] = qv;
-        for (auto [t, fwd, slot]: branches) if (!done[t]) jobs.push({t, fwd, qv, ring[(slot + rot) % ring.size()]});
+        for (auto [t, fwd, slot]: branches) if (!done[t]) jobs.push({t, fwd, ring[(slot + rot) % ring.size()]});
     }
 
     // walk a tedge straight along the quad edges; false at the first contradiction
     bool walk(const Job& jb) {
         auto label = [&](int q, int tqid) { int& l = tqid_of_quad(q); if (l >= 0 && l != tqid) return false; l = tqid; return true; };
+        const auto& g = tv->g;
         const auto& e = tv->te[jb.teid];
         const int lq = jb.fwd ? e.left : e.right, rq = jb.fwd ? e.right : e.left;
-        int a = jb.from, b = jb.to;
+        int c = jb.c;
         for (int k = 0; k < e.steps; ++k) {
-            if (!label(tv->g.quad(a, b), lq) || !label(tv->g.quad(b, a), rq)) return false;
-            track.insert(std::minmax(a, b));
+            if (!label(g.quad(c), lq) || !label(g.quad(g.twin(c)), rq)) return false;
+            track.insert(g.edge(c));
             if (k + 1 == e.steps) break;
-            if (tv->g.valence(b) != 4) return false;   // irregular vertex before the far node
-            std::tie(a, b) = std::pair(b, tv->g.straight(a, b));
+            if (g.valence(g.head(c)) != 4) return false;   // irregular vertex before the far node
+            c = g.straight(c);
         }
+        const int b = g.head(c);
         const int nid = tv->far_node(jb.teid, jb.fwd);
         if (int s = tv->singular_qv(nid); s >= 0 && s != b) return false;               // landed away from the singular
         if (auto it = node_qv.find(nid); it != node_qv.end()) return it->second == b;   // anchored elsewhere
-        anchor(nid, b, tv->chain(nid, jb.teid, !jb.fwd), tv->g.ring(b, a), 0);         // slots CCW from the reverse of arrival
+        anchor(nid, b, tv->chain(nid, jb.teid, !jb.fwd), g.ring(g.twin(c)), 0);   // slots CCW from the reverse of arrival
         return true;
     }
 
@@ -281,7 +291,7 @@ inline VecXi label_quad_patches(
     for (auto& [nid, brs]: tv.branches) {
         const int s = tv.singular_qv(nid);
         if (s < 0 || rp.node_qv.contains(nid)) continue;
-        const auto ring  = g.ring(s, g.nbrs[s].front());
+        const auto ring  = g.ring(g.out[s]);
         const auto chain = tv.chain(nid, brs[0].first, brs[0].second);
         vec<Replay> good;
         for (int rot = 0; rot < ring.size(); ++rot) {
@@ -303,9 +313,8 @@ inline VecXi label_quad_patches(
     while (!que.empty()) {
         int q = que.front(); que.pop();
         for (int j = 0; j < 4; ++j) {
-            int a = qidx(q, j), b = qidx(q, (j + 1) % 4);
-            if (rp.track.contains(std::minmax(a, b))) continue;
-            if (int nb = g.quad(b, a); tqid(nb) < 0) { tqid(nb) = tqid(q); que.push(nb); }
+            if (rp.track.contains(g.edge(4 * q + j))) continue;
+            if (int nb = g.quad(g.twin(4 * q + j)); tqid(nb) < 0) { tqid(nb) = tqid(q); que.push(nb); }
         }
     }
     const int unlabeled = (tqid.array() < 0).count();
