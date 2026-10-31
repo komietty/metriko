@@ -19,7 +19,7 @@ namespace metriko {
         double d = (ideal_value - curr_value) * (minus ? -1. : 1.);
         double n = num_tedges_in_tmesh;
         if (d >= 1.) return 1. / (d + 1.);
-        if (d < 0.)  return n * n / (1. - d);
+        if (d < 0.)  return n * n * (1. - d);
         return n / (d + 1.);
     }
 }
