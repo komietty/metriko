@@ -58,7 +58,7 @@ namespace metriko {
 
     inline void RosyParameterization::setup() {
         // here we compute a permutation matrix
-        vec<MatXi> constParmMats(N, MatXi::Zero(N, N));
+        vec<MatXi> constParmMats(N, Z(N));
         for (int k = 0; k < N; k++)
         for (int i = 0; i < N; i++)
             constParmMats[k]((i + k) % N, i) = 1;
@@ -71,7 +71,7 @@ namespace metriko {
             // 1: The initial corner gets the identity without any transition
             vec<MatXi> permMats;
             vec<int> permIdcs;
-            permMats.emplace_back(MatXi::Identity(N, N));
+            permMats.emplace_back(I(N));
             permIdcs.emplace_back(v.id);
             int iVcut = -1;
 
@@ -91,10 +91,10 @@ namespace metriko {
                     auto t = he2transidx[hn.id];
                     if (t > 0) {
                         for (auto &m: permMats) m = p * m;
-                        permMats.emplace_back(MatXi::Identity(N, N));
+                        permMats.emplace_back(I(N));
                         permIdcs.push_back(raw.nV + t - 1);
                     } else {
-                        permMats.emplace_back(-MatXi::Identity(N, N));
+                        permMats.emplace_back(-I(N));
                         permIdcs.push_back(raw.nV - t - 1);
                         for (auto &m: permMats) m = p * m;
                     }
@@ -108,11 +108,10 @@ namespace metriko {
                 vec<MatXi> mats(idcs.size());
 
                 for (int j = 0; j < idcs.size(); j++) {
-                    mats[j] = MatXi::Zero(N, N);
-                    for (int k = 0; k < permIdcs.size(); k++) {
+                    mats[j] = Z(N);
+                    for (int k = 0; k < permIdcs.size(); k++)
                         if (idcs[j] == permIdcs[k]) mats[j] += permMats[k];
-                    }
-                    if (idcs[j] == v.id) mats[j] -= MatXi::Identity(N, N);
+                    if (idcs[j] == v.id) mats[j] -= I(N);
                 }
 
                 if (rg::any_of(mats, [](auto &m) { return m.cwiseAbs().maxCoeff() != 0; })) {

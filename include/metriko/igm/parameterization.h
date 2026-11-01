@@ -55,7 +55,7 @@ namespace metriko {
         ) : raw(raw), cut(cut), ext(ext), singlars(singlars), matching(matching), seam(seam), gridscale(ratio) {
             N = degree;
             if (N % 2 == 0) set_sign_symmetry(N);
-            else { lreductor = MatXi::Identity(N, N); n = N; }
+            else { lreductor = I(N); n = N; }
             fixedVals = VecXd::Zero(n);
             compute_he2transidx();
             compute_he2matching();
@@ -73,12 +73,14 @@ namespace metriko {
         Half find_first_seam_he(Vert v) const { Half s = v.half(); for (auto h: v.adjHalfs(false)) if (seam[h.edge().id])     { s = h; break; } return s; }
         Half find_first_bndr_he(Vert v) const { Half b = v.half(); for (auto h: v.adjHalfs(false)) if (h.edge().isBoundary()) { b = h; break; } return b; }
 
+        static MatXi I(const int k) { return MatXi::Identity(k, k); }
+        static MatXi Z(const int k) { return MatXi::Zero(k, k); }
+
         void set_sign_symmetry(const int N) {
             if (N % 2 != 0) throw std::invalid_argument("sign symmetry needs an even N");
             n = N / 2;
             lreductor.resize(N, N / 2);
-            lreductor << MatXi::Identity(N / 2, N / 2),
-                        -MatXi::Identity(N / 2, N / 2);
+            lreductor << I(N / 2), -I(N / 2);
         }
 
         void set_tris_symmetry(const int N) {
@@ -87,16 +89,12 @@ namespace metriko {
             if (N % 2 == 0) {
                 n = N / 3;
                 lreductor.resize(N, N / 3);
-                lreductor.block(0, 0, N / 2, N / 3) << MatXi::Identity(N / 3, N / 3),
-                                                      -MatXi::Identity(N / 6, N / 6),
-                                                       MatXi::Identity(N / 6, N / 6);
+                lreductor.block(0, 0, N / 2, N / 3) << I(N / 3), -I(N / 6), I(N / 6);
                 lreductor.block(N / 2, 0, N / 2, N / 3) = -lreductor.block(0, 0, N / 2, N / 3);
             } else {
                 n = 2 * N / 3;
                 lreductor.resize(N, 2 * N / 3);
-                lreductor << MatXi::Identity(2 * N / 3, 2 * N / 3),
-                            -MatXi::Identity(N / 3, N / 3),
-                            -MatXi::Identity(N / 3, N / 3);
+                lreductor << I(2 * N / 3), -I(N / 3), -I(N / 3);
             }
         }
 
@@ -106,10 +104,7 @@ namespace metriko {
     };
 
     //----- utility function to cut mesh by seam -----//
-    inline std::unique_ptr<Hmesh> compute_cut_mesh(
-        const Hmesh& m,
-        const vec<bool>& seam
-    ) {
+    inline std::unique_ptr<Hmesh> compute_cut_mesh(const Hmesh& m, const vec<bool>& seam) {
         MatXd cutV;
         MatXi cutF(m.nF, 3);
         vec<Row3d> cut2pos;
