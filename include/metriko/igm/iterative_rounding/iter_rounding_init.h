@@ -34,23 +34,19 @@ namespace metriko {
             const int l2 = UExt.rows();
             const int l3 = fixedIdcs.size();
 
-            gInteg.resize(G2.rows(), G2.cols() + l1);
-            gClose.resize(l1, l2);
-            gConst.resize(l3, l2);
-
             vec<TripD> T;
 
             for (const auto& [r, c, v]: nonzeros(G2)) T.emplace_back(r, c, -length * v);
             for (int i = 0; i < l1; i++) T.emplace_back(i, G2.cols() + i, 1.);
-            gInteg.setFromTriplets(T.begin(), T.end());
+            gInteg = sparse(G2.rows(), G2.cols() + l1, T);
 
             T.clear();
             for (int i = 0; i < l1; i++) T.emplace_back(i, x0.size() + i, 1.);
-            gClose.setFromTriplets(T.begin(), T.end());
+            gClose = sparse(l1, l2, T);
 
             T.clear();
             for (int i = 0; i < l3; i++) T.emplace_back(i, fixedIdcs(i), 1.);
-            gConst.setFromTriplets(T.begin(), T.end());
+            gConst = sparse(l3, l2, T);
 
             gInteg = gInteg * UExt * wInteg;
             gClose = gClose * UExt * wClose;
@@ -125,8 +121,7 @@ namespace metriko {
             // a (nearly) singular E passes the factorization but not the solve
             if (llt.info() == Eigen::Success && y.allFinite() && (Ey * y - rhs).norm() <= 1e-8 * std::max(rhs.norm(), 1.)) { XSmall = xp + Z * y; }
             else {
-                SprsD bigMat(E.rows() + constMat.rows(), E.rows() + constMat.rows());
-                bigMat.setFromTriplets(bmT.begin(), bmT.end());
+                SprsD bigMat = sparse(E.rows() + constMat.rows(), E.rows() + constMat.rows(), bmT);
                 VecXd bigRhs(f.size() + fixedVals.size());
                 bigRhs << f, fixedVals;
                 Eigen::SparseLU solver(bigMat);
@@ -145,8 +140,7 @@ namespace metriko {
             for (int k = 0; k < F2.size(); k++)
                 ueT.emplace_back(UFull.rows() + k, UFull.cols() + k, 1.);
 
-            UExt.resize(UFull.rows() + F2.size(), UFull.cols() + F2.size());
-            UExt.setFromTriplets(ueT.begin(), ueT.end());
+            UExt = sparse(UFull.rows() + F2.size(), UFull.cols() + F2.size(), ueT);
 
             VecXd E_;
             SprsD J_;

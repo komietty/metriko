@@ -60,12 +60,11 @@ public:
         gClose = gClose * wClose;
 
         //fixedIndices constantness
-        gConst.resize(fixedIdcs.size(), X.size());
         vec<TripD> gcT;
         for (int i = 0; i < fixedIdcs.size(); i++)
             gcT.emplace_back(i, fixedIdcs[i], 1.);
 
-        gConst.setFromTriplets(gcT.begin(), gcT.end());
+        gConst = sparse(fixedIdcs.size(), X.size(), gcT);
         gConst = gConst * UFull * wConst;
 
         if (ESize == 0) { // why needed this inside code

@@ -28,8 +28,7 @@ namespace metriko {
             for (int i = 0; i < dampVec.size(); i++)
                 dampJTris.emplace_back(J.rows() + i, i, std::sqrt(dampVec(i)));
 
-            dampJ.resize(J.rows() + J.cols(), J.cols());
-            dampJ.setFromTriplets(dampJTris.begin(), dampJTris.end());
+            dampJ = sparse(J.rows() + J.cols(), J.cols(), dampJTris);
         }
 
         void init( const SprsD& J, SprsD& dampJ) const { build_damped_matrix(J, dampJ); }

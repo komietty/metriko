@@ -31,8 +31,7 @@ namespace metriko {
         for (int thid: loops[i])
             T.emplace_back(i, tm.thalfs[thid].teid, 1);
 
-        SprsD G(tm.tedges.size(), tm.tedges.size());
-        G.setFromTriplets(T.begin(), T.end());
+        SprsD G = sparse(tm.tedges.size(), tm.tedges.size(), T);
 
         for (const auto& [r, c, v]: nonzeros(G))
             METRIKO_CHECK(v <= 2, "generating loop {} passes tedge {} more than twice", r, c);

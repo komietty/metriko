@@ -26,6 +26,16 @@ auto nonzeros(const Eigen::SparseMatrix<Scalar>& S) {
     }) | vw::join;
 }
 
+inline SprsD sparse(
+    const int rows,
+    const int cols,
+    const vec<TripD>& T
+) {
+    SprsD S(rows, cols);
+    S.setFromTriplets(T.begin(), T.end());
+    return S;
+}
+
 // the solutions of C x = b for a sparse C whose nonzeros sit in a few columns, as x = x0 + Z y. the columns C does not
 // touch stay free: identity columns of Z, in their order. the touched ones are confined to the kernel of C restricted to
 // them, computed densely by FullPivLU, whose vectors follow in Z. x0 solves C x0 = b and is zero off the touched columns
@@ -61,9 +71,7 @@ inline SprsD sparse_null_space(const SprsD& C, const VecXd& b, VecXd& x0) {
         }
     }
 
-    SprsD Z(nx, ny);
-    Z.setFromTriplets(T.begin(), T.end());
-    return Z;
+    return sparse(nx, ny, T);
 }
 
 // the homogeneous case, C x = 0: x = Z y
@@ -86,8 +94,7 @@ inline void reduce_to_linearly_independent(SprsD& mat) {
     T.reserve(mat.nonZeros());
     for (const auto& [r, c, v]: nonzeros(mat)) if (int rid = rid_map(r); rid != -1) T.emplace_back(rid, c, v);
 
-    mat.resize(rank, mat.cols());
-    mat.setFromTriplets(T.begin(), T.end());
+    mat = sparse(rank, mat.cols(), T);
 }
 
 template<typename Scalar>

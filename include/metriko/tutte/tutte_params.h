@@ -15,7 +15,6 @@
 
 namespace metriko {
 inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
-    SprsD S(mesh.nV, mesh.nV);
     vec<TripD> T;
 
     for (Vert v: mesh.verts) {
@@ -31,8 +30,7 @@ inline SprsD boundary_snap_laplacian(const Hmesh &mesh) {
             T.emplace_back(v.id, v.id, sum);
         }
     }
-    S.setFromTriplets(T.begin(), T.end());
-    return S;
+    return sparse(mesh.nV, mesh.nV, T);
 }
 
 inline SprsD embedding_tutte_for_tquad(
@@ -124,7 +122,6 @@ inline SprsD embedding_tutte_for_tquad(
     lu.compute(boundary_snap_laplacian(Hmesh(V, F, true)));
     MatXd uv = lu.solve(UV);
 
-    SprsD uv_all(hm.nC, 2);
     vec<TripD> T;
     for (Face f: hm.faces) {
         if (!visit[f.id]) continue;
@@ -134,8 +131,7 @@ inline SprsD embedding_tutte_for_tquad(
             T.emplace_back(h.crnr().id, 1, r.y());
         }
     }
-    uv_all.setFromTriplets(T.begin(), T.end());
-    return uv_all;
+    return sparse(hm.nC, 2, T);
 }
 
 // take the tutte result as the input, embed it until seam intersection.

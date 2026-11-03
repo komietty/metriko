@@ -122,12 +122,10 @@ namespace metriko {
             }
         }
 
-        vtrans2cut.resize(N * cut.nV, N * nR);
-        vtrans2cut.setFromTriplets(vT.begin(), vT.end());
+        vtrans2cut = sparse(N * cut.nV, N * nR, vT);
         vtrans2cut.prune(1e-3);
 
-        constraint.resize(N * currConstraint, N * nR);
-        constraint.setFromTriplets(cT.begin(), cT.end());
+        constraint = sparse(N * currConstraint, N * nR, cT);
         constraint.prune(1e-3);
 
         /// filtering out barycentric symmetry, including sign symmetry.
@@ -136,8 +134,7 @@ namespace metriko {
         /// integer variables are per single "d" packet, and the rounding is done for the N functions with projection over linRed
         vec<TripD> buff;
         for (int i = 0; i < N * nR; i += N) assign_block(buff, lreductor, i, i * n/N);
-        uncompress.resize(N * nR, n * nR);
-        uncompress.setFromTriplets(buff.begin(), buff.end());
+        uncompress = sparse(N * nR, n * nR, buff);
 
         //----- indices to be integer (used for rounding on seams) -----
         const auto sv = rg::find_if(raw.verts, [&](Vert v) { return is_inside_singular(v); });

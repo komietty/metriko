@@ -129,7 +129,7 @@ inline MatXd seamless_slim(
     igl::doublearea(hc.pos, hc.idx, area);
 
     // 4: the system over the free points. its pattern is fixed: where each face adds its 6 x 6 block is found once
-    SprsD K(2 * m, 2 * m);
+    SprsD K;
     {
         vec<TripD> T;
         for (int g = 0; g < 2 * m; ++g) T.emplace_back(g, g, 0.);
@@ -141,7 +141,7 @@ inline MatXd seamless_slim(
             if (ga < 0 || gb < 0) continue;
             for (int i = 0; i < 2; ++i) for (int j = 0; j < 2; ++j) T.emplace_back(2 * ga + i, 2 * gb + j, 0.);
         }
-        K.setFromTriplets(T.begin(), T.end());
+        K = sparse(2 * m, 2 * m, T);
         K.makeCompressed();
     }
     auto slot = [&](int r, int c) {

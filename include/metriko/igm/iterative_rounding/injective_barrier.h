@@ -43,13 +43,11 @@ namespace metriko {
         }
 
         SprsD gen_image_filed(const VecXd &currField) const {
-            SprsD m(N * nF, currField.size());
             vec<TripD> T;
             for (int i = 0; i < I.rows(); i++)
                 for (int j = 0; j < I.cols(); j++)
                     T.emplace_back(I(i, j), J(i, j), S(i, j));
-            m.setFromTriplets(T.begin(), T.end());
-            return m;
+            return sparse(N * nF, currField.size(), T);
         }
 
         void update(
