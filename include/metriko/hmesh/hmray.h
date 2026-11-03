@@ -60,7 +60,7 @@ inline std::pair<HmLoc, complex> cross_to_twin(
     const VecXi& matching,
     const complex dir
 ) {
-    auto get_m = [&](Half h) { return (h.isCanonical() ? -1 : 1) * matching[h.edge().id]; };
+    auto get_m = [&](Half h) { return (h.cano() ? -1 : 1) * matching[h.edge().id]; };
 
     return std::visit(overloaded{
         [&](const HmLocOnC& l) -> std::pair<HmLoc, complex> {

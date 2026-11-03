@@ -32,13 +32,13 @@ namespace metriko::qex {
                     auto d  = get_quater_rot(i);
 
                     if (is_collinear(uv1, uv2, uv + d) ?
-                        !h.isCanonical() :                // if collinear, always non cano face will be skipped
+                        !h.cano() :                       // if collinear, always non cano face will be skipped
                         orientation(uv1, uv2, uv + d) < 0 // if not collinear dir must be inside face otherwise skipped
                     ) continue;
 
                     double k = std::arg(d / (uv2 - uv1)); // angle from the edge: [0, pi] in this chart
                     if (k < 0) k += TwoPI;                // exact anti-parallel may yield -pi
-                    ps.emplace_back((h.isCanonical() ? 0 : PI) + k, Qport(-1, -1, e.id, h.face().id, nearby_grid(uv), d, qv.pos));
+                    ps.emplace_back((h.cano() ? 0 : PI) + k, Qport(-1, -1, e.id, h.face().id, nearby_grid(uv), d, qv.pos));
                 }
             }
 

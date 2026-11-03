@@ -380,7 +380,7 @@ inline std::unique_ptr<Hmesh> compute_embedding_cut_hmesh(
         for (int k = 0; k + 1 < ch.size(); ++k) {
             Half h = half_by_verts.at({ch[k], ch[k + 1]}); // same direction as h
             seam1[h.edge().id] = true;
-            matching1(h.edge().id) = h.isCanonical() ? matching0(e.id) : -matching0(e.id);
+            matching1(h.edge().id) = h.cano() ? matching0(e.id) : -matching0(e.id);
         }
     }
 

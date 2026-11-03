@@ -102,7 +102,7 @@ inline std::optional<Edge> try_get_edge(const Hmesh& hm, const HmLoc& a, const H
 inline std::optional<std::pair<Half, double>> try_get_half_ratio(const Hmesh& hm, const HmLoc& loc) {
     using R = std::optional<std::pair<Half, double>>;
     return std::visit(overloaded{
-        [&](const HmLocOnE& l) -> R { auto e = hm.edges[l.id]; auto h = e.half(); return std::pair(h, 1. - (h.isCanonical() ? l.r : 1. - l.r)); },
+        [&](const HmLocOnE& l) -> R { auto e = hm.edges[l.id]; auto h = e.half(); return std::pair(h, 1. - (h.cano() ? l.r : 1. - l.r)); },
         [&](const HmLocOnH& l) -> R { return std::pair(hm.halfs[l.id], 1. - l.r); },
         [&](const auto&)       -> R { return std::nullopt; },
     }, loc);
@@ -112,7 +112,7 @@ inline std::optional<std::pair<Edge, double>> try_get_edge_ratio(const Hmesh& hm
     using R = std::optional<std::pair<Edge, double>>;
     return std::visit(overloaded{
         [&](const HmLocOnE& l) -> R { return std::pair{hm.edges[l.id], l.r}; },
-        [&](const HmLocOnH& l) -> R { Half h = hm.halfs[l.id]; return std::pair{h.edge(), h.isCanonical() ? l.r : 1. - l.r}; },
+        [&](const HmLocOnH& l) -> R { Half h = hm.halfs[l.id]; return std::pair{h.edge(), h.cano() ? l.r : 1. - l.r}; },
         [&](const auto&)       -> R { return std::nullopt; },
     }, loc);
 }
@@ -208,7 +208,7 @@ inline complex get_face_uv(const HmLoc& loc, int fid, const Hmesh& hm) {
     return std::visit(overloaded {
         [&](const HmLocOnP& l) -> complex { return l.uv; },
         [&](const HmLocOnV& l) -> complex { auto c = hm.faces[fid].try_get_crnr(hm.verts[l.id]).value(); return c.uv(); },
-        [&](const HmLocOnE& l) -> complex { auto h = hm.faces[fid].try_get_half(hm.edges[l.id]).value(); return h.uv(h.isCanonical() ? l.r : 1 - l.r); },
+        [&](const HmLocOnE& l) -> complex { auto h = hm.faces[fid].try_get_half(hm.edges[l.id]).value(); return h.uv(h.cano() ? l.r : 1 - l.r); },
         [&](const auto& _)     -> complex { METRIKO_FAIL("no impl"); },
     }, loc);
 }

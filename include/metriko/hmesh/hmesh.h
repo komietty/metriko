@@ -106,13 +106,13 @@ struct Half : Elem {
     [[nodiscard]] Crnr crnr() const;
     [[nodiscard]] Crnr cr_t() const;
     [[nodiscard]] Crnr cr_h() const;
+    [[nodiscard]] bool cano() const;
+    [[nodiscard]] bool isBoundary() const;
     [[nodiscard]] double len()  const;
     [[nodiscard]] double cot()  const;
     [[nodiscard]] double varg() const;
     [[nodiscard]] double farg() const;
     [[nodiscard]] double darg() const;
-    [[nodiscard]] bool isBoundary()  const;
-    [[nodiscard]] bool isCanonical() const;
     [[nodiscard]] Row3d vec() const;
     [[nodiscard]] Row3d nml() const;
     [[nodiscard]] Row3d lerp(double r) const;
@@ -240,6 +240,7 @@ inline Half Vert::half() const { return {m->vert2half[id], m}; }
 inline Half Edge::half() const { return {m->edge2half[id], m}; }
 inline Half Face::half() const { return {m->face2half[id], m}; }
 inline Half Loop::half() const { return {m->loop2half[id], m}; }
+inline bool Half::cano() const { return edge().half().id == id; }
 
 inline Half Crnr::half() const { return Half{m->crnr2half[id], m}; }
 inline Vert Crnr::vert() const { return Half{m->crnr2half[id], m}.prev().tail(); }
@@ -255,11 +256,10 @@ inline Face Edge::face1() const { return {m->edge2face(id, 1), m}; }
 inline std::optional<Crnr> Face::try_get_crnr(Vert v) const { for (auto c: crnrs()) if (c.vert() == v) return c; return std::nullopt; }
 inline std::optional<Half> Face::try_get_half(Edge e) const { for (auto h: halfs()) if (h.edge() == e) return h; return std::nullopt; }
 
-inline bool Half::isCanonical() const { return edge().half().id == id; }
-inline bool Half::isBoundary()  const { return face().id == -1; }
-inline bool Vert::isBoundary()  const { return  m->isBV[id]; }
-inline bool Vert::isInterior()  const { return !m->isBV[id]; }
-inline bool Edge::isBoundary()  const { return half().isBoundary() || half().twin().isBoundary(); }
+inline bool Half::isBoundary() const { return face().id == -1; }
+inline bool Vert::isBoundary() const { return  m->isBV[id]; }
+inline bool Vert::isInterior() const { return !m->isBV[id]; }
+inline bool Edge::isBoundary() const { return half().isBoundary() || half().twin().isBoundary(); }
 
 inline double Edge::len() const { return Half{m->edge2half[id], m}.len(); }
 inline double Half::len() const { return vec().norm(); }

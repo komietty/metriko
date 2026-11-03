@@ -85,7 +85,7 @@ inline void compute_trs_matrix(
         Crnr c2 = h.twin().prev().crnr();
         auto uv1 = c1.uv();
         auto uv2 = c2.uv();
-        int m = (h.isCanonical() ? 1 : -1) * matching[h.edge().id];
+        int m = (h.cano() ? 1 : -1) * matching[h.edge().id];
         m = m < 0 ? (rosyN + m % rosyN) % rosyN : m % rosyN;
         auto r = get_quater_rot(m);
         auto t = uv2 - r * uv1;

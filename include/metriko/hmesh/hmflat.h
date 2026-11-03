@@ -72,7 +72,7 @@ inline HmLoc flat_loc(const HmFlat& c, complex q) {
         auto r = std::abs(q - a) / std::abs(b - a);
         if (r < EPS)     return HmLocOnV{hs[k].tail().id};
         if (r > 1 - EPS) return HmLocOnV{hs[k].head().id};
-        return HmLocOnE{hs[k].edge().id, hs[k].isCanonical() ? r : 1 - r};
+        return HmLocOnE{hs[k].edge().id, hs[k].cano() ? r : 1 - r};
     }
     auto [a, b, d] = c.f.verts();
     return HmLocOnF{c.f.id, c.f.to_local(conversion_2d_3d(c.uv[0], c.uv[1], c.uv[2], a.pos(), b.pos(), d.pos(), q))};

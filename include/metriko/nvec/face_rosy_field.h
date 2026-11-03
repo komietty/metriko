@@ -155,7 +155,7 @@ struct FaceRosyField  {
         singular = VecXi::Ones(mesh.nV);
         for (auto v: mesh.verts | vw::filter([](auto _v) { return !_v.isBoundary(); })) {
             double sum = mesh.angleDefect[v.id] * rosyN;
-            for (auto h: v.adjHalfs()) sum += (h.isCanonical() ? -1 : 1) * effort[h.edge().id];
+            for (auto h: v.adjHalfs()) sum += (h.cano() ? -1 : 1) * effort[h.edge().id];
             singular[v.id] = static_cast<int>(std::round(sum / TwoPI));
         }
     }

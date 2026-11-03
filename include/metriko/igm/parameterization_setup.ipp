@@ -10,7 +10,7 @@ namespace metriko {
     inline void RosyParameterization::compute_he2matching() {
         he2matching.resize(raw.nH);
         for (Half h: raw.halfs) {
-            int m = (h.isCanonical() ? -1 : 1) * matching(h.edge().id); // better not inversed
+            int m = (h.cano() ? -1 : 1) * matching(h.edge().id); // better not inversed
             he2matching[h.id] = (m % N + N) % N ;
         }
     }
