@@ -41,6 +41,7 @@ using Row2i = Eigen::RowVector2i;
 using Row2d = Eigen::RowVector2d;
 using Row3i = Eigen::RowVector3i;
 using Row3d = Eigen::RowVector3d;
+using Row3c = Eigen::RowVector3cd;
 using Mat2i = Eigen::Matrix2i;
 using Mat2d = Eigen::Matrix2d;
 using Mat4d = Eigen::Matrix4d;

@@ -15,8 +15,7 @@
 #include "iter_rounding_common.h"
 
 namespace metriko {
-    class NaiveIntegration : public Integration {
-    public:
+    struct NaiveIntegration : Integration {
         const VecXi& fixedIdcs;
         const VecXd& fixedVals;
         SprsD UFull; // parmMat * URaw.

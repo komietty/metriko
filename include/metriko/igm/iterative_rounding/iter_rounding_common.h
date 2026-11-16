@@ -12,8 +12,7 @@
 #include "injective_barrier.h"
 
 namespace metriko {
-    class Integration {
-    public:
+    struct Integration {
         const SprsD &G2;
         const VecXd &F2;
         int xSize = 0;
@@ -33,30 +32,18 @@ namespace metriko {
         SprsD X2F; // convert x to the field with parameter length
 
         Integration(
-            const SprsD &intrinsicGrad_,
-            const VecXd &intrinsicField_,
-            const int N_,
-            const int n_,
-            const bool locInj_,
-            const double length_,
-            const double wInteg_,
-            const double wConst_,
-            const double wClose_,
-            const double wBarrier_,
-            InjectiveBarrier *barrier_
-        ) : G2(intrinsicGrad_),
-            F2(intrinsicField_),
-            N(N_),
-            n(n_),
-            locInj(locInj_),
-            length(length_),
-            wInteg(wInteg_),
-            wConst(wConst_),
-            wClose(wClose_),
-            wBarrier(wBarrier_),
-            barrier(barrier_)
-        {
-        }
+            const SprsD &G2_, // intrinsic gradient
+            const VecXd &F2_, // intrinsic field
+            const int N_,     //
+            const int n_,     //
+            const bool li,    // locally injective
+            const double l,   // length
+            const double wI,  // weight of integration
+            const double wCo, // weight of constantness
+            const double wCl, // weight of closeness
+            const double wB,  // weight of barrier
+            InjectiveBarrier *b_
+        ): G2(G2_), F2(F2_), N(N_), n(n_), length(l), wInteg(wI), wConst(wCo), wClose(wCl), wBarrier(wB), locInj(li), barrier(b_) { }
 
         static void pre_iteration(const VecXd &prevx) { }
 

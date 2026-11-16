@@ -12,7 +12,7 @@
 #include "iterative_rounding/iter_rounding.h"
 
 namespace metriko {
-    class RosyParameterization {
+    struct RosyParameterization {
         const Hmesh &raw;
         const Hmesh &cut;
         const MatXd &ext;
@@ -23,7 +23,6 @@ namespace metriko {
         int nT;                 // Number of transitions
         int nR;                 // Number of vertices that are inside the raw mesh plus nT
         int nS;                 // Number of vertices that are singular but not on  boundaries
-    public:
         int N;                  // Uncompressed parametric functions
         int n;                  // Independent parameteric functions
         SprsD vtrans2cut;       // Map between the whole mesh (vertex + translational jump) representation to the vertex-based representation on the cut mesh

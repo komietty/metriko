@@ -8,12 +8,15 @@
 #ifndef METRIKO_ITER_ROUNDING_H
 #define METRIKO_ITER_ROUNDING_H
 #include <algorithm>
-#include "metriko/solver/levenberg_marquardt.h"
+#include "metriko/solver/solve_lm.h"
 #include "metriko/solver/sparse_solver.h"
+#include "metriko/solver/solve_qp.h"
 #include "iter_rounding_common.h"
 #include "injective_barrier.h"
 #include "iter_rounding_init.h"
 #include "iter_rounding_loop.h"
+#include "convex_orientation.h"
+#include "untangle.h"
 
 namespace metriko {
 class CholeskyWrapper {
@@ -114,7 +117,8 @@ public:
         const bool seamless,
         const bool roundSeams,
         const bool locInj,
-        const VecXd& intrinsicField,
+        const VecXd& field, // intrinsic field
+        const MatXc& crnrP, // per face its corners in the face basis
         const std::function<bool(const VecXd& x)> &iter_cb,
         VecXd& fullx
     ) {
@@ -126,11 +130,13 @@ public:
         DiagonalDamping<NI> dd_ni(locInj ? 0.01 : 0);
         LMSolver<CholeskyWrapper, NI, DiagonalDamping<NI> > isLM;
 
-        InjectiveBarrier barrier(N, nF, intrinsicField);
+        InjectiveBarrier barrier(N, nF, field);
 
-        NI ni(G2, Cfull, intrinsicField, fixedIdcs, fixedVals, weightMatrix, length, locInj, N, n, iter_cb, &barrier);
+        NI ni(G2, Cfull, field, fixedIdcs, fixedVals, weightMatrix, length, locInj, N, n, iter_cb, &barrier);
 
         //----- Naive Solution -----//
+        if (!seamless && !locInj) { fullx = ni.x0; return true; }
+
         if (!seamless) {
             // Either it doesn't need loc_inj or it is already loc_inj (because post_iteration has loc_inj check)
             if (!locInj || ni.post_iteration(ni.XF_Small)) { fullx = ni.x0; return true; }

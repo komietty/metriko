@@ -29,17 +29,15 @@ namespace metriko {
                 iT.emplace_back(ir + 1, c, g.dot(f.basisY()));
             }
         }}
-        SprsD G3(3 * N * cut.nF, N * cut.nV);
-        SprsD G2(2 * N * cut.nF, N * cut.nV);
-        G3.setFromTriplets(eT.begin(), eT.end());
-        G2.setFromTriplets(iT.begin(), iT.end());
+        SprsD G3 = sparse(3 * N * cut.nF, N * cut.nV, eT);
+        SprsD G2 = sparse(2 * N * cut.nF, N * cut.nV, iT);
 
         MatXd rawF2(cut.nF, 2 * N);
         for (int i = 0; i < N; i++)
             rawF2.middleCols(2 * i, 2) << ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisX).rowwise().sum(),
                                           ext.middleCols(3 * i, 3).cwiseProduct(cut.faceBasisY).rowwise().sum();
 
-        auto locally_injectivity_check = [&](const VecXd &X) {
+        auto isLI = [&](const VecXd &X) {
             if (!locInj) return false;
             const VecXd NF = fullx2Nfunc * X;
             const MatXd nfn_ = NF.reshaped<Eigen::RowMajor>(cut.nV, N);
@@ -55,7 +53,7 @@ namespace metriko {
             return true;
         };
 
-        SprsD W = SprsD(raw.faceArea.replicate(1, 2 * N).transpose().reshaped().asDiagonal());
+        auto W = SprsD(raw.faceArea.replicate(1, 2 * N).transpose().reshaped().asDiagonal());
         auto l = (cut.pos.colwise().maxCoeff() - cut.pos.colwise().minCoeff()).norm() * gridscale / avg_norm(ext, 3, N, cut.nF);
         auto s = iterative_rounding(fixedIdcs, fixedVals, W, singularIdcs, integerIdcs, l, Cfull, G2 * fullx2Nfunc, N, n, cut.nF, seamless, roundSeams, locInj, rawF2.reshaped<Eigen::RowMajor>().transpose(), locally_injectivity_check, fullx);
 

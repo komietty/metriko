@@ -12,8 +12,7 @@
 
 namespace metriko {
 template <typename T>
-class SeamlessIntegration: public Integration {
-public:
+struct SeamlessIntegration: Integration {
     const SprsD& UFull;
     const double frac;
     VecXd xInit;
