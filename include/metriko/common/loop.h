@@ -58,7 +58,7 @@ inline vec<complex> shortest_path_in_loop(const vec<complex>& loop, int a, int b
         if (i != a && i != b && loop_turn(loop, i) < 1e-6) { idx.push_back(i); pts.push_back(loop[i] + loop_inward(loop, i) * hair); }
 
     const int m = idx.size();
-    vec dist(m, std::numeric_limits<double>::infinity());
+    vec dist(m, INF);
     vec from(m, -1);
     std::priority_queue<std::pair<double, int>, vec<std::pair<double, int>>, std::greater<>> pq;
     dist[0] = 0;

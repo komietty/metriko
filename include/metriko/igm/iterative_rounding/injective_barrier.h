@@ -71,14 +71,14 @@ namespace metriko {
                     double r = (v0(0) * v1(1) - v0(1) * v1(0)) / v; // volume ratio
                     double bar = std::pow(r / s, 3) - 3 * std::pow(r / s, 2) + 3 * r / s;
                     double bar2 = 1. / bar - 1.;
-                    if (r <= 0) bar2 = std::numeric_limits<double>::infinity();
+                    if (r <= 0) bar2 = INF;
                     if (r >= s) bar2 = 0.;
                     fBarrier(N * i + j) = bar2;
                     barSpline(N * i + j) = bar;
 
                     if (updateJ) {
                         double d = 3. * (r * r / (s * s * s)) - 6. * (r / (s * s)) + 3. / s;
-                        if (r <= 0) d = std::numeric_limits<double>::infinity();
+                        if (r <= 0) d = INF;
                         if (r >= s) d = 0;
                         splineDerivative(N * i + j) = d;
                         S.row(N * i + j) << v1(1) / v,
@@ -90,9 +90,8 @@ namespace metriko {
             }
 
             if (updateJ) {
-                constexpr double inf = std::numeric_limits<double>::infinity();
                 VecXd barDer = -splineDerivative.array() / barSpline.array().square();
-                barDer   = (fBarrier.array().abs() < 10e-9).select(0., (fBarrier.array() == inf).select(inf, barDer));
+                barDer   = (fBarrier.array().abs() < 10e-9).select(0., (fBarrier.array() == INF).select(INF, barDer));
                 gBarrier = SprsD(barDer.asDiagonal());
             }
 

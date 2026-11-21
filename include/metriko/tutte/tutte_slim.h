@@ -172,7 +172,7 @@ inline MatXd seamless_slim(
         for (int f = 0; f < nf; ++f) {
             auto   J   = jacobian(uv, f);
             double det = J.determinant();
-            e += det > 0 ? area(f) * J.squaredNorm() * (1 + 1 / (det * det)) : std::numeric_limits<double>::infinity();
+            e += det > 0 ? area(f) * J.squaredNorm() * (1 + 1 / (det * det)) : INF;
         }
         return e;
     };

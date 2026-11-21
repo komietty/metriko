@@ -36,6 +36,7 @@ namespace metriko {
 constexpr double PI = M_PI;
 constexpr double TwoPI = 2 * M_PI;
 constexpr double EPS = 1e-9;
+constexpr double INF = std::numeric_limits<double>::infinity();
 using complex = std::complex<double>;
 using Row2i = Eigen::RowVector2i;
 using Row2d = Eigen::RowVector2d;

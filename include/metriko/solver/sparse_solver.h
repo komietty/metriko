@@ -55,7 +55,7 @@ inline VecXc solve_smallest_eig(const SprsC& L, const SprsC& M, const int maxIte
         x(i) = complex(re, im);
     }
 
-    double s_prev = std::numeric_limits<double>::infinity();
+    double s_prev = INF;
     for (int i = 0; i < maxIter; i++) {
         x = ldlt.solve(M * x);
         x /= std::sqrt(std::abs(x.dot(M * x)));   // x* M x = 1

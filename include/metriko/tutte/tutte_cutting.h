@@ -134,7 +134,7 @@ inline void face_cutting(
         while (cyc.size() > 3) {
             size_t n = cyc.size();
             size_t best_k = n;
-            double best_q = std::numeric_limits<double>::lowest();
+            double best_q = -INF;
             for (size_t k = 0; k < n; ++k) {
                 int va = cyc[(k + n - 1) % n];
                 int vb = cyc[k];

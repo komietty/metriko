@@ -39,7 +39,7 @@ namespace metriko {
             double newEnergy2,
             SprsD& dampJ
         ) {
-            bool f = prvEnergy2 > newEnergy2 && newEnergy2 != std::numeric_limits<double>::infinity();
+            bool f = prvEnergy2 > newEnergy2 && newEnergy2 != INF;
             if (f) currLambda /= 10.;
             else   currLambda *= 10.;
             build_damped_matrix(J, dampJ);

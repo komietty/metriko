@@ -119,7 +119,7 @@ inline void Emesh::collapse_tedge_snap(bool flag) {
 
     // 3: sort candidates in inner/outer order
     for (auto& c: candidates) rg::sort(c, {}, &Cand::d);
-    rg::sort(candidates, {}, [](const vec<Cand>& c) { return c.empty() ? 1e9 : c.front().d; });
+    rg::sort(candidates, {}, [](const vec<Cand>& c) { return c.empty() ? INF : c.front().d; });
 
     // 4: snap if it's valid
     //for (auto& c: candidates)
